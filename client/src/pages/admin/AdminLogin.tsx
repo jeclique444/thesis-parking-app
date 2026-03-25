@@ -1,0 +1,145 @@
+/*
+ * iParkBayan — AdminLogin
+ * Design: Civic Tech / Filipino Urban Identity
+ * Full-screen admin login with navy sidebar and form
+ */
+import { useState } from "react";
+import { useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { Eye, EyeOff, Shield } from "lucide-react";
+
+const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-hero-abdCRj5qo4byPYNgtsGwCp.webp";
+
+export default function AdminLogin() {
+  const [, navigate] = useLocation();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) { toast.error("Please fill in all fields"); return; }
+    setLoading(true);
+    await new Promise((r) => setTimeout(r, 1200));
+    setLoading(false);
+    toast.success("Welcome, Admin!");
+    navigate("/admin/dashboard");
+  };
+
+  return (
+    <div className="min-h-screen flex bg-background">
+      {/* Left Panel — Branding */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+        <img src={HERO_IMG} alt="Parking" className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-br from-[oklch(0.18_0.06_255/0.92)] to-[oklch(0.18_0.06_255/0.75)]" />
+        <div className="absolute inset-0 flex flex-col justify-between p-12">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="oklch(0.18 0.06 255)">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+              </svg>
+            </div>
+            <span className="text-xl font-extrabold text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              iPark<span className="text-amber-400">Bayan</span>
+            </span>
+          </div>
+          <div>
+            <h1 className="text-4xl font-extrabold text-white leading-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              Smart Parking<br />Management
+            </h1>
+            <p className="text-white/70 mt-3 text-base">
+              Monitor real-time parking availability, manage reservations, and generate reports for Lipa City Downtown.
+            </p>
+            <div className="grid grid-cols-3 gap-4 mt-8">
+              {[
+                { label: "Total Slots", value: "92" },
+                { label: "Active Users", value: "156" },
+                { label: "Today's Bookings", value: "28" },
+              ].map(({ label, value }) => (
+                <div key={label} className="bg-white/10 rounded-xl p-3 text-center">
+                  <p className="text-2xl font-extrabold text-white">{value}</p>
+                  <p className="text-[11px] text-white/60">{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <p className="text-white/40 text-xs">De La Salle Lipa · IT3C Group 9 · 2026</p>
+        </div>
+      </div>
+
+      {/* Right Panel — Login Form */}
+      <div className="flex-1 flex items-center justify-center px-8 py-12">
+        <div className="w-full max-w-sm">
+          {/* Mobile logo */}
+          <div className="flex items-center gap-2 mb-8 lg:hidden">
+            <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+              </svg>
+            </div>
+            <span className="text-xl font-extrabold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>iParkBayan</span>
+          </div>
+
+          <div className="flex items-center gap-2 mb-2">
+            <Shield size={18} className="text-primary" />
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Admin Portal</span>
+          </div>
+          <h2 className="text-3xl font-extrabold text-foreground mb-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            Sign In
+          </h2>
+          <p className="text-muted-foreground text-sm mb-8">Access the parking management dashboard</p>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold">Email Address</Label>
+              <Input
+                type="email"
+                placeholder="admin@iparkbayan.ph"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="h-12 rounded-xl bg-muted/40"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm font-semibold">Password</Label>
+              <div className="relative">
+                <Input
+                  type={showPass ? "text" : "password"}
+                  placeholder="Enter password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="h-12 rounded-xl bg-muted/40 pr-12"
+                />
+                <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full h-12 text-base font-bold rounded-xl mt-2"
+              style={{ background: "oklch(0.22 0.07 255)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+            >
+              {loading ? "Signing in..." : "Sign In to Dashboard"}
+            </Button>
+          </form>
+
+          <div className="mt-4 p-3 rounded-xl bg-primary/5 border border-primary/10">
+            <p className="text-xs text-primary/80 text-center font-medium">
+              Demo: Enter any email & password to access
+            </p>
+          </div>
+
+          <button onClick={() => navigate("/")} className="mt-6 text-sm text-muted-foreground hover:text-foreground transition-colors block text-center w-full">
+            ← Back to Driver App
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

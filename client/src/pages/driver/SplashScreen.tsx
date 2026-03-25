@@ -1,0 +1,139 @@
+/*
+ * iParkBayan — SplashScreen / Landing
+ * Design: Civic Tech / Filipino Urban Identity
+ * Features: Auth Check (Auto-Login) & Enhanced Navigation
+ */
+import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import { MapPin, Shield, Clock, ChevronRight, Loader2 } from "lucide-react";
+import { supabase } from "../../supabaseClient";
+
+const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-hero-abdCRj5qo4byPYNgtsGwCp.webp";
+const LOGO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-logo-bg-6aFnZw8pmN7ddSm5j3w2s6.webp";
+
+const features = [
+  { icon: MapPin, title: "Real-Time Availability", desc: "See open slots instantly as they update" },
+  { icon: Shield, title: "Secure Reservations", desc: "Book your slot in advance with confidence" },
+  { icon: Clock, title: "Save Time", desc: "No more circling — go straight to your spot" },
+];
+
+export default function SplashScreen() {
+  const [, navigate] = useLocation();
+  const [loaded, setLoaded] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (data?.user) {
+          // Kung naka-login na, diretso sa Home
+          navigate("/home");
+        } else {
+          // Kung hindi pa, ipakita ang splash screen
+          setCheckingAuth(false);
+          setTimeout(() => setLoaded(true), 100);
+        }
+      } catch (error) {
+        setCheckingAuth(false);
+        setTimeout(() => setLoaded(true), 100);
+      }
+    };
+    
+    checkUser();
+  }, [navigate]);
+
+  if (checkingAuth) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-[#0A1D37]">
+        <Loader2 className="animate-spin text-white opacity-20" size={32} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mobile-shell flex flex-col overflow-hidden bg-white">
+      {/* Hero Section */}
+      <div className="relative h-[52vh] overflow-hidden">
+        <img
+          src={HERO_IMG}
+          alt="Smart Parking"
+          className="w-full h-full object-cover scale-110"
+        />
+        {/* Gradient overlay - Using Deep Navy to match Profile */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0A1D37]/40 via-[#0A1D37]/20 to-[#0A1D37]" />
+
+        {/* Logo & Title */}
+        <div className={`absolute inset-0 flex flex-col items-center justify-end pb-10 px-6 transition-all duration-1000 ${loaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+          <img src={LOGO_IMG} alt="iParkBayan" className="w-20 h-20 rounded-[2rem] shadow-2xl mb-6 border-4 border-white/10" />
+          <h1 className="text-4xl font-black text-white text-center tracking-tighter" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            iPark<span className="text-amber-400">Bayan</span>
+          </h1>
+          <p className="text-white/70 text-xs text-center mt-2 font-bold uppercase tracking-[0.2em]">
+            Lipa City Downtown
+          </p>
+        </div>
+      </div>
+
+      {/* Bottom Sheet */}
+      <div className={`flex-1 bg-white rounded-t-[2.5rem] -mt-8 px-8 pt-10 pb-10 flex flex-col shadow-2xl transition-all duration-1000 delay-300 ${loaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-20"}`}>
+        
+        {/* Features List */}
+        <div className="space-y-6 mb-8">
+          {features.map(({ icon: Icon, title, desc }) => (
+            <div key={title} className="flex items-center gap-4 group">
+              <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100 group-hover:scale-110 transition-transform">
+                <Icon size={20} className="text-[#0A1D37]" />
+              </div>
+              <div>
+                <p className="text-sm font-black text-slate-800 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{title}</p>
+                <p className="text-[11px] text-slate-400 font-bold mt-0.5 leading-tight">{desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="space-y-3 mt-auto">
+          <Button
+            onClick={() => navigate("/register")}
+            className="w-full h-15 py-7 text-sm font-black rounded-[1.25rem] shadow-xl hover:opacity-90 transition-all active:scale-95 flex items-center justify-center gap-2"
+            style={{ 
+              background: "#0A1D37", 
+              color: "white",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              letterSpacing: "0.05em"
+            }}
+          >
+            GET STARTED
+            <ChevronRight size={18} />
+          </Button>
+          
+          <Button
+            onClick={() => navigate("/login")}
+            variant="outline"
+            className="w-full h-15 py-7 text-sm font-black rounded-[1.25rem] border-2 border-slate-100 text-slate-600 hover:bg-slate-50 transition-all active:scale-95"
+            style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "0.05em" }}
+          >
+            SIGN IN
+          </Button>
+
+          <button
+            onClick={() => navigate("/admin")}
+            className="w-full text-center text-[10px] font-black text-slate-300 hover:text-[#0A1D37] transition-colors py-2 tracking-widest uppercase mt-2"
+          >
+            Administrator Access →
+          </button>
+        </div>
+
+        {/* Footer info */}
+        <div className="mt-6 pt-6 border-t border-slate-50">
+          <p className="text-center text-[9px] font-bold text-slate-300 uppercase tracking-widest">
+            De La Salle Lipa • IT3C Group 9
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
