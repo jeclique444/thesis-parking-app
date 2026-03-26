@@ -280,7 +280,7 @@ export default function DriverHome() {
           ) : (
             <div className="bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-6 text-center">
               <p className="text-xs text-muted-foreground font-medium">No active reservations found.</p>
-              <p className="text-[9px] text-muted-foreground/60 mt-1 italic">Make sure your status is 'active' or 'reserved'</p>
+              <p className="text-[9px] text-muted-foreground/60 mt-1 italic"></p>
             </div>
           )}
         </div>
