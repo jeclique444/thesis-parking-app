@@ -135,7 +135,7 @@ export default function DigitalReceiptPage() {
   if (!res) return <MobileLayout title="Error" showBack><div className="p-10 text-center">Receipt not found.</div></MobileLayout>;
 
   return (
-    <MobileLayout title="Digital Receipt" showBack onBack={() => navigate("/home")}>
+    <MobileLayout title="Digital Receipt" showBack onBack={() => navigate("/reservations")}>
       <div className="page-enter p-6 space-y-6 bg-slate-50 min-h-screen">
         
         {/* TICKET CONTAINER */}

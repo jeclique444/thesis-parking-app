@@ -1,31 +1,19 @@
 /*
- * iParkBayan — AdminDashboard
+ * iParkBayan — AdminDashboard (Supabase Connected - Super Admin & Manager)
  * Design: Civic Tech / Filipino Urban Identity
- * Main admin overview with stats, occupancy chart, recent reservations
  */
 import AdminLayout from "@/components/AdminLayout";
-import { adminStats, mockReservations, parkingLots } from "@/lib/data";
-import { ParkingSquare, Users, BookOpen, TrendingUp, Activity } from "lucide-react";
+import { supabase } from "@/supabaseClient"; 
+import { useEffect, useState } from "react";
+import { ParkingSquare, Users, BookOpen, TrendingUp, Activity, Loader2 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { cn } from "@/lib/utils";
 
+// Static mock for weekly chart
 const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const weeklyData = adminStats.weeklyOccupancy.map((v, i) => ({ day: weekDays[i], occupancy: v }));
+const weeklyData = [40, 55, 60, 45, 70, 85, 50].map((v, i) => ({ day: weekDays[i], occupancy: v }));
 
-const pieData = [
-  { name: "Available", value: adminStats.availableSlots, color: "oklch(0.65 0.18 145)" },
-  { name: "Occupied", value: adminStats.occupiedSlots, color: "oklch(0.60 0.22 25)" },
-  { name: "Reserved", value: adminStats.reservedSlots, color: "oklch(0.77 0.18 72)" },
-];
-
-const statCards = [
-  { label: "Total Slots", value: adminStats.totalSlots, icon: ParkingSquare, color: "bg-primary/10 text-primary", change: null },
-  { label: "Available Now", value: adminStats.availableSlots, icon: Activity, color: "bg-emerald-100 text-emerald-700", change: "+3" },
-  { label: "Today's Bookings", value: adminStats.todayReservations, icon: BookOpen, color: "bg-amber-100 text-amber-700", change: "+5" },
-  { label: "Active Users", value: adminStats.activeUsers, icon: Users, color: "bg-blue-100 text-blue-700", change: "+12" },
-];
-
-const statusColors = {
+const statusColors: Record<string, string> = {
   active: "bg-emerald-100 text-emerald-700",
   completed: "bg-muted text-muted-foreground",
   cancelled: "bg-rose-100 text-rose-700",
@@ -33,22 +21,206 @@ const statusColors = {
 };
 
 export default function AdminDashboard() {
+  const [isLoading, setIsLoading] = useState(true);
+  
+  const [userRole, setUserRole] = useState<string>(""); 
+  
+  // Dashboard States
+  const [stats, setStats] = useState({
+    totalSlots: 0,
+    availableSlots: 0,
+    occupiedSlots: 0,
+    reservedSlots: 0,
+    todayReservations: 0,
+    activeUsers: 0 
+  });
+  
+  const [lotsOverview, setLotsOverview] = useState<any[]>([]);
+  const [recentReservations, setRecentReservations] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    setIsLoading(true);
+    try {
+      // 0. KUNIN ANG ROLE AT ASSIGNED LOT NG CURRENT USER
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      let currentRole = "";
+      let managerLotId = null;
+
+      if (user) {
+        // TAMA NA ANG COLUMN NAME: 'lot_id' base sa database mo
+        const { data: profileData, error: profileError } = await supabase
+          .from("admin_profiles")
+          .select("role, lot_id") 
+          .eq("id", user.id)
+          .single();
+
+        if (profileError) {
+          console.error("Error fetching admin profile:", profileError.message);
+        }
+
+        if (profileData && profileData.role) {
+          currentRole = profileData.role.toLowerCase();
+          managerLotId = profileData.lot_id;
+          setUserRole(currentRole);
+          console.log("ROLE:", currentRole, "| ASSIGNED LOT_ID:", managerLotId);
+        }
+      }
+
+      // ==========================================
+      // START NG PAG-FETCH NA MAY FILTERING
+      // ==========================================
+
+      // 1. Fetch Parking Slots (May filter kung Manager)
+      let slotsQuery = supabase.from("parking_slots").select("status, lot_id");
+      if (currentRole === "manager" && managerLotId) {
+        slotsQuery = slotsQuery.eq("lot_id", managerLotId);
+      }
+      const { data: slotsData } = await slotsQuery;
+      
+      let total = 0, available = 0, occupied = 0, reserved = 0;
+      const lotSlotCounts: Record<string, { total: number, available: number }> = {};
+
+      if (slotsData) {
+        total = slotsData.length;
+        slotsData.forEach(slot => {
+          if (slot.status === 'available') available++;
+          if (slot.status === 'occupied') occupied++;
+          if (slot.status === 'reserved') reserved++;
+
+          if (!lotSlotCounts[slot.lot_id]) {
+            lotSlotCounts[slot.lot_id] = { total: 0, available: 0 };
+          }
+          lotSlotCounts[slot.lot_id].total++;
+          if (slot.status === 'available') lotSlotCounts[slot.lot_id].available++;
+        });
+      }
+
+      // 2. Fetch Parking Lots (May filter kung Manager)
+      let lotsQuery = supabase.from("parking_lots").select("id, name");
+      if (currentRole === "manager" && managerLotId) {
+        lotsQuery = lotsQuery.eq("id", managerLotId); // Dito id pinapantay natin sa lot_id ng manager
+      }
+      const { data: lotsData } = await lotsQuery;
+      
+      const formattedLots = (lotsData || []).map(lot => ({
+        id: lot.id,
+        name: lot.name,
+        totalSlots: lotSlotCounts[lot.id]?.total || 0,
+        availableSlots: lotSlotCounts[lot.id]?.available || 0,
+      }));
+
+      // 3. Fetch Today's Reservations (May filter kung Manager)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      let todayResQuery = supabase
+        .from("reservations")
+        .select("*", { count: 'exact', head: true })
+        .gte("start_time", today.toISOString());
+        
+      if (currentRole === "manager" && managerLotId) {
+        // Tandaan: Assuming na 'lot_id' ang foreign key mo rin sa reservations table.
+        todayResQuery = todayResQuery.eq("lot_id", managerLotId); 
+      }
+      const { count: todayCount } = await todayResQuery;
+
+      // 4. Fetch Recent Reservations (May filter kung Manager)
+      let recentResQuery = supabase
+        .from("reservations")
+        .select("id, start_time, end_time, created_at, total_amount, status, parking_lots(name), parking_slots(label)") 
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (currentRole === "manager" && managerLotId) {
+        recentResQuery = recentResQuery.eq("lot_id", managerLotId);
+      }
+
+      const { data: reservationsData, error: fetchError } = await recentResQuery;
+
+      if (fetchError) {
+        console.error("Error sa Reservations:", fetchError.message);
+      }
+
+      const formattedReservations = (reservationsData || []).map((res: any) => ({
+        id: res.id.substring(0, 8), 
+        lotName: res.parking_lots?.name || "Unknown", 
+        slotLabel: res.parking_slots?.label || "N/A", 
+        date: res.created_at 
+            ? new Date(res.created_at).toLocaleDateString('en-PH', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+              }) 
+            : "No Date", 
+        amount: res.total_amount || 0,
+        status: res.status
+      }));
+
+      // Update State
+      setStats({
+        totalSlots: total,
+        availableSlots: available,
+        occupiedSlots: occupied,
+        reservedSlots: reserved,
+        todayReservations: todayCount || 0,
+        activeUsers: 124 // Default mock active users
+      });
+      setLotsOverview(formattedLots);
+      setRecentReservations(formattedReservations);
+
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const pieData = [
+    { name: "Available", value: stats.availableSlots, color: "oklch(0.65 0.18 145)" },
+    { name: "Occupied", value: stats.occupiedSlots, color: "oklch(0.60 0.22 25)" },
+    { name: "Reserved", value: stats.reservedSlots, color: "oklch(0.77 0.18 72)" },
+  ];
+
+  // LOGIC PARA SA STAT CARDS
+  const statCards = [
+    { label: "Total Slots", value: stats.totalSlots, icon: ParkingSquare, color: "bg-primary/10 text-primary", change: null },
+    { label: "Available Now", value: stats.availableSlots, icon: Activity, color: "bg-emerald-100 text-emerald-700", change: null },
+    { label: "Today's Bookings", value: stats.todayReservations, icon: BookOpen, color: "bg-amber-100 text-amber-700", change: null },
+  ];
+
+  const isSuperAdmin = userRole === "superadmin";
+
+  if (isSuperAdmin) {
+    statCards.push({ label: "Active Users", value: stats.activeUsers, icon: Users, color: "bg-blue-100 text-blue-700", change: null });
+  }
+
+  if (isLoading) {
+    return (
+      <AdminLayout title="Dashboard">
+        <div className="flex h-[60vh] items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        </div>
+      </AdminLayout>
+    );
+  }
+
   return (
     <AdminLayout title="Dashboard">
       <div className="space-y-6">
+        
         {/* Stat Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className={cn("grid gap-4", isSuperAdmin ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-1 lg:grid-cols-3")}>
           {statCards.map(({ label, value, icon: Icon, color, change }) => (
             <div key={label} className="bg-white rounded-2xl p-4 card-elevated">
               <div className="flex items-start justify-between mb-3">
                 <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", color)}>
                   <Icon size={20} />
                 </div>
-                {change && (
-                  <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
-                    {change}
-                  </span>
-                )}
               </div>
               <p className="text-3xl font-extrabold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{value}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
@@ -58,8 +230,9 @@ export default function AdminDashboard() {
 
         {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          
           {/* Weekly Occupancy Bar Chart */}
-          <div className="lg:col-span-2 bg-white rounded-2xl p-5 card-elevated">
+          <div className={cn("bg-white rounded-2xl p-5 card-elevated", userRole === "manager" ? "lg:col-span-2" : "lg:col-span-3")}>
             <h3 className="text-sm font-bold text-foreground mb-4" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               Weekly Occupancy Rate (%)
             </h3>
@@ -77,67 +250,73 @@ export default function AdminDashboard() {
             </ResponsiveContainer>
           </div>
 
-          {/* Pie Chart */}
-          <div className="bg-white rounded-2xl p-5 card-elevated">
-            <h3 className="text-sm font-bold text-foreground mb-4" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              Slot Status
-            </h3>
-            <ResponsiveContainer width="100%" height={140}>
-              <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3} dataKey="value">
-                  {pieData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ borderRadius: "12px", border: "none", fontSize: "12px" }} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="space-y-1.5 mt-2">
-              {pieData.map(({ name, value, color }) => (
-                <div key={name} className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-sm" style={{ background: color }} />
-                    <span className="text-muted-foreground">{name}</span>
+          {/* Pie Chart - KITA LAMANG NG MANAGER */}
+          {userRole === "manager" && (
+            <div className="bg-white rounded-2xl p-5 card-elevated">
+              <h3 className="text-sm font-bold text-foreground mb-4" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                Slot Status
+              </h3>
+              <ResponsiveContainer width="100%" height={140}>
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={65} paddingAngle={3} dataKey="value">
+                    {pieData.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: "12px", border: "none", fontSize: "12px" }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-1.5 mt-2">
+                {pieData.map(({ name, value, color }) => (
+                  <div key={name} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2.5 h-2.5 rounded-sm" style={{ background: color }} />
+                      <span className="text-muted-foreground">{name}</span>
+                    </div>
+                    <span className="font-bold text-foreground">{value}</span>
                   </div>
-                  <span className="font-bold text-foreground">{value}</span>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Parking Lots Status */}
+        {/* Parking Lots Overview */}
         <div className="bg-white rounded-2xl p-5 card-elevated">
           <h3 className="text-sm font-bold text-foreground mb-4" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
             Parking Lots Overview
           </h3>
           <div className="space-y-3">
-            {parkingLots.map((lot) => {
-              const pct = Math.round((lot.availableSlots / lot.totalSlots) * 100);
-              return (
-                <div key={lot.id} className="flex items-center gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-semibold text-foreground truncate">{lot.name}</p>
-                      <span className="text-xs text-muted-foreground shrink-0 ml-2">{lot.availableSlots}/{lot.totalSlots}</span>
+            {lotsOverview.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">No parking lots found.</p>
+            ) : (
+              lotsOverview.map((lot) => {
+                const pct = lot.totalSlots === 0 ? 0 : Math.round((lot.availableSlots / lot.totalSlots) * 100);
+                return (
+                  <div key={lot.id} className="flex items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-sm font-semibold text-foreground truncate">{lot.name}</p>
+                        <span className="text-xs text-muted-foreground shrink-0 ml-2">{lot.availableSlots}/{lot.totalSlots}</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={cn("h-full rounded-full transition-all", pct > 50 ? "bg-emerald-500" : pct > 20 ? "bg-amber-500" : "bg-rose-500")}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className={cn("h-full rounded-full transition-all", pct > 50 ? "bg-emerald-500" : pct > 20 ? "bg-amber-500" : "bg-rose-500")}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
+                    <span className={cn("text-xs font-bold shrink-0", pct > 50 ? "text-emerald-600" : pct > 20 ? "text-amber-600" : "text-rose-600")}>
+                      {pct}%
+                    </span>
                   </div>
-                  <span className={cn("text-xs font-bold shrink-0", pct > 50 ? "text-emerald-600" : pct > 20 ? "text-amber-600" : "text-rose-600")}>
-                    {pct}%
-                  </span>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
-        {/* Recent Reservations */}
+        {/* Recent Reservations Table */}
         <div className="bg-white rounded-2xl p-5 card-elevated">
           <h3 className="text-sm font-bold text-foreground mb-4" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
             Recent Reservations
@@ -155,20 +334,28 @@ export default function AdminDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {mockReservations.map((res) => (
-                  <tr key={res.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="py-2.5 font-mono text-xs text-muted-foreground">{res.id}</td>
-                    <td className="py-2.5 font-medium truncate max-w-[140px]">{res.lotName}</td>
-                    <td className="py-2.5 font-bold">{res.slotLabel}</td>
-                    <td className="py-2.5 text-muted-foreground text-xs">{res.date}</td>
-                    <td className="py-2.5 font-bold text-primary">{res.amount === 0 ? "Free" : `₱${res.amount}`}</td>
-                    <td className="py-2.5">
-                      <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full capitalize", statusColors[res.status])}>
-                        {res.status}
-                      </span>
+                {recentReservations.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-4 text-muted-foreground text-xs">
+                      No recent reservations found.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  recentReservations.map((res) => (
+                    <tr key={res.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="py-2.5 font-mono text-xs text-muted-foreground">{res.id}</td>
+                      <td className="py-2.5 font-medium truncate max-w-[140px]">{res.lotName}</td>
+                      <td className="py-2.5 font-bold">{res.slotLabel}</td>
+                      <td className="py-2.5 text-muted-foreground text-xs">{res.date}</td>
+                      <td className="py-2.5 font-bold text-primary">{res.amount === 0 ? "Free" : `₱${res.amount}`}</td>
+                      <td className="py-2.5">
+                        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full capitalize", statusColors[res.status] || "bg-gray-100 text-gray-700")}>
+                          {res.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

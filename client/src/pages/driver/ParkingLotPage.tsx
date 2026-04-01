@@ -1,12 +1,11 @@
 /*
- * iParkBayan — ParkingLotPage (Connected to Supabase)
- * Design: Civic Tech / Filipino Urban Identity
+ * iParkBayan — ParkingLotPage (With Status Protection)
  */
 import { useEffect, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import MobileLayout from "@/components/MobileLayout";
 import ParkingSlotGrid from "@/components/parking/ParkingSlotGrid";
-import { MapPin, Clock, Car, ChevronRight, Info } from "lucide-react";
+import { MapPin, Clock, Car, ChevronRight, Info, AlertTriangle, Ban } from "lucide-react"; // Nagdagdag ng icons
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -35,6 +34,7 @@ export default function ParkingLotPage() {
       if (lotError) throw lotError;
       setLot(lotData);
 
+      // Fetch slots
       const { data: slotsData, error: slotsError } = await supabase
         .from("parking_slots")
         .select("*")
@@ -71,6 +71,12 @@ export default function ParkingLotPage() {
   }, [params?.id]);
 
   const handleReserve = () => {
+    // 🔥 Protection: Bawal mag-reserve kung suspended
+    if (lot?.status === 'suspended') {
+      toast.error("This location is currently unavailable.");
+      return;
+    }
+
     if (!selectedSlot) {
       toast.error("Please select an available slot first");
       return;
@@ -90,17 +96,33 @@ export default function ParkingLotPage() {
 
   if (!lot) return null;
 
-  // Stats calculation
-  const totalCount = slots.length;
+  const isSuspended = lot.status === 'suspended';
   const availableCount = slots.filter(s => s.status === 'available').length;
-  const reservedCount = slots.filter(s => s.status === 'reserved').length;
-  const occupiedCount = slots.filter(s => s.status === 'occupied').length;
 
   return (
     <MobileLayout title={lot.name} showBack onBack={() => navigate("/home")}>
       <div className="page-enter">
+        
+        {/* 🔥 NEW: SUSPENSION NOTICE CARD */}
+        {isSuspended && (
+          <div className="mx-4 mt-4 p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl flex items-start gap-3 animate-in fade-in zoom-in-95 duration-300">
+            <div className="bg-amber-100 p-2 rounded-full text-amber-600">
+              <Ban size={20} />
+            </div>
+            <div>
+              <h4 className="font-bold text-amber-900 leading-none">Temporarily Unavailable</h4>
+              <p className="text-[11px] text-amber-700 mt-1.5 font-medium leading-relaxed">
+                This parking establishment is currently suspended. Reservations are disabled until further notice.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Lot Info Card */}
-        <div className="mx-4 mt-4 bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+        <div className={cn(
+          "mx-4 mt-4 bg-white rounded-2xl p-4 shadow-sm border border-gray-100 transition-opacity",
+          isSuspended && "opacity-60 grayscale-[0.5]"
+        )}>
           <div className="flex items-start justify-between mb-3">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
@@ -112,9 +134,9 @@ export default function ParkingLotPage() {
                 </Badge>
                 <span className={cn(
                   "text-[10px] font-bold px-2 py-0.5 rounded-full",
-                  availableCount > 0 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"
+                  isSuspended ? "bg-gray-200 text-gray-600" : (availableCount > 0 ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700")
                 )}>
-                  {availableCount > 0 ? `${availableCount} Available` : "Full"}
+                  {isSuspended ? "Inactive" : (availableCount > 0 ? `${availableCount} Available` : "Full")}
                 </span>
               </div>
               <div className="flex items-center gap-1 text-muted-foreground">
@@ -123,30 +145,10 @@ export default function ParkingLotPage() {
               </div>
             </div>
             <div className="text-right">
-              <p className="text-lg font-extrabold text-[oklch(0.22_0.07_255)]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              <p className="text-lg font-extrabold text-[oklch(0.22_0.07_255)]">
                 {lot.rate_per_hour === 0 ? "Free" : `₱${lot.rate_per_hour}`}
               </p>
               {lot.rate_per_hour > 0 && <p className="text-[10px] text-muted-foreground font-medium">per hour</p>}
-            </div>
-          </div>
-
-          {/* Stats Grid - Updated to 4 Columns */}
-          <div className="grid grid-cols-4 gap-1 pt-3 border-t border-gray-100 mt-3 text-center">
-            <div>
-              <p className="text-sm font-bold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{totalCount}</p>
-              <p className="text-[9px] text-muted-foreground font-bold uppercase">Total</p>
-            </div>
-            <div className="border-l border-gray-100">
-              <p className="text-sm font-bold text-emerald-600" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{availableCount}</p>
-              <p className="text-[9px] text-muted-foreground font-bold uppercase">Available</p>
-            </div>
-            <div className="border-l border-gray-100">
-              <p className="text-sm font-bold text-amber-500" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{reservedCount}</p>
-              <p className="text-[9px] text-muted-foreground font-bold uppercase">Reserved</p>
-            </div>
-            <div className="border-l border-gray-100">
-              <p className="text-sm font-bold text-rose-600" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{occupiedCount}</p>
-              <p className="text-[9px] text-muted-foreground font-bold uppercase">Occupied</p>
             </div>
           </div>
 
@@ -157,37 +159,36 @@ export default function ParkingLotPage() {
         </div>
 
         {/* Slot Grid Section */}
-        <div className="mx-4 mt-4 bg-white rounded-2xl p-4 shadow-sm border border-gray-100 pb-6">
+        <div className={cn(
+          "mx-4 mt-4 bg-white rounded-2xl p-4 shadow-sm border border-gray-100 pb-6 transition-all",
+          isSuspended && "pointer-events-none opacity-40" // 🔥 Bawal pindutin ang slots
+        )}>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Select a Slot</h3>
-            <div className="flex items-center gap-1 text-[10px] text-muted-foreground font-medium">
-              <Info size={12} />
-              <span>Tap green slot to select</span>
-            </div>
+            <h3 className="text-sm font-bold text-foreground">Select a Slot</h3>
+            {!isSuspended && (
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground font-medium">
+                <Info size={12} />
+                <span>Tap green slot to select</span>
+              </div>
+            )}
           </div>
 
-          {slots.length > 0 ? (
-            <ParkingSlotGrid
-              slots={slots}
-              selectedSlot={selectedSlot?.id}
-              onSelectSlot={setSelectedSlot}
-              interactive={lot.type !== "public"}
-            />
-          ) : (
-            <div className="p-8 bg-gray-50 rounded-xl text-center border border-dashed text-xs text-muted-foreground">
-              No specific slot layout available.
-            </div>
-          )}
+          <ParkingSlotGrid
+            slots={slots}
+            selectedSlot={selectedSlot?.id}
+            onSelectSlot={setSelectedSlot}
+            interactive={!isSuspended && lot.type !== "public"} // 🔥 Disable interaction pag suspended
+          />
         </div>
 
         {/* Floating Selected Slot Info */}
-        {selectedSlot && (
+        {selectedSlot && !isSuspended && (
           <div className="mx-4 mt-3 p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
             <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center shadow-sm">
               <Car size={18} className="text-[oklch(0.22_0.07_255)]" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-bold text-[oklch(0.22_0.07_255)]" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              <p className="text-sm font-bold text-[oklch(0.22_0.07_255)]">
                 Slot {selectedSlot.label} Selected
               </p>
               <p className="text-xs text-muted-foreground font-medium">₱{lot.rate_per_hour}/hr · {lot.name}</p>
@@ -200,16 +201,16 @@ export default function ParkingLotPage() {
         <div className="mx-4 mt-6 mb-8">
           <Button
             onClick={handleReserve}
-            disabled={!selectedSlot || lot.type === "public"}
-            className="w-full h-14 text-base font-bold rounded-xl shadow-lg transition-all active:scale-[0.98]"
+            // 🔥 Disable button pag suspended
+            disabled={isSuspended || !selectedSlot || lot.type === "public"}
+            className="w-full h-14 text-base font-bold rounded-xl shadow-lg transition-all"
             style={{ 
-              background: selectedSlot ? "oklch(0.22 0.07 255)" : "oklch(0.8 0.02 255)", 
-              color: selectedSlot ? "white" : "gray",
-              fontFamily: "'Plus Jakarta Sans', sans-serif" 
+              background: isSuspended ? "#cbd5e1" : (selectedSlot ? "oklch(0.22 0.07 255)" : "oklch(0.8 0.02 255)"), 
+              color: isSuspended ? "#94a3b8" : (selectedSlot ? "white" : "gray"),
             }}
           >
-            {selectedSlot ? `Reserve Slot ${selectedSlot.label}` : "Select a Slot to Reserve"}
-            {selectedSlot && <ChevronRight size={18} className="ml-1" />}
+            {isSuspended ? "Location Suspended" : (selectedSlot ? `Reserve Slot ${selectedSlot.label}` : "Select a Slot to Reserve")}
+            {!isSuspended && selectedSlot && <ChevronRight size={18} className="ml-1" />}
           </Button>
         </div>
       </div>

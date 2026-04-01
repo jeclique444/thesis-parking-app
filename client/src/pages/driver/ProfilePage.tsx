@@ -140,6 +140,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Action Menu */}
+       {/* Action Menu */}
         <div className="bg-white rounded-[2rem] overflow-hidden border border-slate-100 shadow-sm">
           <ProfileMenuItem 
             icon={<Car size={18} />} 
@@ -151,18 +152,22 @@ export default function ProfilePage() {
             icon={<BookOpen size={18} />} 
             title="Reservation History" 
             label="View all logs"
-            onClick={() => navigate("/bookings")} 
+            // Sa App.tsx mo, ang path ay "/reservations" para sa BookingPage
+            onClick={() => navigate("/reservations")} 
           />
           <ProfileMenuItem 
             icon={<Bell size={18} />} 
             title="Notifications" 
             label="Recent alerts"
-            onClick={() => navigate("/alerts")} 
+            // Sa App.tsx mo, ang path ay "/notifications"
+            onClick={() => navigate("/notifications")} 
           />
           <ProfileMenuItem 
             icon={<ShieldCheck size={18} />} 
             title="Security Settings" 
             label="Password & Privacy"
+            // Karaniwang papunta ito sa update-password page
+            onClick={() => navigate("/update-password")}
             isLast
           />
         </div>
@@ -186,9 +191,10 @@ function ProfileMenuItem({ icon, title, label, onClick, isLast }: any) {
   return (
     <button 
       onClick={onClick}
-     className={`w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors ${
-  !isLast ? "border-b border-slate-50" : ""
-}`}
+      className={cn(
+        "w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-all active:bg-slate-100 text-left",
+        !isLast && "border-b border-slate-50"
+      )}
     >
       <div className="flex items-center gap-4">
         <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100">

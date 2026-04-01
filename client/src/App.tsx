@@ -22,7 +22,7 @@ import ParkingLotPage from "./pages/driver/ParkingLotPage";
 import ReservationPage from "./pages/driver/ReservationPage";
 import ReservationConfirmPage from "./pages/driver/ReservationConfirmPage";
 import DigitalReceiptPage from "./pages/driver/DigitalReceipt"; 
-import MyReservationsPage from "./pages/driver/MyReservationsPage";
+import BookingPage from "./pages/driver/BookingPage";
 import ProfilePage from "./pages/driver/ProfilePage";
 import VehiclesPage from "./pages/driver/VehiclesPage";
 import NotificationsPage from "./pages/driver/NotificationsPage";
@@ -30,9 +30,12 @@ import NotificationsPage from "./pages/driver/NotificationsPage";
 // Admin Pages
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminParkingLots from "./pages/admin/AdminParkingLots"; // I-adjust kung iba ang folder mo
 import AdminParkingSlots from "./pages/admin/AdminParkingSlots";
 import AdminReservations from "./pages/admin/AdminReservations";
 import AdminReports from "./pages/admin/AdminReports";
+import AdminPersonnel from "./pages/admin/AdminPersonnel";
+import AdminScanner from "./pages/admin/AdminScanner"; // Ayusin mo ang path kung saan mo man isinave
 import AdminSettings from "./pages/admin/AdminSettings";
 
 function Router() {
@@ -50,7 +53,7 @@ function Router() {
       {/* 3. STATIC DRIVER PAGES */}
       <Route path="/home" component={DriverHome} />
       <Route path="/map" component={ParkingMapPage} />
-      <Route path="/reservations" component={MyReservationsPage} />
+      <Route path="/reservations" component={BookingPage} />
       <Route path="/profile" component={ProfilePage} />
       <Route path="/vehicles" component={VehiclesPage} />
       <Route path="/notifications" component={NotificationsPage} />
@@ -58,9 +61,12 @@ function Router() {
       {/* 4. ADMIN SECTION */}
       <Route path="/admin" component={AdminLogin} />
       <Route path="/admin/dashboard" component={AdminDashboard} />
+      <Route path="/admin/lots" component={AdminParkingLots} />
       <Route path="/admin/slots" component={AdminParkingSlots} />
       <Route path="/admin/reservations" component={AdminReservations} />
       <Route path="/admin/reports" component={AdminReports} />
+      <Route path="/admin/personnel" component={AdminPersonnel} />
+      <Route path="/admin/scanner" component={AdminScanner} />
       <Route path="/admin/settings" component={AdminSettings} />
 
       {/* 5. DYNAMIC ROUTES (Dapat laging nasa huli) */}

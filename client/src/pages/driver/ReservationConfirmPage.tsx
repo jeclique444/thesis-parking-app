@@ -117,7 +117,7 @@ const handlePayment = async () => {
       const { data: newRes, error: resError } = await supabase
         .from("reservations")
         .insert({
-          user_id: user.id,
+          user_id: user.id, 
           lot_id: lotId,
           slot_id: slotId,
           plate_number: plateNumber?.toUpperCase(),

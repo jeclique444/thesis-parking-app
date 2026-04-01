@@ -1,87 +1,221 @@
+/*
+ * iParkBayan — AdminParkingSlots (Real Database Version with CRUD)
+ */
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/AdminLayout";
-import { parkingLots, type ParkingSlot, type SlotStatus } from "@/lib/data";
 import ParkingSlotGrid from "@/components/parking/ParkingSlotGrid";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Car, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/supabaseClient"; // Make sure this path is correct!
+import { supabase } from "@/supabaseClient";
 
 export default function AdminParkingSlots() {
-  // THESE ARE THE LINES THAT WERE MISSING/CAUSING YOUR ERROR:
-  const [liveLots, setLiveLots] = useState(parkingLots);
-  const [selectedLot, setSelectedLot] = useState(parkingLots[0].id);
+  // Real States para sa Database
+  const [lots, setLots] = useState<any[]>([]);
+  const [selectedLotId, setSelectedLotId] = useState<string>("");
+  const [slots, setSlots] = useState<any[]>([]);
+  const [loadingLots, setLoadingLots] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const lot = liveLots.find((l) => l.id === selectedLot)!;
-  // ---------------------------------------------------------
+  
+  // State for Adding new slot
+  const [isAdding, setIsAdding] = useState(false);
+  const [newSlotLabel, setNewSlotLabel] = useState(""); 
+  const [newSlotIsPwd, setNewSlotIsPwd] = useState(false);
 
+  // Kunin ang credentials mula sa LocalStorage
+  const userRole = localStorage.getItem("admin_role");
+  const userLotId = localStorage.getItem("admin_lot_id");
+
+  // 1. Unang Load: Kunin ang mga Parking Lots
   useEffect(() => {
-    fetchLiveSlotData();
+    fetchLots();
   }, []);
 
-  const fetchLiveSlotData = async () => {
-    setRefreshing(true);
-    
+  // 2. Kapag nag-iba ang napiling Lot, kunin ang mga Slots nito
+  useEffect(() => {
+    if (selectedLotId) {
+      fetchSlots(selectedLotId);
+    }
+  }, [selectedLotId]);
+
+  const fetchLots = async () => {
+    setLoadingLots(true);
     try {
-      const { data, error } = await supabase
-        .from('parking_slots')
-        .select('*');
+      let query = supabase.from('parking_lots').select('*');
+
+      // 🔥 MULTI-TENANT LOGIC: Kung Manager siya, i-filter lang sa hawak niyang Lot
+      if (userRole === 'manager' && userLotId) {
+        query = query.eq('id', userLotId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
       if (data && data.length > 0) {
-        const updatedLots = liveLots.map(currentLot => {
-          let availableCount = 0;
-
-          const updatedSlots = currentLot.slots.map(slot => {
-            const liveSlot = data.find((dbSlot: any) => dbSlot.label === slot.label);
-            const currentStatus = liveSlot ? liveSlot.status : slot.status;
-            
-            if (currentStatus === 'available') availableCount++;
-
-            return {
-              ...slot,
-              status: currentStatus as SlotStatus
-            };
-          });
-
-          return {
-            ...currentLot,
-            slots: updatedSlots,
-            availableSlots: availableCount
-          };
-        });
-
-        setLiveLots(updatedLots);
-        toast.success("Live parking data synced!");
+        setLots(data);
+        
+        // 🔥 NEW LOGIC: Saluhin ang kinlick galing sa "Parking Lots" page
+        const viewLotId = localStorage.getItem("view_lot_id");
+        
+        if (viewLotId && data.some(l => l.id === viewLotId)) {
+          setSelectedLotId(viewLotId); // I-auto select yung lot na kinlick
+          localStorage.removeItem("view_lot_id"); // Linisin agad para isang beses lang gumana
+        } else {
+          setSelectedLotId(data[0].id); // Auto-select ang unang lot kung walang kinlick
+        }
+        
+      } else {
+        toast.error("Wala pang nakatalagang Parking Lot sa iyo.");
       }
     } catch (error: any) {
       console.error("Supabase Error:", error.message);
-      toast.error("Failed to fetch live data. Showing offline data.");
+      toast.error("Failed to fetch parking lots.");
+    } finally {
+      setLoadingLots(false);
+    }
+  };
+
+  const fetchSlots = async (lotId: string) => {
+    setRefreshing(true);
+    try {
+      const { data, error } = await supabase
+        .from('parking_slots')
+        .select('*')
+        .eq('lot_id', lotId)
+        .order('label', { ascending: true });
+
+      if (error) throw error;
+      setSlots(data || []);
+    } catch (error: any) {
+      console.error("Supabase Error:", error.message);
+      toast.error("Failed to fetch parking slots.");
     } finally {
       setRefreshing(false);
     }
   };
 
   const handleRefresh = async () => {
-    await fetchLiveSlotData();
+    if (selectedLotId) {
+      await fetchSlots(selectedLotId);
+      toast.success("Live parking data refreshed!");
+    }
   };
+
+  // 🔥 ACTION: Mag-add ng bagong slot sa database
+  const handleAddSlot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSlotLabel.trim()) {
+      toast.error("Please enter a slot label.");
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('parking_slots')
+        .insert([
+          { 
+            lot_id: selectedLotId, 
+            label: newSlotLabel.trim().toUpperCase(),
+            status: 'available',
+            is_pwd: newSlotIsPwd
+          }
+        ])
+        .select();
+
+      if (error) {
+        if (error.code === '23505') { // Unique violation
+            toast.error("This slot label already exists in this lot.");
+        } else {
+            throw error;
+        }
+        return;
+      }
+
+      toast.success(`Slot ${newSlotLabel} added successfully!`);
+      setNewSlotLabel("");
+      setNewSlotIsPwd(false);
+      setIsAdding(false);
+      
+      // I-refresh ang listahan
+      fetchSlots(selectedLotId);
+
+    } catch (error: any) {
+      console.error("Supabase Error adding slot:", error.message);
+      toast.error("Failed to add new slot.");
+    }
+  };
+
+  // 🔥 ACTION: Mag-delete ng slot (SUPER ADMIN ONLY & AVAILABLE ONLY)
+  const handleDeleteSlot = async (slotId: string, slotLabel: string, slotStatus: string) => {
+    // SMART VALIDATION: Bawal mag-delete kung may naka-park o reserved!
+    if (slotStatus !== 'available') {
+      toast.error(`Bawal i-delete ang Slot ${slotLabel} dahil ito ay ${slotStatus}!`);
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to delete Slot ${slotLabel}?`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('parking_slots')
+        .delete()
+        .eq('id', slotId);
+
+      if (error) {
+        // Kapag may Foreign Key error (may existing reservation record)
+        if (error.code === '23503') { 
+          throw new Error("Cannot delete slot. It has past reservations and is linked to billing history.");
+        }
+        throw error;
+      }
+
+      toast.success(`Slot ${slotLabel} deleted.`);
+      fetchSlots(selectedLotId);
+    } catch (error: any) {
+      console.error("Error deleting slot:", error.message);
+      toast.error(error.message || "Failed to delete slot.");
+    }
+  };
+
+  // Kung naglo-load pa ang system
+  if (loadingLots) {
+    return (
+      <AdminLayout title="Parking Slots">
+        <div className="flex flex-col items-center justify-center h-[50vh]">
+          <RefreshCw className="animate-spin text-primary mb-4 w-8 h-8" />
+          <p className="text-muted-foreground font-medium">Loading database...</p>
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  // Kunin ang active lot details
+  const activeLot = lots.find((l) => l.id === selectedLotId);
+  if (!activeLot) return <AdminLayout title="Parking Slots"><p className="p-6 text-muted-foreground">No data found.</p></AdminLayout>;
+
+  // Real-time Calculations galing mismo sa database slots
+  const totalSlots = slots.length;
+  const availableSlots = slots.filter((s) => s.status === 'available').length;
+  const occupiedSlots = slots.filter((s) => s.status === 'occupied').length;
+  const pwdSlots = slots.filter((s) => s.is_pwd).length;
 
   return (
     <AdminLayout title="Parking Slots">
       <div className="space-y-5">
+        
         {/* Lot Selector */}
         <div className="flex gap-3 flex-wrap">
-          {liveLots.map((l) => (
+          {lots.map((l) => (
             <button
               key={l.id}
-              onClick={() => setSelectedLot(l.id)}
+              onClick={() => setSelectedLotId(l.id)}
               className={cn(
                 "px-4 py-2 rounded-xl text-sm font-semibold border transition-all",
-                selectedLot === l.id
-                  ? "bg-primary text-primary-foreground border-primary"
+                selectedLotId === l.id
+                  ? "bg-primary text-primary-foreground border-primary shadow-md"
                   : "bg-white text-foreground border-border hover:border-primary/50"
               )}
             >
@@ -90,93 +224,154 @@ export default function AdminParkingSlots() {
           ))}
         </div>
 
-        {/* Lot Stats */}
-        <div className="grid grid-cols-4 gap-4">
+        {/* Real-time Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: "Total", value: lot.totalSlots, color: "text-foreground" },
-            { label: "Available", value: lot.availableSlots, color: "text-emerald-600" },
-            { label: "Occupied", value: lot.totalSlots - lot.availableSlots - 2, color: "text-rose-600" },
-            { label: "Reserved", value: 2, color: "text-amber-600" },
+            { label: "Total Slots", value: totalSlots, color: "text-foreground" },
+            { label: "Available", value: availableSlots, color: "text-emerald-600" },
+            { label: "Occupied", value: occupiedSlots, color: "text-rose-600" },
+            { label: "PWD Slots", value: pwdSlots, color: "text-amber-600" },
           ].map(({ label, value, color }) => (
-            <div key={label} className="bg-white rounded-2xl p-4 card-elevated text-center">
-              <p className={cn("text-3xl font-extrabold", color)} style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{value}</p>
-              <p className="text-xs text-muted-foreground">{label}</p>
+            <div key={label} className="bg-white rounded-2xl p-4 shadow-sm border border-border text-center card-elevated">
+              <p className={cn("text-3xl font-extrabold", color)} style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {value}
+              </p>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mt-1">{label}</p>
             </div>
           ))}
         </div>
 
-        {/* Slot Grid */}
-        <div className="bg-white rounded-2xl p-6 card-elevated">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-base font-bold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                {lot.name}
-              </h3>
-              <p className="text-xs text-muted-foreground">{lot.address}</p>
+        {/* Visual Slot Grid & Management */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-border card-elevated">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-primary/10 p-3 rounded-full text-primary">
+                <Car size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {activeLot.name}
+                </h3>
+                <p className="text-sm text-muted-foreground">Live Tracking Dashboard</p>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className={cn(
-                "text-xs",
-                lot.type === "private" ? "border-primary/30 text-primary" : "border-muted-foreground/30"
-              )}>
-                {lot.type}
-              </Badge>
+            
+            <div className="flex gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleRefresh}
                 disabled={refreshing}
-                className="rounded-xl text-xs"
+                className="rounded-xl text-sm font-bold"
               >
-                <RefreshCw size={14} className={cn("mr-1.5", refreshing && "animate-spin")} />
-                Refresh Live Data
+                <RefreshCw size={16} className={cn("mr-2", refreshing && "animate-spin")} />
+                {refreshing ? "Syncing..." : "Refresh"}
+              </Button>
+              <Button 
+                size="sm" 
+                className="rounded-xl text-sm font-bold"
+                onClick={() => setIsAdding(!isAdding)}
+              >
+                <Plus size={16} className="mr-2" />
+                Add Slot
               </Button>
             </div>
           </div>
-          <ParkingSlotGrid
-            slots={lot.slots}
-            interactive={false}
-          />
-        </div>
+          
+          {/* Add Slot Form Panel */}
+          {isAdding && (
+            <div className="mb-6 p-4 bg-muted/30 border border-border rounded-xl">
+              <form onSubmit={handleAddSlot} className="flex flex-wrap items-end gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase">Slot Label (e.g., A1, PWD-1)</label>
+                  <input 
+                    type="text" 
+                    value={newSlotLabel}
+                    onChange={(e) => setNewSlotLabel(e.target.value)}
+                    className="w-full h-10 px-3 rounded-lg border border-border text-sm"
+                    placeholder="Enter slot label"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex items-center space-x-2 h-10 px-2">
+                  <input 
+                    type="checkbox" 
+                    id="isPwd" 
+                    checked={newSlotIsPwd}
+                    onChange={(e) => setNewSlotIsPwd(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <label htmlFor="isPwd" className="text-sm font-medium">PWD / Priority Slot?</label>
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" className="h-10">Save Slot</Button>
+                  <Button type="button" variant="ghost" className="h-10" onClick={() => setIsAdding(false)}>Cancel</Button>
+                </div>
+              </form>
+            </div>
+          )}
 
-        {/* Slot Table */}
-        <div className="bg-white rounded-2xl p-5 card-elevated">
-          <h3 className="text-sm font-bold text-foreground mb-4" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Live Slot Details
+          {slots.length > 0 ? (
+            <div className="mb-8">
+              <ParkingSlotGrid slots={slots} interactive={false} />
+            </div>
+          ) : (
+            <div className="text-center p-8 mb-8 border-2 border-dashed border-border rounded-xl text-muted-foreground">
+              Wala pang slots sa parking lot na ito.<br/>I-click ang "Add Slot" button sa taas para mag-umpisa.
+            </div>
+          )}
+
+          {/* Real Database Table */}
+          <h3 className="text-base font-bold text-foreground mb-4 pt-4 border-t border-border" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            Database Records
           </h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-muted-foreground border-b border-border">
-                  <th className="text-left pb-2 font-semibold">Slot</th>
-                  <th className="text-left pb-2 font-semibold">Row</th>
-                  <th className="text-left pb-2 font-semibold">Floor</th>
-                  <th className="text-left pb-2 font-semibold">Status</th>
-                  <th className="text-left pb-2 font-semibold">Action</th>
+                  <th className="text-left pb-3 font-semibold uppercase tracking-wider">Slot Label</th>
+                  <th className="text-left pb-3 font-semibold uppercase tracking-wider">Type</th>
+                  <th className="text-left pb-3 font-semibold uppercase tracking-wider">Status</th>
+                  <th className="text-right pb-3 font-semibold uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {lot.slots.slice(0, 12).map((slot) => (
+                {slots.map((slot) => (
                   <tr key={slot.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="py-2.5 font-bold">{slot.label}</td>
-                    <td className="py-2.5 text-muted-foreground">{slot.row}</td>
-                    <td className="py-2.5 text-muted-foreground">{slot.floor}</td>
-                    <td className="py-2.5">
+                    <td className="py-3 font-bold text-base">{slot.label}</td>
+                    <td className="py-3">
+                      {slot.is_pwd ? (
+                        <Badge variant="outline" className="border-amber-200 text-amber-700 bg-amber-50">PWD / Reserved</Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs font-medium">Regular</span>
+                      )}
+                    </td>
+                    <td className="py-3">
                       <span className={cn(
-                        "text-[10px] font-bold px-2 py-0.5 rounded-full capitalize",
+                        "text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider",
                         slot.status === "available" ? "bg-emerald-100 text-emerald-700" :
                         slot.status === "occupied" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"
                       )}>
                         {slot.status}
                       </span>
                     </td>
-                    <td className="py-2.5">
-                      <button
-                        onClick={() => toast.info(`Slot ${slot.label} details coming soon`)}
-                        className="text-xs text-primary font-semibold hover:underline"
-                      >
-                        View
-                      </button>
+                    <td className="py-3 text-right">
+                      {/* 🔥 DEFENSE LOGIC: Superadmin lang at Available Slots lang ang pwedeng i-delete */}
+                      {userRole === 'superadmin' && (
+                        <button
+                          onClick={() => handleDeleteSlot(slot.id, slot.label, slot.status)}
+                          disabled={slot.status !== 'available'}
+                          className={cn(
+                            "p-2 rounded-lg transition-colors inline-flex items-center",
+                            slot.status === 'available' 
+                              ? "text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                              : "text-slate-300 cursor-not-allowed"
+                          )}
+                          title={slot.status === 'available' ? "Delete Slot" : "Cannot delete occupied/reserved slot"}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -184,6 +379,7 @@ export default function AdminParkingSlots() {
             </table>
           </div>
         </div>
+        
       </div>
     </AdminLayout>
   );

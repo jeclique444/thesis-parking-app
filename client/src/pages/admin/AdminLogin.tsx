@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminLogin
+ * iParkBayan — AdminLogin (Multi-Tenant / Lot-Specific)
  * Design: Civic Tech / Filipino Urban Identity
  * Full-screen admin login with navy sidebar and form
  */
@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Eye, EyeOff, Shield } from "lucide-react";
+import { Eye, EyeOff, Shield, Loader2 } from "lucide-react";
+import { supabase } from "@/supabaseClient";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-hero-abdCRj5qo4byPYNgtsGwCp.webp";
 
@@ -22,12 +23,66 @@ export default function AdminLogin() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) { toast.error("Please fill in all fields"); return; }
+    if (!email || !password) { 
+      toast.error("Please fill in all fields"); 
+      return; 
+    }
+    
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setLoading(false);
-    toast.success("Welcome, Admin!");
-    navigate("/admin/dashboard");
+    
+    try {
+      // 1. Mag-Login sa Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+
+      if (authError) throw authError;
+
+      const userId = authData.user?.id;
+
+      if (userId) {
+        // 2. Kunin ang profile data (ANG BOUNCER) - 🔴 INUPDATE: Isinama natin ang 'status'
+        const { data: profileData, error: profileError } = await supabase
+          .from('admin_profiles')
+          .select('lot_id, role, status')
+          .eq('id', userId)
+          .single();
+
+        // Kung walang record (regular user siya) -> KICK OUT!
+        if (profileError || !profileData) {
+          await supabase.auth.signOut(); // I-force logout ang session
+          throw new Error("Access Denied: Wala kang access sa admin portal.");
+        }
+
+        // 🔴 3. DITO PAPASOK ANG SUSPENSION CHECK
+        if (profileData.status === 'Suspended') {
+          await supabase.auth.signOut(); // I-kick out agad sa session
+          throw new Error("Access Denied: Ang iyong account ay suspended. Makipag-ugnayan sa Super Admin.");
+        }
+
+        // 4. I-save sa LocalStorage kung pumasa sa bouncer
+        localStorage.setItem("admin_role", profileData.role);
+        
+        if (profileData.lot_id) {
+          localStorage.setItem("admin_lot_id", profileData.lot_id);
+        } else {
+          localStorage.removeItem("admin_lot_id"); // Clear lot_id kung superadmin
+        }
+        
+        toast.success("Welcome, Admin! Loading your portal...");
+        navigate("/admin/dashboard");
+      }
+      
+    } catch (error: any) {
+      console.error("Login Error:", error);
+      // I-clear ang localStorage just in case para safe
+      localStorage.removeItem("admin_role");
+      localStorage.removeItem("admin_lot_id");
+      toast.error(error.message || "Mali ang email o password");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -102,6 +157,7 @@ export default function AdminLogin() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="h-12 rounded-xl bg-muted/40"
+                disabled={loading}
               />
             </div>
             <div className="space-y-1.5">
@@ -113,6 +169,7 @@ export default function AdminLogin() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="h-12 rounded-xl bg-muted/40 pr-12"
+                  disabled={loading}
                 />
                 <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">
                   {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -122,16 +179,17 @@ export default function AdminLogin() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-12 text-base font-bold rounded-xl mt-2"
+              className="w-full h-12 text-base font-bold rounded-xl mt-2 flex justify-center items-center gap-2"
               style={{ background: "oklch(0.22 0.07 255)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
             >
+              {loading && <Loader2 className="h-5 w-5 animate-spin" />}
               {loading ? "Signing in..." : "Sign In to Dashboard"}
             </Button>
           </form>
 
           <div className="mt-4 p-3 rounded-xl bg-primary/5 border border-primary/10">
             <p className="text-xs text-primary/80 text-center font-medium">
-              Demo: Enter any email & password to access
+              Authorized personnel only. Secure login via Supabase.
             </p>
           </div>
 

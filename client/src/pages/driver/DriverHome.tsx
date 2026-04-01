@@ -1,5 +1,5 @@
 /*
- * iParkBayan — DriverHome (With Live Countdown & Auto-Cleanup)
+ * iParkBayan — DriverHome (With Live Countdown, Auto-Cleanup & Overnight Fix)
  */
 import { useEffect, useState, useCallback } from "react";
 import { useLocation } from "wouter";
@@ -11,28 +11,62 @@ import { supabase } from "../../supabaseClient";
 
 const MAP_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-lipa-map-bf9Bjp7jKhLR43sJchAZUD.webp";
 
-// 🔥 UPDATED: CountdownTimer with Hours Support (HH:MM:SS)
-function CountdownTimer({ endTime, onExpire }: { endTime: string; onExpire: () => Promise<void> }) {
+// 🔥 HELPER FUNCTIONS (Dapat nasa labas sila at magkahiwalay)
+
+const parseOpenHoursToMins = (timeStr: string) => {
+  const match = timeStr.trim().match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+  if (!match) return 0;
+  let [_, h, m, period] = match;
+  let hours = parseInt(h, 10);
+  const minutes = parseInt(m, 10);
+  if (period.toUpperCase() === 'PM' && hours < 12) hours += 12;
+  if (period.toUpperCase() === 'AM' && hours === 12) hours = 0;
+  return hours * 60 + minutes;
+};
+
+const parseTimeWithAnchor = (timeStr: string, anchorDate: Date) => {
+  if (!timeStr || timeStr === "-") return new Date(anchorDate);
+  const [time, modifier] = timeStr.split(' ');
+  let [hours, minutes] = time.split(':').map(Number);
+  if (modifier === 'PM' && hours < 12) hours += 12;
+  if (modifier === 'AM' && hours === 12) hours = 0;
+  
+  const d = new Date(anchorDate);
+  d.setHours(hours, minutes, 0, 0);
+  return d;
+};
+
+// 🔥 UPDATED: CountdownTimer with Overnight Fix
+function CountdownTimer({ 
+  startTime, 
+  endTime, 
+  createdAt, 
+  onExpire 
+}: { 
+  startTime: string; 
+  endTime: string; 
+  createdAt: string; 
+  onExpire: () => Promise<void> 
+}) {
   const [timeLeft, setTimeLeft] = useState("");
   const [isUrgent, setIsUrgent] = useState(false);
 
   useEffect(() => {
+    if (!endTime || endTime === "-" || !createdAt) {
+      setTimeLeft("--:--:--");
+      return;
+    }
+
     const calculateTime = () => {
       const now = new Date();
       try {
-        // Parse "HH:MM AM/PM" format
-        const [time, modifier] = endTime.split(' ');
-        let [hours, minutes] = time.split(':').map(Number);
-        if (modifier === 'PM' && hours < 12) hours += 12;
-        if (modifier === 'AM' && hours === 12) hours = 0;
+        const anchorDate = new Date(createdAt);
+        let startDateTime = parseTimeWithAnchor(startTime || endTime, anchorDate);
+        let target = parseTimeWithAnchor(endTime, anchorDate);
 
-        const target = new Date();
-        target.setHours(hours, minutes, 0, 0);
-
-        // Kung ang target time ay nakalipas na sa kasalukuyang araw (e.g. 1 AM bukas), i-adjust ang date
-        if (target.getTime() < now.getTime() && (now.getTime() - target.getTime() < 86400000)) {
-           // Small buffer logic or assume it's for today. 
-           // If target is already past, we check if it's very close or needs to expire.
+        // OVERNIGHT FIX: Kung mas maaga ang End kaysa Start, ibig sabihin bukas pa ito matatapos
+        if (target < startDateTime) {
+          target.setDate(target.getDate() + 1);
         }
 
         const diff = target.getTime() - now.getTime();
@@ -43,16 +77,13 @@ function CountdownTimer({ endTime, onExpire }: { endTime: string; onExpire: () =
           return;
         }
 
-        // Calculate HH:MM:SS
         const h = Math.floor(diff / (1000 * 60 * 60));
         const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const s = Math.floor((diff % (1000 * 60)) / 1000);
 
-        // Urgent if less than 5 minutes
         if (h === 0 && m < 5) setIsUrgent(true); 
         else setIsUrgent(false);
 
-        // Format: 01:20:05 or 00:59:59
         const display = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
         setTimeLeft(display);
       } catch (e) {
@@ -63,7 +94,7 @@ function CountdownTimer({ endTime, onExpire }: { endTime: string; onExpire: () =
     const timer = setInterval(calculateTime, 1000);
     calculateTime();
     return () => clearInterval(timer);
-  }, [endTime, onExpire]);
+  }, [startTime, endTime, createdAt, onExpire]);
 
   return (
     <div className={cn("flex items-center gap-1.5 font-black text-sm tabular-nums", isUrgent ? "text-rose-500 animate-pulse" : "text-amber-400")}>
@@ -96,28 +127,33 @@ export default function DriverHome() {
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const activeStatuses = ["reserved", "active", "pending", "booked", "Reserved", "Active", "Pending", "Booked"];
+
   const runCleanup = useCallback(async (userId: string) => {
     try {
       const { data: reservations } = await supabase
         .from("reservations")
-        .select("id, slot_id, end_time")
+        // 🔥 Kinuha natin pati start_time at created_at para sa computation
+        .select("id, slot_id, start_time, end_time, created_at")
         .eq("user_id", userId)
-        .in("status", ["reserved", "active"]);
+        .in("status", activeStatuses);
 
       if (!reservations || reservations.length === 0) return;
 
       const now = new Date();
       for (const res of reservations) {
-        const [time, modifier] = res.end_time.split(' ');
-        let [hours, minutes] = time.split(':').map(Number);
-        if (modifier === 'PM' && hours < 12) hours += 12;
-        if (modifier === 'AM' && hours === 12) hours = 0;
+        if (!res.end_time || !res.created_at) continue; 
 
-        const endDateTime = new Date();
-        endDateTime.setHours(hours, minutes, 0, 0);
+        const anchorDate = new Date(res.created_at);
+        let startDateTime = parseTimeWithAnchor(res.start_time || res.end_time, anchorDate);
+        let endDateTime = parseTimeWithAnchor(res.end_time, anchorDate);
+
+        // OVERNIGHT FIX
+        if (endDateTime < startDateTime) {
+          endDateTime.setDate(endDateTime.getDate() + 1);
+        }
 
         if (now >= endDateTime) {
-          // AUTO-UPDATE DATABASE KAPAG TAPOS NA ORAS
           await supabase.from("reservations").update({ status: "completed" }).eq("id", res.id);
           await supabase.from("parking_slots").update({ status: "available" }).eq("id", res.slot_id);
         }
@@ -127,8 +163,10 @@ export default function DriverHome() {
     }
   }, []);
 
-  const fetchAllData = useCallback(async () => {
-    setIsRefreshing(true);
+  // 1. Lagyan natin ng (isSilent = false) ang fetchAllData
+  const fetchAllData = useCallback(async (isSilent = false) => {
+    // Pag silent update, WAG mong paikutin yung refresh button
+    if (!isSilent) setIsRefreshing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
@@ -152,16 +190,11 @@ export default function DriverHome() {
       if (lotsRes.data) setDbParkingLots(lotsRes.data);
       if (slotsRes.data) setDbSlots(slotsRes.data);
 
-      // Query for both 'active' and 'reserved' status
       const { data: resData, error: resError } = await supabase
         .from("reservations")
-        .select(`
-          *,
-          parking_lots ( name ), 
-          parking_slots ( label )
-        `)
+        .select(`*, parking_lots ( name ), parking_slots ( label )`)
         .eq("user_id", user.id)
-        .in("status", ["reserved", "active"]) 
+        .in("status", activeStatuses) 
         .order("created_at", { ascending: false })
         .limit(1);
 
@@ -175,8 +208,10 @@ export default function DriverHome() {
           lotName: getJoinValue(rawRes.parking_lots)?.name || "Parking Lot",
           slotLabel: getJoinValue(rawRes.parking_slots)?.label || "-",
           vehiclePlate: rawRes.plate_number || "N/A",
+          startTime: rawRes.start_time || "-", // 🔥 Ipapasa natin sa timer
           endTime: rawRes.end_time || "-",
-          status: rawRes.status
+          createdAt: rawRes.created_at, // 🔥 Anchor natin para iwas bug
+          status: rawRes.status || "PENDING"
         });
       } else {
         setActiveReservation(null);
@@ -188,17 +223,22 @@ export default function DriverHome() {
       setIsRefreshing(false);
     }
   }, [runCleanup]);
-
+// 2. Ibalik natin ang useEffect na may Real-Time, pero papasahan natin ng `true` (silent)
   useEffect(() => {
-    fetchAllData();
+    fetchAllData(); // Initial load (may loading spinner)
+
+    // Real-time listener para sa live updates
     const channel = supabase.channel('db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'parking_slots' }, () => fetchAllData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => fetchAllData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'parking_slots' }, () => {
+          fetchAllData(true); // "true" means silent update (walang blinking)
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => {
+          fetchAllData(true); // "true" means silent update
+      })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [fetchAllData]);
-
   const totalAvailable = dbSlots.filter((s) => s.status === 'available').length;
   const totalOccupied = dbSlots.filter((s) => s.status !== 'available').length;
   const hour = new Date().getHours();
@@ -208,7 +248,6 @@ export default function DriverHome() {
     <MobileLayout title="iParkBayan">
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        <p className="text-muted-foreground text-[10px] font-bold uppercase tracking-widest italic"></p>
       </div>
     </MobileLayout>
   );
@@ -238,11 +277,12 @@ export default function DriverHome() {
           </div>
         </div>
 
-        {/* ACTIVE RESERVATION CARD */}
+         {/* ACTIVE RESERVATION CARD */}
         <div className="mx-4 mt-6">
           <div className="flex justify-between items-end mb-2">
             <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">My Current Booking</h3>
-            <button onClick={fetchAllData} className="flex items-center gap-1 text-[10px] font-bold text-blue-600 active:opacity-50">
+            {/* 🔥 DITO YUNG FIX: Ginawang arrow function para hindi ipasa ang Mouse Event */}
+            <button onClick={() => fetchAllData(false)} className="flex items-center gap-1 text-[10px] font-bold text-blue-600 active:opacity-50">
               <RefreshCcw size={10} className={cn(isRefreshing && "animate-spin")} />
               {isRefreshing ? "Updating..." : "Refresh"}
             </button>
@@ -255,19 +295,22 @@ export default function DriverHome() {
                   <p className="font-extrabold text-base tracking-tight">{activeReservation.lotName}</p>
                   <p className="text-white/60 text-xs mt-0.5">Slot {activeReservation.slotLabel} • <span className="uppercase font-mono text-amber-400">{activeReservation.vehiclePlate}</span></p>
                 </div>
-                <Badge className={cn("font-black text-[9px]", activeReservation.status === 'active' ? "bg-emerald-400 text-emerald-950" : "bg-amber-400 text-amber-950")}>
+                <Badge className={cn("font-black text-[9px]", activeReservation.status.toLowerCase() === 'active' ? "bg-emerald-400 text-emerald-950" : "bg-amber-400 text-amber-950")}>
                   {activeReservation.status.toUpperCase()}
                 </Badge>
               </div>
               <div className="mt-4 flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/10">
                 <div>
                    <p className="text-[8px] uppercase text-white/40 font-bold mb-1">Time Remaining</p>
+                   {/* 🔥 IPINASA ANG MGA BAGONG PROPS DITO */}
                    <CountdownTimer 
+                     startTime={activeReservation.startTime}
                      endTime={activeReservation.endTime} 
+                     createdAt={activeReservation.createdAt}
                      onExpire={async () => {
                        const { data: { session } } = await supabase.auth.getSession();
                        if (session?.user) await runCleanup(session.user.id);
-                       fetchAllData(); // Mag-uupdate ang UI (mawawala ang card) kapag tapos na ang oras
+                       fetchAllData();
                      }} 
                    />
                 </div>
@@ -280,7 +323,6 @@ export default function DriverHome() {
           ) : (
             <div className="bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-6 text-center">
               <p className="text-xs text-muted-foreground font-medium">No active reservations found.</p>
-              <p className="text-[9px] text-muted-foreground/60 mt-1 italic"></p>
             </div>
           )}
         </div>
@@ -299,7 +341,7 @@ export default function DriverHome() {
           ))}
         </div>
 
-        {/* Nearby Lots List */}
+    {/* Nearby Lots List */}
         <div className="mx-4 mt-8">
            <div className="flex justify-between items-center mb-4">
               <h3 className="text-sm font-extrabold">Nearby Parking</h3>
@@ -309,16 +351,87 @@ export default function DriverHome() {
               {dbParkingLots.map(lot => {
                 const lotSlots = dbSlots.filter(s => s.lot_id === lot.id);
                 const available = lotSlots.filter(s => s.status === 'available').length;
+                
+                // 🔥 LOGIC PARA SA "open_hours" TEXT COLUMN
+                let isOpen = true;
+                let openTimeDisplay = "tomorrow";
+
+                if (lot.open_hours) {
+                  const hoursText = lot.open_hours.toLowerCase();
+                  
+                  // Kung hindi "24 hours", kailangan natin i-check ang oras
+                  if (!hoursText.includes("24 hour")) {
+                    const times = lot.open_hours.split("-").map((t: string) => t.trim());
+                    
+                    if (times.length === 2) {
+                      const startTimeStr = times[0]; // ex: "10:00 AM"
+                      const endTimeStr = times[1];   // ex: "9:00 PM"
+
+                      const startMins = parseOpenHoursToMins(startTimeStr);
+                      const endMins = parseOpenHoursToMins(endTimeStr);
+
+                      const now = new Date();
+                      const currentMins = now.getHours() * 60 + now.getMinutes();
+
+                      // Check kung bukas
+                      if (startMins < endMins) {
+                        // Normal hours (e.g. 8am to 5pm)
+                        isOpen = currentMins >= startMins && currentMins < endMins;
+                      } else {
+                        // Overnight (e.g. 10pm to 6am)
+                        isOpen = currentMins >= startMins || currentMins < endMins;
+                      }
+
+                      openTimeDisplay = `tomorrow at ${startTimeStr}`;
+                    }
+                  }
+                }
+
                 return (
-                  <div key={lot.id} onClick={() => navigate(`/parking/${lot.id}`)} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm active:scale-[0.99] transition-all">
+                  <div 
+                    key={lot.id} 
+                    onClick={() => isOpen ? navigate(`/parking/${lot.id}`) : null} 
+                    className={cn(
+                      "bg-white p-4 rounded-2xl border border-gray-100 shadow-sm transition-all",
+                      isOpen ? "active:scale-[0.99] cursor-pointer" : "opacity-80 grayscale-[0.3] cursor-not-allowed"
+                    )}
+                  >
                     <div className="flex justify-between items-start mb-3">
                       <div>
-                        <p className="font-bold text-sm">{lot.name}</p>
-                        <p className="text-[10px] text-muted-foreground flex items-center gap-1"><MapPin size={10}/> {lot.address}</p>
+                        <div className="flex items-center gap-2">
+                          <p className={cn("font-bold text-sm", !isOpen && "text-gray-500")}>
+                            {lot.name}
+                          </p>
+                          {/* BADGE NA LALABAS KAPAG SARADO */}
+                          {!isOpen && (
+                            <span className="bg-rose-100 text-rose-700 text-[9px] font-black px-1.5 py-0.5 rounded flex items-center tracking-wider uppercase">
+                              Closed
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                          <MapPin size={10}/> {lot.address}
+                        </p>
+                        {/* Papakita natin yung hours bilang text sa baba ng address */}
+                        <p className="text-[9px] font-medium text-amber-600 mt-1">
+                          🕒 {lot.open_hours}
+                        </p>
                       </div>
-                      <p className="text-sm font-black text-blue-700">₱{lot.rate_per_hour}/hr</p>
+                      <p className={cn("text-sm font-black", isOpen ? "text-blue-700" : "text-gray-400")}>
+                        ₱{lot.rate_per_hour}/hr
+                      </p>
                     </div>
-                    <AvailabilityBar available={available} total={lotSlots.length} />
+
+                    {/* KUNG BUKAS, IPAPAKITA ANG AVAILABILITY BAR. KUNG SARADO, IPAPAKITA YUNG NOTE */}
+                    {isOpen ? (
+                      <AvailabilityBar available={available} total={lotSlots.length} />
+                    ) : (
+                      <div className="bg-gray-50 rounded-xl p-2.5 text-center border border-dashed border-gray-200 mt-1">
+                        <p className="text-[10px] font-bold text-gray-500">
+                          This lot is currently closed. Please reserve {openTimeDisplay}.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )
               })}

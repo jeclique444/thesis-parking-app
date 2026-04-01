@@ -1,5 +1,5 @@
 /*
- * iParkBayan — LoginPage (Connected to Supabase + Forgot Password)
+ * iParkBayan — LoginPage (Connected to Supabase + Forgot Password + Admin Bouncer)
  * Design: Civic Tech / Filipino Urban Identity
  */
 import { useState } from "react";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, ArrowLeft, Loader2 } from "lucide-react";
 
 import { supabase } from "../../supabaseClient";
 
@@ -25,7 +25,7 @@ export default function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // --- LOGIC PARA SA LOGIN ---
+  // --- LOGIC PARA SA LOGIN (WITH ADMIN BOUNCER) ---
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -36,16 +36,32 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // 1. Mag-login muna
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) throw error;
+      if (authError) throw authError;
 
-      if (data.user) {
+      const userId = authData.user?.id;
+
+      if (userId) {
+        // 2. ANG BOUNCER: I-check kung Admin ba ito
+        const { data: adminData } = await supabase
+          .from('admin_profiles')
+          .select('id')
+          .eq('id', userId)
+          .single();
+
+        // 3. Kung may record siya sa admin_profiles -> KICK OUT!
+        if (adminData) {
+          await supabase.auth.signOut(); // I-log out agad
+          throw new Error("Access Denied: Admin accounts cannot use the Driver App. Please log in via the Admin Portal.");
+        }
+
+        // 4. Kung regular user, papasukin!
         toast.success("Login successful! Welcome back.");
-        // FIXED: Binago na natin from "/dashboard" to "/home"
         navigate("/home"); 
       }
     } catch (error: any) {
@@ -67,15 +83,14 @@ export default function LoginPage() {
 
     setLoading(true);
     try {
-      // Magpapadala si Supabase ng Reset Link sa email
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/update-password`, // Dito mapupunta after i-click ang link sa email
+        redirectTo: `${window.location.origin}/update-password`,
       });
 
       if (error) throw error;
 
       toast.success("Password reset link sent! Please check your inbox.");
-      setView("login"); // Ibalik sa login view
+      setView("login"); 
       
     } catch (error: any) {
       console.error("RESET ERROR:", error);
@@ -133,7 +148,7 @@ export default function LoginPage() {
                 <Label className="text-sm font-semibold text-gray-700">Password</Label>
                 <button 
                   type="button" 
-                  onClick={() => setView("forgot")} // Switch to Forgot Password View
+                  onClick={() => setView("forgot")} 
                   className="text-xs font-semibold text-primary hover:underline"
                 >
                   Forgot?
@@ -161,9 +176,10 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-14 text-base font-bold rounded-xl mt-4 shadow-md hover:shadow-lg transition-all"
+              className="w-full h-14 text-base font-bold rounded-xl mt-4 shadow-md hover:shadow-lg transition-all flex justify-center items-center gap-2"
               style={{ background: "oklch(0.22 0.07 255)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
             >
+              {loading && <Loader2 className="h-5 w-5 animate-spin" />}
               {loading ? "Signing in..." : "Sign In"}
             </Button>
 
@@ -202,9 +218,10 @@ export default function LoginPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-14 text-base font-bold rounded-xl mt-4 shadow-md hover:shadow-lg transition-all"
+              className="w-full h-14 text-base font-bold rounded-xl mt-4 shadow-md hover:shadow-lg transition-all flex justify-center items-center gap-2"
               style={{ background: "oklch(0.22 0.07 255)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
             >
+              {loading && <Loader2 className="h-5 w-5 animate-spin" />}
               {loading ? "Sending link..." : "Send Reset Link"}
             </Button>
 
