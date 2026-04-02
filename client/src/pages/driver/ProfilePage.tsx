@@ -1,7 +1,12 @@
 /*
  * iParkBayan — ProfilePage (Fully Database Connected)
+ * * DESCRIPTION:
+ * The profile section allows users to manage their registered vehicles 
+ * and view their overall booking history at a glance. It also includes 
+ * links to privacy settings where Row Level Security (RLS) ensures 
+ * they only have access to their own sensitive data.
  */
-import { cn } from "@/lib/utils"; // O kung nasaan man ang utils file mo
+import { cn } from "@/lib/utils"; 
 import { useEffect, useState } from "react";
 import MobileLayout from "@/components/MobileLayout";
 import { 
@@ -12,12 +17,22 @@ import {
   HelpCircle, 
   LogOut, 
   ChevronRight,
-  Loader2,
-  User as UserIcon
+  Loader2
 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+
+// Helper function para kunin ang initials: First letter ng First Name + First letter ng Last Name
+const getInitials = (name?: string) => {
+  if (!name) return "JD";
+  const words = name.trim().split(/\s+/);
+  if (words.length >= 2) {
+    // Kukunin ang unang letra ng unang salita at unang letra ng huling salita
+    return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
+};
 
 export default function ProfilePage() {
   const [, navigate] = useLocation();
@@ -46,7 +61,7 @@ export default function ProfilePage() {
         return;
       }
 
-      // 2. Kunin ang User Profile details (mula sa 'profiles' table mo)
+      // 2. Kunin ang User Profile details (kasama ang phone_number)
       const { data: profileData } = await supabase
         .from("profiles")
         .select("*")
@@ -55,18 +70,15 @@ export default function ProfilePage() {
 
       setUserProfile({
         ...user,
-        full_name: profileData?.full_name || user.user_metadata?.full_name || "iParkBayan User",
-        phone: profileData?.phone || "No phone added"
+        full_name: profileData?.full_name || user.user_metadata?.full_name || "Juan dela Cruz",
+        phone_number: profileData?.phone_number || "09XX XXX XXXX", // Ginamit ang phone_number
+        email: user.email || "juan@example.com"
       });
 
-      // 3. COUNTER LOGIC: Bilangin ang totoo mong records sa DB
-      // Gagamit tayo ng { count: 'exact', head: true } para hindi mabigat sa data
+      // 3. COUNTER LOGIC
       const [resCount, completeCount, vehCount] = await Promise.all([
-        // Bilang ng lahat ng reservations ng user
         supabase.from("reservations").select("*", { count: 'exact', head: true }).eq("user_id", user.id),
-        // Bilang ng completed reservations lang
         supabase.from("reservations").select("*", { count: 'exact', head: true }).eq("user_id", user.id).eq("status", "completed"),
-        // Bilang ng nakarehistrong sasakyan
         supabase.from("vehicles").select("*", { count: 'exact', head: true }).eq("user_id", user.id)
       ]);
 
@@ -98,22 +110,24 @@ export default function ProfilePage() {
 
   return (
     <MobileLayout title="Profile">
-      <div className="bg-[#F8F9FB] min-h-screen px-4 py-6 space-y-6 pb-28">
+      <div className="bg-[#F8F9FB] min-h-screen px-4 py-6 space-y-4 pb-28">
         
-        {/* Profile Card - Authentic Data */}
-        <div className="bg-[#0A1D37] rounded-[2.5rem] p-6 text-white shadow-2xl relative overflow-hidden">
-          {/* Subtle Background Pattern */}
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-3xl"></div>
-          
-          <div className="flex items-center gap-4 mb-8 relative z-10">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-700 to-slate-900 flex items-center justify-center text-2xl font-black border border-white/10 shadow-inner">
-              {userProfile?.full_name?.substring(0, 1).toUpperCase()}
+        {/* Profile Card (Dark Blue Background) */}
+        <div className="bg-[#0A1D37] rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
+          <div className="flex items-center gap-4 mb-6 relative z-10">
+            {/* Initials Avatar */}
+            <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center text-2xl font-semibold border border-white/5">
+              {getInitials(userProfile?.full_name)}
             </div>
             <div>
-              <h2 className="text-xl font-black tracking-tight leading-tight">
+              <h2 className="text-[17px] font-bold tracking-tight leading-tight mb-1">
                 {userProfile?.full_name}
               </h2>
-              <p className="text-xs text-slate-400 font-bold opacity-80">{userProfile?.email}</p>
+              <p className="text-xs text-slate-300 opacity-90">{userProfile?.email}</p>
+              {/* Ipapakita ang phone_number mula sa DB */}
+              <p className="text-xs text-slate-300 opacity-90">{userProfile?.phone_number}</p>
+              
+              {/* Ibinabalik ang Verified Driver badge */}
               <div className="flex items-center gap-1.5 mt-2">
                  <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full uppercase tracking-widest border border-emerald-500/30">
                    Verified Driver
@@ -122,64 +136,74 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Stats Section - Directly from Database counts */}
-          <div className="grid grid-cols-3 border-t border-white/10 pt-6 relative z-10">
+          {/* Stats Section */}
+          <div className="grid grid-cols-3 border-t border-white/10 pt-4 relative z-10">
             <div className="text-center border-r border-white/10">
-              <p className="text-xl font-black">{stats.totalReservations}</p>
-              <p className="text-[10px] text-slate-500 uppercase font-black tracking-tighter">Total</p>
+              <p className="text-lg font-bold">{stats.totalReservations}</p>
+              <p className="text-[10px] text-slate-400 font-medium tracking-wide">Total</p>
             </div>
             <div className="text-center border-r border-white/10">
-              <p className="text-xl font-black">{stats.completedReservations}</p>
-              <p className="text-[10px] text-slate-500 uppercase font-black tracking-tighter">Completed</p>
+              <p className="text-lg font-bold">{stats.completedReservations}</p>
+              <p className="text-[10px] text-slate-400 font-medium tracking-wide">Completed</p>
             </div>
             <div className="text-center">
-              <p className="text-xl font-black">{stats.totalVehicles}</p>
-              <p className="text-[10px] text-slate-500 uppercase font-black tracking-tighter">Vehicles</p>
+              <p className="text-lg font-bold">{stats.totalVehicles}</p>
+              <p className="text-[10px] text-slate-400 font-medium tracking-wide">Vehicles</p>
             </div>
           </div>
         </div>
 
-        {/* Action Menu */}
-       {/* Action Menu */}
-        <div className="bg-white rounded-[2rem] overflow-hidden border border-slate-100 shadow-sm">
+        {/* Action Menu List */}
+        <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100">
           <ProfileMenuItem 
-            icon={<Car size={18} />} 
+            icon={<Car size={20} />} 
             title="My Vehicles" 
-            label={stats.totalVehicles > 0 ? `${stats.totalVehicles} registered` : "Add vehicle"}
+            label="Manage registered vehicles"
             onClick={() => navigate("/vehicles")} 
           />
           <ProfileMenuItem 
-            icon={<BookOpen size={18} />} 
+            icon={<BookOpen size={20} />} 
             title="Reservation History" 
-            label="View all logs"
-            // Sa App.tsx mo, ang path ay "/reservations" para sa BookingPage
+            label="View all bookings"
             onClick={() => navigate("/reservations")} 
           />
           <ProfileMenuItem 
-            icon={<Bell size={18} />} 
+            icon={<Bell size={20} />} 
             title="Notifications" 
-            label="Recent alerts"
-            // Sa App.tsx mo, ang path ay "/notifications"
+            label="Manage alerts"
             onClick={() => navigate("/notifications")} 
           />
           <ProfileMenuItem 
-            icon={<ShieldCheck size={18} />} 
-            title="Security Settings" 
-            label="Password & Privacy"
-            // Karaniwang papunta ito sa update-password page
+            icon={<ShieldCheck size={20} />} 
+            title="Privacy & Security" 
+            label="Password and data settings"
             onClick={() => navigate("/update-password")}
+          />
+          {/* Help & Support Button */}
+          <ProfileMenuItem 
+            icon={<HelpCircle size={20} />} 
+            title="Help & Support" 
+            label="FAQs and contact"
+            onClick={() => window.location.href = "mailto:support@iparkbayan.com?subject=iParkBayan Help & Support"}
             isLast
           />
         </div>
 
-        {/* Sign Out */}
+        {/* Sign Out Outline Button */}
         <button 
           onClick={handleLogout}
-          className="w-full py-5 rounded-2xl bg-white border border-rose-50 text-rose-500 font-black text-sm shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2"
+          className="w-full py-3.5 rounded-3xl bg-white border border-rose-200 text-rose-500 font-semibold text-[15px] active:bg-rose-50 transition-all flex items-center justify-center gap-2 mt-4"
         >
-          <LogOut size={18} />
+          <LogOut size={18} className="text-rose-500" />
           Sign Out
         </button>
+
+        {/* Footer Text */}
+        <div className="pt-4 text-center pb-8">
+          <p className="text-[10px] text-slate-400 font-medium">
+            ECPark v1.0.0 - De La Salle Lipa IT3C Group 9
+          </p>
+        </div>
 
       </div>
     </MobileLayout>
@@ -192,20 +216,20 @@ function ProfileMenuItem({ icon, title, label, onClick, isLast }: any) {
     <button 
       onClick={onClick}
       className={cn(
-        "w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-all active:bg-slate-100 text-left",
-        !isLast && "border-b border-slate-50"
+        "w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-all active:bg-slate-100 text-left",
+        !isLast && "border-b border-slate-100"
       )}
     >
       <div className="flex items-center gap-4">
-        <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100">
+        <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-500">
           {icon}
         </div>
         <div>
-          <h4 className="text-sm font-black text-slate-800 tracking-tight leading-none">{title}</h4>
-          <p className="text-[10px] text-slate-400 font-bold uppercase mt-1 tracking-wider">{label}</p>
+          <h4 className="text-[15px] font-bold text-slate-800 leading-tight mb-0.5">{title}</h4>
+          <p className="text-[12px] text-slate-400 font-medium">{label}</p>
         </div>
       </div>
-      <ChevronRight size={16} className="text-slate-200" />
+      <ChevronRight size={18} className="text-slate-300" />
     </button>
   );
 }

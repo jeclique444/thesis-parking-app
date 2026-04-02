@@ -223,6 +223,7 @@ export default function DriverHome() {
       setIsRefreshing(false);
     }
   }, [runCleanup]);
+
 // 2. Ibalik natin ang useEffect na may Real-Time, pero papasahan natin ng `true` (silent)
   useEffect(() => {
     fetchAllData(); // Initial load (may loading spinner)
@@ -239,13 +240,36 @@ export default function DriverHome() {
 
     return () => { supabase.removeChannel(channel); };
   }, [fetchAllData]);
-  const totalAvailable = dbSlots.filter((s) => s.status === 'available').length;
-  const totalOccupied = dbSlots.filter((s) => s.status !== 'available').length;
+
+  // 🔥 ACCURATE STATS FIX: Helper para i-filter ang mga slots na galing sa BUKAS na lots
+  const isLotOpen = (openHoursStr?: string) => {
+    if (!openHoursStr) return true;
+    const hoursText = openHoursStr.toLowerCase();
+    if (hoursText.includes("24 hour")) return true;
+    const times = openHoursStr.split("-").map((t) => t.trim());
+    if (times.length === 2) {
+      const startMins = parseOpenHoursToMins(times[0]);
+      const endMins = parseOpenHoursToMins(times[1]);
+      const now = new Date();
+      const currentMins = now.getHours() * 60 + now.getMinutes();
+      if (startMins < endMins) return currentMins >= startMins && currentMins < endMins;
+      else return currentMins >= startMins || currentMins < endMins;
+    }
+    return true;
+  };
+
+  const openLotIds = dbParkingLots.filter(lot => isLotOpen(lot.open_hours)).map(lot => lot.id);
+  const activeSlots = dbSlots.filter(s => openLotIds.includes(s.lot_id));
+
+  // Computations gamit ang filtered na activeSlots
+  const totalAvailable = activeSlots.filter((s) => s.status === 'available').length;
+  const totalOccupied = activeSlots.filter((s) => s.status !== 'available').length;
+  
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   if (loading) return (
-    <MobileLayout title="iParkBayan">
+    <MobileLayout title="ECPark">
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
       </div>
@@ -254,7 +278,7 @@ export default function DriverHome() {
 
   return (
     <MobileLayout
-      title="iParkBayan"
+      title="ECPark"
       headerRight={
         <button onClick={() => navigate("/notifications")} className="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted">
           <Bell size={20} />
@@ -352,6 +376,11 @@ export default function DriverHome() {
                 const lotSlots = dbSlots.filter(s => s.lot_id === lot.id);
                 const available = lotSlots.filter(s => s.status === 'available').length;
                 
+                // 🔥 LOGIC PARA SA DYNAMIC COLOR TEXT INDICATOR
+                let slotsColorClass = "text-rose-600"; // Red pag <= 10
+                if (available >= 30) slotsColorClass = "text-emerald-600"; // Green pag >= 30
+                else if (available > 10) slotsColorClass = "text-amber-500"; // Yellow pag 11-29
+
                 // 🔥 LOGIC PARA SA "open_hours" TEXT COLUMN
                 let isOpen = true;
                 let openTimeDisplay = "tomorrow";
@@ -416,6 +445,12 @@ export default function DriverHome() {
                         <p className="text-[9px] font-medium text-amber-600 mt-1">
                           🕒 {lot.open_hours}
                         </p>
+                        {/* 🔥 IDINAGDAG NA DYNAMIC TEXT INDICATOR SA BABA NG HOURS */}
+                        {isOpen && (
+                          <p className={cn("text-[10px] font-extrabold mt-0.5", slotsColorClass)}>
+                            {available} {available === 1 ? 'slot' : 'slots'} available
+                          </p>
+                        )}
                       </div>
                       <p className={cn("text-sm font-black", isOpen ? "text-blue-700" : "text-gray-400")}>
                         ₱{lot.rate_per_hour}/hr

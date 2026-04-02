@@ -197,7 +197,7 @@ const handlePayment = async () => {
   }
 
   return (
-    <MobileLayout title="Payment" showBack onBack={() => navigate(-1 as any)}>
+    <MobileLayout title="Payment" showBack onBack={() => navigate(`/reserve/${slotId}?lot=${lotId}`)} >
       <div className="page-enter p-4 space-y-4 pb-20">
         <div className="text-center py-4">
           <p className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em] mb-1">Total Amount Due</p>

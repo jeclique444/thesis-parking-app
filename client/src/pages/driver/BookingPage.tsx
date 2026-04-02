@@ -1,5 +1,5 @@
 /*
- * iParkBayan — MyReservationsPage (Connected to Supabase)
+ * iParkBayan — MyBookingPage (Connected to Supabase)
  * Design: Civic Tech / Filipino Urban Identity
  */
 import { useEffect, useState } from "react";

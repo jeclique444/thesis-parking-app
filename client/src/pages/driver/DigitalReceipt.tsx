@@ -28,6 +28,19 @@ export default function DigitalReceiptPage() {
 
   const ticketRef = useRef<HTMLDivElement>(null);
 
+  // KUNIN ANG QUERY PARAMETER
+  const searchParams = new URLSearchParams(window.location.search);
+  const fromRoute = searchParams.get("from");
+
+  // DYNAMIC BACK HANDLER
+  const handleBack = () => {
+    if (fromRoute === "reservations") {
+      navigate("/home"); // Babalik sa My Home
+    } else {
+      navigate("/reservations"); // Babalik sa Reservation (after successful booking)
+    }
+  };
+
   useEffect(() => {
     const fixGoogleFontsCORS = () => {
       const links = document.querySelectorAll('link[rel="stylesheet"]');
@@ -41,6 +54,12 @@ export default function DigitalReceiptPage() {
     fixGoogleFontsCORS();
 
     const fetchReceipt = async () => {
+      // PREVENT SUPABASE ERROR KUNG WALANG ID
+      if (!params.id || params.id === "undefined" || params.id === "null") {
+        setLoading(false);
+        return;
+      }
+
       try {
         const { data, error } = await supabase
           .from("reservations")
@@ -93,7 +112,6 @@ export default function DigitalReceiptPage() {
     const loadingToast = toast.loading("Opening share menu...");
     
     try {
-      // 1. Generate Blob
       const blob = await toBlob(ticketRef.current, { 
         pixelRatio: 3,
         fontEmbedCSS: '' 
@@ -101,10 +119,8 @@ export default function DigitalReceiptPage() {
       
       if (!blob) throw new Error("Failed to generate image.");
 
-      // 2. Create File
       const file = new File([blob], `iParkBayan-Ticket.png`, { type: "image/png" });
 
-      // 3. Native Share Logic
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
@@ -113,29 +129,28 @@ export default function DigitalReceiptPage() {
         });
         toast.dismiss(loadingToast);
       } else {
-        // Fallback kung talagang hindi supported ng browser (e.g. Chrome on Desktop or non-HTTPS)
         throw new Error("Share not supported");
       }
 
     } catch (error: any) {
       toast.dismiss(loadingToast);
-      
-      // Kung kinalimutan lang ng user yung share menu (AbortError), wag magpakita ng error
       if (error.name === 'AbortError') return;
-
       console.error("Share error:", error);
-      
-      // Isagawa ang fallback download kung nag-fail ang share
       handleSaveImage();
       toast.info("Share not supported on this browser. Saving image instead.");
     }
   };
 
   if (loading) return <div className="p-20 text-center animate-pulse font-bold">Generating Receipt...</div>;
-  if (!res) return <MobileLayout title="Error" showBack><div className="p-10 text-center">Receipt not found.</div></MobileLayout>;
+  
+  if (!res) return (
+    <MobileLayout title="Error" showBack onBack={handleBack}>
+      <div className="p-10 text-center">Receipt not found.</div>
+    </MobileLayout>
+  );
 
   return (
-    <MobileLayout title="Digital Receipt" showBack onBack={() => navigate("/reservations")}>
+    <MobileLayout title="Digital Receipt" showBack onBack={handleBack}>
       <div className="page-enter p-6 space-y-6 bg-slate-50 min-h-screen">
         
         {/* TICKET CONTAINER */}

@@ -1,11 +1,11 @@
 /*
- * iParkBayan — ReservationPage (Fixed with Local Data Cache for is_reservable)
+ * iParkBayan — ReservationPage (Fixed Route & Removed Icon)
  */
 import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
 import MobileLayout from "@/components/MobileLayout";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarIcon, ChevronRight, Check, Clock, Ticket, AlertCircle } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronRight, Check, Clock, Ticket, AlertCircle, Accessibility } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "../../supabaseClient";
 
@@ -22,7 +22,7 @@ const getCurrentTime = () => {
   return `${hours}:${minutes}`;
 };
 
-// Helper function para makuha ang Closing Time galing sa "8 AM - 10 PM" string format
+// Helper function para makuha ang Closing Time
 const getLotClosingTime24 = (openHours: string) => {
   if (!openHours || openHours.toLowerCase().includes("24 hours")) return "23:59";
   
@@ -55,6 +55,7 @@ export default function ReservationPage() {
   const [lot, setLot] = useState<any>(null);
   const [slot, setSlot] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
   
   // ACTIVE RESERVATION STATES
   const [activeReservation, setActiveReservation] = useState<any>(null); 
@@ -94,6 +95,7 @@ export default function ReservationPage() {
 
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
+          setUserId(user.id);
           const { data: vehiclesData } = await supabase
             .from("vehicles")
             .select("*")
@@ -146,13 +148,12 @@ export default function ReservationPage() {
         selectedHours < currentHours || 
         (selectedHours === currentHours && selectedMinutes < currentMinutes)
       ) {
-        return false; // Time is in the past
+        return false;
       }
     }
     return true;
   };
 
-  // MAX 3 HOURS ADVANCE BOOKING VALIDATION
   const checkAdvanceLimit = () => {
     if (!date || !startTime) return false;
     const now = new Date();
@@ -161,14 +162,13 @@ export default function ReservationPage() {
     selectedDateTime.setHours(selH, selM, 0, 0);
 
     const diffMins = (selectedDateTime.getTime() - now.getTime()) / 60000;
-    return diffMins > 180; // 180 minutes = 3 hours
+    return diffMins > 180; 
   };
 
   const timeIsValid = isTimeValid();
   const isTooAdvance = checkAdvanceLimit();
   const endTime24 = calculateEndTime24(startTime, duration);
 
-  // REALISTIC FEE COMPUTATIONS 
   const calculateAdvanceFee = () => {
     if (!startTime || !date || isTooAdvance) return 0;
     
@@ -188,8 +188,8 @@ export default function ReservationPage() {
   };
 
   const advanceFee = calculateAdvanceFee();
-  const baseRate = 30; // ₱30 for first 3 hours
-  const extendedFee = duration > 3 ? (duration - 3) * 10 : 0; // ₱10 per extra hour
+  const baseRate = 30; 
+  const extendedFee = duration > 3 ? (duration - 3) * 10 : 0; 
   const totalCost = baseRate + extendedFee + advanceFee; 
   
   const checkExceedsCloseTime = () => {
@@ -212,19 +212,25 @@ export default function ReservationPage() {
   const isExceedingCloseTime = checkExceedsCloseTime();
   const availableVehicles = userVehicles.filter(v => !activePlates.includes(v.plate));
   
-  // ==========================================
-  // LOCAL DATA CACHE / OVERRIDE LOGIC
-  // ==========================================
+  // 🔥 UPDATED LOGIC: 
+  // Magiging Walk-in Only lang kung ang label ay C1 O KAYA is_reservable ay false.
+  // Kung is_pwd ay true PERO reservable (true), hindi ito magba-block para sa PWD reservation.
   const isWalkInOnly = 
     slot?.label === "C1" || 
     slot?.is_reservable === false || 
     String(slot?.is_reservable) === "false";
-  // ==========================================
 
   const isBlocked = activeReservation !== null || availableVehicles.length === 0 || isWalkInOnly;
 
+  const isMyBooking = activeReservation?.user_id === userId;
+
   const handleProceed = () => {
-    if (isWalkInOnly) return alert("Ang slot na ito ay para sa mga walk-in customers lamang.");
+    if (isWalkInOnly) {
+      const msg = (slot?.is_pwd === true || String(slot?.is_pwd) === "true")
+        ? "Ang PWD slot ay para sa walk-in lamang."
+        : "Ang slot na ito ay para sa mga walk-in customers lamang.";
+      return alert(msg);
+    }
     if (isBlocked) return alert("Hindi ka pwedeng mag-proceed dahil may active booking ka pa.");
     if (isExceedingCloseTime) return alert("Exceeds operating hours.");
     if (isTooAdvance) return alert("Advance booking cannot exceed 3 hours.");
@@ -248,7 +254,7 @@ export default function ReservationPage() {
   if (loading) return <div className="p-20 text-center font-bold text-primary animate-pulse">Loading...</div>;
 
   return (
-    <MobileLayout title="Reserve Slot" showBack onBack={() => window.history.back()}>
+    <MobileLayout title="Reserve Slot" showBack onBack={() => navigate(`/parking/${lotId}`)}>
       <div className="page-enter p-4 space-y-4 pb-24">
         
         {availableVehicles.length === 0 && !activeReservation && !isWalkInOnly && (
@@ -259,15 +265,15 @@ export default function ReservationPage() {
             <h3 className="font-black text-lg leading-tight">
               {userVehicles.length === 0 ? "No Registered Vehicles" : "All vehicles are currently booked"}
             </h3>
-            <p className="text-xs opacity-90 mt-1">
+            <p className="text-xs opacity-90 mt-1 mb-2">
               {userVehicles.length === 0 
                 ? "Please register a vehicle in your profile first." 
                 : "Wait for your current reservations to end before booking again."}
             </p>
             {userActiveBooking && (
               <Button 
-                onClick={() => navigate(`/ticket/${userActiveBooking.id}`)}
-                className="bg-white text-red-600 hover:bg-red-50 font-black rounded-xl text-xs h-10 px-4 mt-3 self-start"
+                onClick={() => navigate(`/receipt/${userActiveBooking.id}?from=reservations`)}
+                className="bg-white text-red-600 hover:bg-red-50 font-black rounded-xl text-xs h-10 px-4 self-start mt-3"
               >
                 View My Current Ticket
               </Button>
@@ -275,32 +281,50 @@ export default function ReservationPage() {
           </div>
         )}
 
-        {!userActiveBooking && activeReservation && !isWalkInOnly && (
-          <div className="bg-emerald-500 text-white p-5 rounded-3xl shadow-lg border-2 border-emerald-400 flex justify-between items-center animate-in slide-in-from-top duration-500">
+        {activeReservation && !isWalkInOnly && (
+          <div className={cn("text-white p-5 rounded-3xl shadow-lg border-2 flex justify-between items-center animate-in slide-in-from-top duration-500", isMyBooking ? "bg-blue-500 border-blue-400" : "bg-emerald-500 border-emerald-400")}>
             <div>
-              <p className="text-[10px] font-bold uppercase opacity-80 flex items-center gap-1">
-                <Ticket size={10}/> Slot Currently Taken
+              <p className="text-[10px] font-bold uppercase opacity-90 flex items-center gap-1">
+                <Ticket size={10}/> {isMyBooking ? "Your Active Booking" : "Slot Currently Taken"}
               </p>
               <h3 className="font-black text-lg leading-tight">Slot {slot?.label}</h3>
               <p className="text-[10px] font-bold">Plate: {activeReservation.plate_number}</p>
             </div>
-            <Button disabled className="bg-white/50 text-white font-black rounded-xl text-xs h-10 px-4 cursor-not-allowed">
-              Unavailable
-            </Button>
+            
+            {isMyBooking ? (
+              <Button 
+                onClick={() => navigate(`/receipt/${activeReservation.id}?from=reservations`)}
+                className="bg-white text-blue-600 hover:bg-blue-50 font-black rounded-xl text-xs h-10 px-4 shadow-sm"
+              >
+                View Ticket
+              </Button>
+            ) : (
+              <Button disabled className="bg-white/50 text-white font-black rounded-xl text-xs h-10 px-4 cursor-not-allowed">
+                Unavailable
+              </Button>
+            )}
           </div>
         )}
 
-        {/* WALK-IN ONLY WARNING */}
+        {/* Note for PWD and General Walk-in Only Slots */}
         {isWalkInOnly && (
-          <div className="bg-gray-500 text-white p-5 rounded-3xl shadow-lg border-2 border-gray-400 flex flex-col justify-center animate-in slide-in-from-top duration-500">
+          <div className={cn(
+            "text-white p-5 rounded-3xl shadow-lg border-2 flex flex-col justify-center animate-in slide-in-from-top duration-500",
+            (slot?.is_pwd === true || String(slot?.is_pwd) === "true") ? "bg-blue-600 border-blue-400" : "bg-gray-500 border-gray-400"
+          )}>
             <p className="text-[10px] font-bold uppercase opacity-90 flex items-center gap-1 mb-1">
-              <AlertCircle size={12}/> Walk-in Only
+              {(slot?.is_pwd === true || String(slot?.is_pwd) === "true") ? <Accessibility size={12}/> : <AlertCircle size={12}/>} 
+              Walk-in Only
             </p>
             <h3 className="font-black text-lg leading-tight">
-              Hindi pwedeng i-reserve ang slot na ito.
+              {(slot?.is_pwd === true || String(slot?.is_pwd) === "true") 
+                ? "PWD Reserved (Walk-in Only)" 
+                : "Hindi pwedeng i-reserve ang slot na ito."}
             </h3>
             <p className="text-xs opacity-90 mt-1">
-              Ang pwestong ito ay nakalaan lamang para sa mga walk-in customers. Mangyari po na bumalik sa map at pumili ng green (Available) slot.
+              {(slot?.is_pwd === true || String(slot?.is_pwd) === "true")
+                ? "Ang slot na ito ay nakalaan para sa mga PWD walk-in customers lamang. Mangyari po na pumili ng ibang slot para sa online reservation."
+                : "Ang pwestong ito ay nakalaan lamang para sa mga walk-in customers. Mangyari po na bumalik sa map at pumili ng green (Available) slot."}
             </p>
             <Button 
               onClick={() => window.history.back()}
@@ -316,7 +340,12 @@ export default function ReservationPage() {
           <div className="flex justify-between items-start">
             <div>
               <p className="opacity-70 text-[10px] font-bold uppercase tracking-widest">{lot?.name}</p>
-              <h2 className="text-3xl font-black mt-1">Slot {slot?.label}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-3xl font-black mt-1">Slot {slot?.label}</h2>
+                {(slot?.is_pwd === true || String(slot?.is_pwd) === "true") && (
+                   <Accessibility size={24} className="mt-1 opacity-80" />
+                )}
+              </div>
               <p className="text-[10px] opacity-80 mt-1 flex items-center gap-1"><Clock size={10}/> {lot?.open_hours}</p>
             </div>
             <div className="text-right flex flex-col items-end">
@@ -335,6 +364,7 @@ export default function ReservationPage() {
           </div>
         </div>
 
+        {/* INPUTS CONTAINER */}
         <div className={cn("bg-white rounded-2xl p-4 border shadow-sm", isBlocked ? "opacity-50 pointer-events-none" : "border-gray-100")}>
           <label className="text-[10px] font-black uppercase text-muted-foreground mb-2 block tracking-widest">Arrival Date</label>
           <Popover>
@@ -413,7 +443,7 @@ export default function ReservationPage() {
         {/* ERROR MESSAGES */}
         {!timeIsValid && (
           <div className="text-red-500 text-xs font-bold text-center animate-in fade-in">
-            Cannot book a time in the past.
+            Invalid time. Cannot book a time in the past.
           </div>
         )}
 
@@ -466,7 +496,7 @@ export default function ReservationPage() {
           )}
         >
           {isWalkInOnly
-            ? "Walk-in Only Slot"
+            ? ((slot?.is_pwd === true || String(slot?.is_pwd) === "true") ? "PWD Walk-in Only" : "Walk-in Only Slot")
             : isBlocked 
               ? "Action Not Allowed" 
               : !timeIsValid 

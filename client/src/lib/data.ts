@@ -58,72 +58,86 @@ export interface Notification {
   type: "reservation" | "availability" | "system";
 }
 
-// Mock Parking Lots
+// Mock Parking Lots - NOW USING REAL LIPA LOCATIONS
 export const parkingLots: ParkingLot[] = [
   {
     id: "lot-1",
-    name: "Parking 1",
-    address: "JP Laurel Highway, Lipa City",
+    name: "Robinsons Place Lipa",
+    address: "Mataas Na Lupa, JP Laurel Highway",
     type: "private",
-    totalSlots: 24,
-    availableSlots: 9,
-    distance: "0.3 km",
+    totalSlots: 50,
+    availableSlots: 14,
+    distance: "1.2 km",
     ratePerHour: 30,
-    openHours: "8:00 AM – 10:00 PM",
-    lat: 13.9411,
-    lng: 121.1631,
-    slots: generateSlots(24, "Park1"),
+    openHours: "10:00 AM – 9:00 PM",
+    lat: 13.9515,
+    lng: 121.1630,
+    slots: generateSlots(50, "RobLipa"),
   },
   {
     id: "lot-2",
-    name: "Parking 2",
-    address: "Ayala Highway, Lipa City",
+    name: "De La Salle Lipa",
+    address: "Pres. J.P. Laurel Highway",
     type: "private",
-    totalSlots: 18,
+    totalSlots: 40,
     availableSlots: 5,
-    distance: "0.7 km",
-    ratePerHour: 25,
-    openHours: "9:00 AM – 9:00 PM",
-    lat: 13.9380,
-    lng: 121.1600,
-    slots: generateSlots(18, "RP"),
+    distance: "0.5 km",
+    ratePerHour: 20,
+    openHours: "6:00 AM – 8:00 PM",
+    lat: 13.9535,
+    lng: 121.1610,
+    slots: generateSlots(40, "DLSL"),
   },
   {
     id: "lot-3",
-    name: "Lipa City Hall Parking",
+    name: "Lipa Public Market (Palengke)",
     address: "C.M. Recto Ave, Lipa City",
     type: "public",
     totalSlots: 30,
-    availableSlots: 14,
-    distance: "1.2 km",
-    ratePerHour: 0,
-    openHours: "6:00 AM – 8:00 PM",
-    lat: 13.9450,
-    lng: 121.1650,
-    slots: generateSlots(30, "CH"),
+    availableSlots: 0, // Full parking example
+    distance: "3.0 km",
+    ratePerHour: 20,
+    openHours: "4:00 AM – 7:00 PM",
+    lat: 13.9405,
+    lng: 121.1632,
+    slots: generateSlots(30, "PubMkt"),
   },
   {
     id: "lot-4",
-    name: "De La Salle Lipa Parking",
-    address: "Maharlika Highway, Lipa City",
+    name: "Zam Parking Area",
+    address: "B. Morada Ave, Lipa City",
     type: "private",
     totalSlots: 20,
     availableSlots: 11,
     distance: "1.8 km",
-    ratePerHour: 20,
-    openHours: "7:00 AM – 9:00 PM",
-    lat: 13.9500,
-    lng: 121.1700,
-    slots: generateSlots(20, "DL"),
+    ratePerHour: 40,
+    openHours: "8:00 AM – 10:00 PM",
+    lat: 13.9425,
+    lng: 121.1620,
+    slots: generateSlots(20, "Zam"),
   },
+  {
+    id: "lot-5",
+    name: "SM City Lipa",
+    address: "Ayala Highway, Lipa City",
+    type: "private",
+    totalSlots: 100,
+    availableSlots: 42,
+    distance: "2.1 km",
+    ratePerHour: 30,
+    openHours: "10:00 AM – 10:00 PM",
+    lat: 13.9453,
+    lng: 121.1633,
+    slots: generateSlots(100, "SMLipa"),
+  }
 ];
 
 function generateSlots(count: number, prefix: string): ParkingSlot[] {
   const statuses: SlotStatus[] = ["available", "occupied", "reserved"];
-  const rows = ["A", "B", "C", "D"];
+  const rows = ["A", "B", "C", "D", "E", "F"];
   return Array.from({ length: count }, (_, i) => {
-    const row = rows[Math.floor(i / 6)];
-    const num = (i % 6) + 1;
+    const row = rows[Math.floor(i / 10) % rows.length];
+    const num = (i % 10) + 1;
     // Deterministic but varied status
     const statusIndex = (i * 7 + 3) % 10;
     const status: SlotStatus =
@@ -138,11 +152,11 @@ function generateSlots(count: number, prefix: string): ParkingSlot[] {
   });
 }
 
-// Mock Reservations
+// Mock Reservations - Updated to match real lot names
 export const mockReservations: Reservation[] = [
   {
     id: "res-001",
-    lotName: "Parking 1",
+    lotName: "Robinsons Place Lipa",
     slotLabel: "A3",
     date: "Mar 20, 2026",
     startTime: "10:00 AM",
@@ -154,37 +168,37 @@ export const mockReservations: Reservation[] = [
   },
   {
     id: "res-002",
-    lotName: "Parking 2",
+    lotName: "De La Salle Lipa",
     slotLabel: "B2",
     date: "Mar 18, 2026",
     startTime: "2:00 PM",
     endTime: "5:00 PM",
     duration: "3 hours",
-    amount: 75,
+    amount: 60,
     status: "completed",
     vehiclePlate: "ABC 1234",
   },
   {
     id: "res-003",
-    lotName: "De La Salle Lipa Parking",
+    lotName: "SM City Lipa",
     slotLabel: "C1",
     date: "Mar 15, 2026",
     startTime: "8:00 AM",
     endTime: "10:00 AM",
     duration: "2 hours",
-    amount: 40,
+    amount: 60,
     status: "completed",
     vehiclePlate: "XYZ 5678",
   },
   {
     id: "res-004",
-    lotName: "Parking 1",
+    lotName: "Zam Parking Area",
     slotLabel: "D4",
     date: "Mar 22, 2026",
     startTime: "9:00 AM",
     endTime: "11:00 AM",
     duration: "2 hours",
-    amount: 60,
+    amount: 80,
     status: "pending",
     vehiclePlate: "ABC 1234",
   },
@@ -196,12 +210,12 @@ export const mockVehicles: Vehicle[] = [
   { id: "v2", plate: "XYZ 5678", model: "Honda City", color: "Silver", isDefault: false },
 ];
 
-// Mock Notifications
+// Mock Notifications - Updated to match real lot names
 export const mockNotifications: Notification[] = [
   {
     id: "n1",
     title: "Reservation Confirmed",
-    message: "Your reservation at Parking 1 (Slot A3) is confirmed for Mar 20 at 10:00 AM.",
+    message: "Your reservation at Robinsons Place Lipa (Slot A3) is confirmed for Mar 20 at 10:00 AM.",
     time: "2 min ago",
     read: false,
     type: "reservation",
@@ -209,7 +223,7 @@ export const mockNotifications: Notification[] = [
   {
     id: "n2",
     title: "Slot Now Available",
-    message: "A parking slot at Parking 2 is now available near your saved location.",
+    message: "A parking slot at De La Salle Lipa is now available near your saved location.",
     time: "15 min ago",
     read: false,
     type: "availability",
@@ -217,7 +231,7 @@ export const mockNotifications: Notification[] = [
   {
     id: "n3",
     title: "Reservation Reminder",
-    message: "Your reservation at Parking 1 starts in 30 minutes. Please proceed to Slot A3.",
+    message: "Your reservation at Robinsons Place Lipa starts in 30 minutes. Please proceed to Slot A3.",
     time: "1 hr ago",
     read: true,
     type: "reservation",
@@ -225,7 +239,7 @@ export const mockNotifications: Notification[] = [
   {
     id: "n4",
     title: "Reservation Completed",
-    message: "Your parking session at Parking 2 has ended. Thank you for using iParkBayan!",
+    message: "Your parking session at SM City Lipa has ended. Thank you for using iParkBayan!",
     time: "2 days ago",
     read: true,
     type: "system",
@@ -234,12 +248,12 @@ export const mockNotifications: Notification[] = [
 
 // Admin stats
 export const adminStats = {
-  totalSlots: 92,
-  availableSlots: 39,
-  occupiedSlots: 41,
-  reservedSlots: 12,
-  todayReservations: 28,
-  todayRevenue: 1240,
-  activeUsers: 156,
+  totalSlots: 240, // Updated to reflect new total slots
+  availableSlots: 72,
+  occupiedSlots: 130,
+  reservedSlots: 38,
+  todayReservations: 45,
+  todayRevenue: 2450,
+  activeUsers: 210,
   weeklyOccupancy: [62, 74, 58, 81, 69, 77, 65],
 };
