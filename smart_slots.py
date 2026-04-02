@@ -44,7 +44,7 @@ model = YOLO("best.pt")
 
 # Tapo Camera RTSP Stream (Change to stream2 if the video lags)
 video_path = "rtsp://admincam:admin123@192.168.43.161:554/stream1" 
-cap = cv2.VideoCapture(video_path)
+cap = cv2.VideoCapture(0) # For testing with webcam, change to 0. Use video_path for Tapo feed.
 
 all_slots = []
 slot_data = [] 
