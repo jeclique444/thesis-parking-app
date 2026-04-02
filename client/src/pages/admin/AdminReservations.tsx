@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminReservations (Full Overstay, Real-time & Penalty Version)
+ * iParkBayan — AdminReservations (Added Date Column from created_at)
  */
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/AdminLayout";
@@ -64,6 +64,7 @@ export default function AdminReservations() {
         shortId: res.id.substring(0, 8).toUpperCase(),
         lotName: res.parking_lots?.name || "Unknown Lot",
         slotLabel: res.parking_slots?.label || "N/A",
+        createdAt: res.created_at, // KINUHA NATIN ANG DATE MULA SA DATABASE
         startTime: res.start_time,
         endTime: res.end_time,
         totalPrice: res.total_amount || 0,
@@ -99,7 +100,6 @@ export default function AdminReservations() {
     return Math.ceil(diffInHours * PENALTY_RATE_PER_HOUR);
   };
 
-  // FIXED: Binago natin para tumanggap ng 'res' object at 'newStatus'
   const updateReservationStatus = async (res: any, newStatus: string) => {
     const fine = calculateFine(res.endTime, res.status);
     const finalAmount = Number(res.totalPrice) + fine;
@@ -143,7 +143,6 @@ export default function AdminReservations() {
   return (
     <AdminLayout title="Reservations">
       <div className="space-y-6">
-        {/* Stats Cards ... (Keep existing UI) */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white p-4 rounded-2xl border flex items-center gap-4">
             <div className="bg-primary/10 p-3 rounded-full text-primary"><CalendarDays size={20} /></div>
@@ -163,7 +162,6 @@ export default function AdminReservations() {
           </div>
         </div>
 
-        {/* Table Section */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border">
           <div className="flex justify-between items-center mb-6">
             <h3 className="font-bold">Reservation Records</h3>
@@ -179,7 +177,8 @@ export default function AdminReservations() {
                 <tr className="text-xs text-muted-foreground border-b uppercase font-black">
                   <th className="text-left pb-3">Booking ID</th>
                   <th className="text-left pb-3">Location & Slot</th>
-                  <th className="text-left pb-3">Schedule</th>
+                  <th className="text-left pb-3">Date</th> {/* BAGONG COLUMN */}
+                  <th className="text-left pb-3">Time</th> {/* PINALITAN MULA SA SCHEDULE */}
                   <th className="text-left pb-3 text-rose-600">Fine</th>
                   <th className="text-left pb-3">Status</th>
                   <th className="text-right pb-3">Actions</th>
@@ -196,10 +195,22 @@ export default function AdminReservations() {
                         <p className="font-bold">{res.lotName}</p>
                         <p className="text-[10px] text-primary font-black uppercase">Slot: {res.slotLabel}</p>
                       </td>
+                      
+                      {/* DATE DATA COLUMN */}
+                      <td className="py-4 text-xs font-semibold text-slate-700">
+                        {res.createdAt ? new Date(res.createdAt).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        }) : "N/A"}
+                      </td>
+
+                      {/* TIME DATA COLUMN */}
                       <td className="py-4 text-xs">
                         <p>{res.startTime}</p>
                         <p className={cn("font-bold", isOverstaying ? "text-rose-600" : "text-muted-foreground")}>to {res.endTime}</p>
                       </td>
+
                       <td className="py-4 font-bold">{fine > 0 ? <span className="text-rose-600">+₱{fine}</span> : "-"}</td>
                       <td className="py-4">
                         <span className={cn("text-[10px] font-bold px-2.5 py-1 rounded-full uppercase border", isOverstaying ? "bg-rose-600 text-white" : statusStyles[res.status])}>
@@ -209,19 +220,16 @@ export default function AdminReservations() {
                       <td className="py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           {res.status === 'pending' && (
-                            // FIXED CALL: updateReservationStatus(res, 'active')
                             <Button size="sm" className="h-8 bg-blue-600 text-white rounded-lg" onClick={() => updateReservationStatus(res, 'active')}>
                               Approve
                             </Button>
                           )}
                           {(res.status === 'pending' || res.status === 'active') && (
-                            // FIXED CALL: updateReservationStatus(res, 'cancelled')
                             <Button variant="outline" size="sm" className="h-8 text-rose-600 rounded-lg" onClick={() => window.confirm("Cancel?") && updateReservationStatus(res, 'cancelled')}>
                               <XCircle size={14} className="mr-1" /> Cancel
                             </Button>
                           )}
                           {res.status === 'active' && (
-                            // FIXED CALL: updateReservationStatus(res, 'completed')
                             <Button size="sm" className={cn("h-8 rounded-lg text-white font-bold", isOverstaying ? "bg-rose-600" : "bg-emerald-600")} onClick={() => updateReservationStatus(res, 'completed')}>
                               {isOverstaying ? <Coins size={14} className="mr-1" /> : <CheckCircle size={14} className="mr-1" />}
                               {isOverstaying ? "Collect & Complete" : "Complete"}

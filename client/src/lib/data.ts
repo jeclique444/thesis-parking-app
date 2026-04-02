@@ -9,6 +9,8 @@ export interface ParkingSlot {
   status: SlotStatus;
   floor?: string;
   row?: string;
+  is_pwd?: boolean;
+  is_reservable?: boolean;
 }
 
 export interface ParkingLot {

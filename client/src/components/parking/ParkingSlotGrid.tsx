@@ -1,10 +1,10 @@
 /*
- * iParkBayan — ParkingSlotGrid
- * Visual floor-plan grid of parking slots with color-coded status
+ * iParkBayan — ParkingSlotGrid (Final Clean Up: Green X + Clickable + Aligned)
  */
 import { cn } from "@/lib/utils";
 import type { ParkingSlot } from "@/lib/data";
-import { Car } from "lucide-react";
+import { Car, X } from "lucide-react"; 
+import { toast } from "sonner"; // Siguraduhing naka-import ito para sa note
 
 interface ParkingSlotGridProps {
   slots: ParkingSlot[];
@@ -32,6 +32,7 @@ const statusConfig = {
     label: "Reserved",
     dot: "bg-amber-500",
   },
+  // Inalis na natin ang 'walkin' config sa legend para malinis
 };
 
 export default function ParkingSlotGrid({
@@ -50,8 +51,8 @@ export default function ParkingSlotGrid({
 
   return (
     <div className="space-y-3">
-      {/* Legend */}
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+      {/* Legend - Malinis na, wala nang Walk-in label */}
+      <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
         {Object.entries(statusConfig).map(([status, config]) => (
           <div key={status} className="flex items-center gap-1.5">
             <span className={cn("w-2.5 h-2.5 rounded-sm", config.dot)} />
@@ -83,29 +84,46 @@ export default function ParkingSlotGrid({
             <span className="text-xs font-bold text-muted-foreground w-4 shrink-0">{row}</span>
             <div className="flex gap-1.5 flex-wrap">
               {rowSlots.map((slot) => {
-                const config = statusConfig[slot.status];
+                const isOccupied = slot.status === "occupied" || slot.status === "reserved";
+                const isWalkIn = slot.label === "C1" || (slot as any).is_reservable === false || String((slot as any).is_reservable) === "false";
+                
+                const config = statusConfig[slot.status as keyof typeof statusConfig] || statusConfig.available;
                 const isSelected = selectedSlot === slot.id;
+                
+                // CLICKABLE NA ULIT KAHIT C1 (Basta available ang status)
                 const canSelect = interactive && slot.status === "available";
 
                 return (
                   <button
                     key={slot.id}
-                    onClick={() => canSelect && onSelectSlot?.(slot)}
+                    onClick={() => {
+                      if (isWalkIn) {
+                        toast.info(`Note: Slot ${slot.label} is for Walk-in only.`);
+                      }
+                      canSelect && onSelectSlot?.(slot);
+                    }}
                     disabled={!canSelect}
                     className={cn(
-                      "w-12 h-14 rounded-lg border-2 flex flex-col items-center justify-center gap-0.5 transition-all text-xs font-bold",
+                      "w-12 h-14 rounded-lg border-2 flex flex-col items-center justify-center transition-all text-xs font-bold",
                       isSelected
                         ? "bg-primary/15 border-primary text-primary scale-105 shadow-md"
                         : config.bg,
                       !isSelected && config.text,
-                      canSelect && "hover:scale-105 hover:shadow-sm active:scale-95"
+                      canSelect && "hover:scale-105 hover:shadow-sm active:scale-95 cursor-pointer"
                     )}
                   >
-                    {slot.status === "occupied" ? (
-                      <Car size={14} className="opacity-60" />
-                    ) : (
-                      <div className={cn("w-2 h-2 rounded-full", isSelected ? "bg-primary" : config.dot)} />
-                    )}
+                    {/* ICON CONTAINER: Sinisiguro ang pantay na alignment ng X at Dot */}
+                    <div className="h-4 flex items-center justify-center mb-0.5">
+                      {slot.status === "occupied" ? (
+                        <Car size={14} className="opacity-60" />
+                      ) : isWalkIn ? (
+                        // GREEN X MARK (Pantay sa Dot)
+                        <X size={14} className="text-current stroke-[4px]" />
+                      ) : (
+                        // REGULAR DOT
+                        <div className={cn("w-2 h-2 rounded-full", isSelected ? "bg-primary" : config.dot)} />
+                      )}
+                    </div>
                     <span className="text-[10px] leading-none">{slot.label}</span>
                   </button>
                 );

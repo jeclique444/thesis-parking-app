@@ -25,20 +25,36 @@ export default function VehiclesPage() {
   }, []);
 
   // 1. Fetch from Database
+ // 1. Fetch from Database
   const fetchVehicles = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      // Kunin ang current logged-in user
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
+        console.error("Hindi naka-login o may error sa auth:", authError);
+        setLoading(false);
+        return; // Stop execution kung walang user
+      }
 
+      console.log("Naka-login si:", user.id); // Idinagdag para ma-check mo sa console
+
+      // Kunin ang mga sasakyan ng user na ito
       const { data, error } = await supabase
         .from("vehicles")
         .select("*")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error pagkuha ng sasakyan:", error);
+        throw error;
+      }
+
+      console.log("Nakuha na data mula sa DB:", data); // Idinagdag para makita ang laman
       setVehicles(data || []);
-    } catch (err) {
+      
+    } catch (err: any) {
       console.error(err);
       toast.error("Failed to load vehicles");
     } finally {
@@ -62,7 +78,7 @@ export default function VehiclesPage() {
         .from("vehicles")
         .insert([{
           user_id: user.id,
-          plate_number: form.plate.toUpperCase(),
+          plate: form.plate.toUpperCase(), // 🔥 Binago ito mula plate_number papuntang plate
           model: form.model,
           color: form.color
         }]);
@@ -125,14 +141,14 @@ export default function VehiclesPage() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <p className="text-sm font-black font-mono text-slate-800 uppercase tracking-tighter">{v.plate_number}</p>
+                 <p className="text-sm font-black font-mono text-slate-800 uppercase tracking-tighter">{v.plate}</p>
                 </div>
                 <p className="text-[11px] font-bold text-slate-400 uppercase">{v.model} • {v.color}</p>
               </div>
               <button 
-                onClick={() => removeVehicle(v.id, v.plate_number)} 
+                onClick={() => removeVehicle(v.id, v.plate)} // 🔥 Binago ito mula v.plate_number
                 className="w-10 h-10 flex items-center justify-center text-slate-300 hover:text-rose-500 transition-colors"
-              >
+                  >
                 <Trash2 size={18} />
               </button>
             </div>

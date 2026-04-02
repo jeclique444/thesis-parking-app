@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminParkingSlots (Real Database Version with CRUD)
+ * iParkBayan — AdminParkingSlots (Real Database Version with CRUD & Walk-in Toggle)
  */
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/AdminLayout";
@@ -7,7 +7,7 @@ import ParkingSlotGrid from "@/components/parking/ParkingSlotGrid";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { RefreshCw, Car, Plus, Trash2 } from "lucide-react";
+import { RefreshCw, Car, Plus, Trash2, ArrowLeftRight } from "lucide-react"; // Nag-add ng ArrowLeftRight icon
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/supabaseClient";
 
@@ -120,7 +120,8 @@ export default function AdminParkingSlots() {
             lot_id: selectedLotId, 
             label: newSlotLabel.trim().toUpperCase(),
             status: 'available',
-            is_pwd: newSlotIsPwd
+            is_pwd: newSlotIsPwd,
+            is_reservable: true // Default ay pwede i-reserve
           }
         ])
         .select();
@@ -148,9 +149,34 @@ export default function AdminParkingSlots() {
     }
   };
 
+  // 🔥 ACTION: Toggle Reservable (Walk-in vs Reservable)
+  const toggleReservableStatus = async (slotId: string, currentStatus: boolean, slotLabel: string) => {
+  const newStatus = !currentStatus;
+  const targetMode = newStatus ? 'Reservable' : 'Walk-in Only';
+  const isConfirmed = window.confirm(
+      `Are you sure you want to change Slot ${slotLabel} to ${targetMode} mode?`
+    );
+
+    if (!isConfirmed) return; // Kung kinansela ng admin, i-stop ang process
+    try {
+      const newStatus = !currentStatus;
+      const { error } = await supabase
+        .from('parking_slots')
+        .update({ is_reservable: newStatus })
+        .eq('id', slotId);
+
+      if (error) throw error;
+      
+      toast.success(`Slot ${slotLabel} is now set to ${newStatus ? 'Reservable' : 'Walk-in Only'}.`);
+      fetchSlots(selectedLotId); // I-refresh ang UI agad
+    } catch (error: any) {
+      console.error("Error updating slot status:", error.message);
+      toast.error("Failed to update booking mode.");
+    }
+  };
+
   // 🔥 ACTION: Mag-delete ng slot (SUPER ADMIN ONLY & AVAILABLE ONLY)
   const handleDeleteSlot = async (slotId: string, slotLabel: string, slotStatus: string) => {
-    // SMART VALIDATION: Bawal mag-delete kung may naka-park o reserved!
     if (slotStatus !== 'available') {
       toast.error(`Bawal i-delete ang Slot ${slotLabel} dahil ito ay ${slotStatus}!`);
       return;
@@ -165,7 +191,6 @@ export default function AdminParkingSlots() {
         .eq('id', slotId);
 
       if (error) {
-        // Kapag may Foreign Key error (may existing reservation record)
         if (error.code === '23503') { 
           throw new Error("Cannot delete slot. It has past reservations and is linked to billing history.");
         }
@@ -331,50 +356,72 @@ export default function AdminParkingSlots() {
                 <tr className="text-xs text-muted-foreground border-b border-border">
                   <th className="text-left pb-3 font-semibold uppercase tracking-wider">Slot Label</th>
                   <th className="text-left pb-3 font-semibold uppercase tracking-wider">Type</th>
+                  <th className="text-left pb-3 font-semibold uppercase tracking-wider">Booking Mode</th>
                   <th className="text-left pb-3 font-semibold uppercase tracking-wider">Status</th>
                   <th className="text-right pb-3 font-semibold uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {slots.map((slot) => (
-                  <tr key={slot.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="py-3 font-bold text-base">{slot.label}</td>
-                    <td className="py-3">
-                      {slot.is_pwd ? (
-                        <Badge variant="outline" className="border-amber-200 text-amber-700 bg-amber-50">PWD / Reserved</Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-xs font-medium">Regular</span>
-                      )}
-                    </td>
-                    <td className="py-3">
-                      <span className={cn(
-                        "text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider",
-                        slot.status === "available" ? "bg-emerald-100 text-emerald-700" :
-                        slot.status === "occupied" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"
-                      )}>
-                        {slot.status}
-                      </span>
-                    </td>
-                    <td className="py-3 text-right">
-                      {/* 🔥 DEFENSE LOGIC: Superadmin lang at Available Slots lang ang pwedeng i-delete */}
-                      {userRole === 'superadmin' && (
-                        <button
-                          onClick={() => handleDeleteSlot(slot.id, slot.label, slot.status)}
-                          disabled={slot.status !== 'available'}
-                          className={cn(
-                            "p-2 rounded-lg transition-colors inline-flex items-center",
-                            slot.status === 'available' 
-                              ? "text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                              : "text-slate-300 cursor-not-allowed"
+                {slots.map((slot) => {
+                  const isReservable = slot.is_reservable !== false && String(slot.is_reservable) !== "false";
+
+                  return (
+                    <tr key={slot.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="py-3 font-bold text-base">{slot.label}</td>
+                      <td className="py-3">
+                        {slot.is_pwd ? (
+                          <Badge variant="outline" className="border-amber-200 text-amber-700 bg-amber-50">PWD / Reserved</Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-xs font-medium">Regular</span>
+                        )}
+                      </td>
+                      <td className="py-3">
+                        {/* BOOKING MODE BADGE */}
+                        <Badge variant="outline" className={isReservable ? "border-blue-200 text-blue-700 bg-blue-50" : "border-gray-300 text-gray-500 bg-gray-100"}>
+                          {isReservable ? "Reservable" : "Walk-in Only (X)"}
+                        </Badge>
+                      </td>
+                      <td className="py-3">
+                        <span className={cn(
+                          "text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider",
+                          slot.status === "available" ? "bg-emerald-100 text-emerald-700" :
+                          slot.status === "occupied" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"
+                        )}>
+                          {slot.status}
+                        </span>
+                      </td>
+                      <td className="py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          {/* 🔥 TOGGLE MODE BUTTON (Makikita ng Manager at Superadmin) */}
+                          <button
+                            onClick={() => toggleReservableStatus(slot.id, isReservable, slot.label)}
+                            className="p-2 rounded-lg text-blue-500 hover:text-blue-700 hover:bg-blue-50 transition-colors inline-flex items-center"
+                            title={`Switch to ${isReservable ? 'Walk-in' : 'Reservable'}`}
+                          >
+                            <ArrowLeftRight size={16} />
+                          </button>
+
+                          {/* 🔥 DEFENSE LOGIC: Superadmin lang at Available Slots lang ang pwedeng i-delete */}
+                          {userRole === 'superadmin' && (
+                            <button
+                              onClick={() => handleDeleteSlot(slot.id, slot.label, slot.status)}
+                              disabled={slot.status !== 'available'}
+                              className={cn(
+                                "p-2 rounded-lg transition-colors inline-flex items-center",
+                                slot.status === 'available' 
+                                  ? "text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                                  : "text-slate-300 cursor-not-allowed"
+                              )}
+                              title={slot.status === 'available' ? "Delete Slot" : "Cannot delete occupied/reserved slot"}
+                            >
+                              <Trash2 size={16} />
+                            </button>
                           )}
-                          title={slot.status === 'available' ? "Delete Slot" : "Cannot delete occupied/reserved slot"}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

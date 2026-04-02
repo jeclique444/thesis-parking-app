@@ -42,7 +42,22 @@ export default function ParkingLotPage() {
         .order("label", { ascending: true });
 
       if (slotsError) throw slotsError;
-      setSlots(slotsData || []);
+
+      // ==========================================
+      // LOCAL DATA CACHE / OVERRIDE FOR C1
+      // ==========================================
+      const updatedSlots = (slotsData || []).map(slot => {
+        if (slot.label === "C1") {
+          return { 
+            ...slot, 
+            is_reservable: false // Force walk-in status for C1
+          };
+        }
+        return slot;
+      });
+
+      setSlots(updatedSlots); 
+      // ==========================================
 
     } catch (error) {
       console.error("Fetch error:", error);

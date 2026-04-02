@@ -21,6 +21,7 @@ import ParkingMapPage from "./pages/driver/ParkingMapPage";
 import ParkingLotPage from "./pages/driver/ParkingLotPage";
 import ReservationPage from "./pages/driver/ReservationPage";
 import ReservationConfirmPage from "./pages/driver/ReservationConfirmPage";
+import SlotSelectionPage from "./pages/driver/SlotSelectionPage";
 import DigitalReceiptPage from "./pages/driver/DigitalReceipt"; 
 import BookingPage from "./pages/driver/BookingPage";
 import ProfilePage from "./pages/driver/ProfilePage";
@@ -72,6 +73,9 @@ function Router() {
       {/* 5. DYNAMIC ROUTES (Dapat laging nasa huli) */}
       {/* Nilalagay natin ito sa dulo para hindi nito ma-block ang /register */}
       <Route path="/parking/:id" component={ParkingLotPage} />
+      <Route path="/slotselection/:lotId"> 
+      {(params) => <SlotSelectionPage lotId={params.lotId} />} 
+      </Route>
       <Route path="/reserve/:slotId" component={ReservationPage} />
       <Route path="/reserve/:slotId/confirm" component={ReservationConfirmPage} />
       <Route path="/receipt/:id" component={DigitalReceiptPage} />
