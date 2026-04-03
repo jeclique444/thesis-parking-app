@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "../../supabaseClient";
 import { toPng, toBlob } from "html-to-image";
 import { toast } from "sonner";
+import { QRCodeSVG } from "qrcode.react"; // <-- IMPORT ITO PARA SA TOTOONG QR CODE
 import { 
-  QrCode, 
   MapPin, 
   Clock, 
   Car, 
@@ -24,6 +24,10 @@ export default function DigitalReceiptPage() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const [res, setRes] = useState<any>(null);
+  // ==========================================
+  // 🟢 BAGONG STATE PARA KUNIN ANG TOTOONG REF NUMBER 🟢
+  // ==========================================
+  const [receiptRef, setReceiptRef] = useState<string>("PROCESSING"); 
   const [loading, setLoading] = useState(true);
 
   const ticketRef = useRef<HTMLDivElement>(null);
@@ -61,7 +65,8 @@ export default function DigitalReceiptPage() {
       }
 
       try {
-        const { data, error } = await supabase
+        // 1. KUNIN ANG RESERVATION DETAILS
+        const { data: resData, error: resError } = await supabase
           .from("reservations")
           .select(`
             *,
@@ -71,8 +76,22 @@ export default function DigitalReceiptPage() {
           .eq("id", params.id)
           .single();
 
-        if (error) throw error;
-        setRes(data);
+        if (resError) throw resError;
+        setRes(resData);
+
+        // ==========================================
+        // 🟢 2. KUNIN ANG TOTOONG REFERENCE NUMBER SA RECEIPTS TABLE 🟢
+        // ==========================================
+        const { data: receiptData } = await supabase
+          .from("receipts")
+          .select("reference_no")
+          .eq("reservation_id", params.id)
+          .single();
+
+        if (receiptData) {
+            setReceiptRef(receiptData.reference_no);
+        }
+
       } catch (err) {
         console.error("Receipt error:", err);
       } finally {
@@ -149,6 +168,20 @@ export default function DigitalReceiptPage() {
     </MobileLayout>
   );
 
+  // DATA NA NASA LOOB NG QR CODE
+  const qrData = JSON.stringify({
+  id: res.id, // Booking ID (UUID) - Ito ang pinaka-reliable na search key
+  plate: res.plate_number,
+  ref: receiptRef
+});
+
+
+  const bookingDate = new Date(res.created_at).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+
   return (
     <MobileLayout title="Digital Receipt" showBack onBack={handleBack}>
       <div className="page-enter p-6 space-y-6 bg-slate-50 min-h-screen">
@@ -176,13 +209,14 @@ export default function DigitalReceiptPage() {
 
             <div className="flex justify-center">
               <div className="p-4 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
-                 <QrCode size={120} className="text-slate-800" strokeWidth={1.5} />
+                  {/* TOTOONG SCANNABLE QR CODE */}
+                 <QRCodeSVG value={qrData} size={120} level="M" />
               </div>
             </div>
 
             <div className="space-y-1">
               <p className="text-xs font-black text-foreground uppercase">{res.plate_number}</p>
-              <p className="text-[9px] text-muted-foreground font-bold">Ref: {res.id.slice(0, 8).toUpperCase()}</p>
+              <p className="text-[9px] text-muted-foreground font-bold">Ref: {receiptRef}</p>
             </div>
           </div>
 
@@ -204,7 +238,9 @@ export default function DigitalReceiptPage() {
                 <Clock size={16} className="text-primary shrink-0" />
                 <div>
                   <p className="text-[9px] font-black text-muted-foreground uppercase">Schedule</p>
-                  <p className="text-[11px] font-bold">{res.start_time} - {res.end_time}</p>
+                  {/* 👇 Pinalitan natin ito para ipakita ang Date at Time */}
+                  <p className="text-[11px] font-bold">{bookingDate}</p>
+                  <p className="text-[10px] font-medium text-muted-foreground">{res.start_time} - {res.end_time}</p>
                 </div>
               </div>
               <div className="flex gap-3">

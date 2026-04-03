@@ -1,10 +1,8 @@
 /*
  * iParkBayan — ParkingMapPage
- * Design: Civic Tech / Filipino Urban Identity
  * Map view with parking lot markers and list
  */
 import { useState } from "react";
-import { useLocation } from "wouter";
 import MobileLayout from "@/components/MobileLayout";
 import { parkingLots } from "@/lib/data";
 import { MapPin, List, Map, Search, Filter } from "lucide-react";

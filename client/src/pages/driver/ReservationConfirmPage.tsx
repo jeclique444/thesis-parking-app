@@ -133,6 +133,26 @@ const handlePayment = async () => {
 
       if (resError) throw resError;
 
+      // ==========================================
+      // 🟢 BAGONG CODE PARA SA RECEIPTS TABLE 🟢
+      // ==========================================
+      // Gumawa ng random 6-character reference number (Hal. EZP-A1B2C3)
+      const randomChars = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const refNo = `EZP-${randomChars}`;
+
+      const { error: receiptError } = await supabase
+        .from("receipts")
+        .insert({
+          reservation_id: newRes.id,
+          user_id: user.id,
+          reference_no: refNo,
+          amount_paid: parseFloat(totalAmount || "40"),
+          payment_method: paymentMethod || "Unknown"
+        });
+
+      if (receiptError) throw receiptError;
+      // ==========================================
+
       // 2. UPDATE PARKING_SLOTS STATUS
       const { error: updateError } = await supabase
         .from("parking_slots")
@@ -144,6 +164,7 @@ const handlePayment = async () => {
       // 3. 🔥 TRIGGER THE NOTIFICATION
       await triggerNotification(user.id, slot?.label || "");
 
+      // Naka-base pa rin tayo sa Reservation ID para hindi masira yung redirect route mo
       setNewReservationId(newRes.id);
       setIsSuccess(true);
       toast.success("Reservation successful!");

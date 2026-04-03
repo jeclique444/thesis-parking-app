@@ -1,6 +1,6 @@
 /*
- * iParkBayan — ParkingMapPage
- * Clean Satellite View + Navigation (Waze) + Real-time Geolocation + In-App Route Directions
+ * ParKada (formerly iParkBayan) — ParkingMapPage
+ * Clean Satellite View + Navigation (Waze) + Real-time Geolocation + In-App Route Directions + Supabase Real-time
  */
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
@@ -85,6 +85,7 @@ const createCustomIcon = (availableSlots: number) => {
 export default function ParkingMapPage() {
   const [, navigate] = useLocation();
   const [lots, setLots] = useState<any[]>([]);
+  const [slots, setSlots] = useState<any[]>([]); // Dinagdag natin ito para i-store lahat ng slots
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"map" | "list">("map");
   const [search, setSearch] = useState("");
@@ -92,7 +93,7 @@ export default function ParkingMapPage() {
 
   const [userCoords, setUserCoords] = useState<{lat: number, lng: number} | null>(null);
   
-  // NEW STATE: Para sa drawn route sa mapa
+  // State para sa drawn route sa mapa
   const [routeCoords, setRouteCoords] = useState<[number, number][] | null>(null);
   const [isFetchingRoute, setIsFetchingRoute] = useState(false);
 
@@ -110,22 +111,71 @@ export default function ParkingMapPage() {
   }, []);
 
   useEffect(() => {
-    const fetchLots = async () => {
+    // 1. Initial Fetch ng Lots AT Slots
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const { data, error } = await supabase.from('parking_lots').select('*');
-        if (error) throw error;
-        setLots(data || []);
+        const [lotsRes, slotsRes] = await Promise.all([
+          supabase.from('parking_lots').select('*'),
+          supabase.from('parking_slots').select('*')
+        ]);
+        
+        if (lotsRes.error) throw lotsRes.error;
+        if (slotsRes.error) throw slotsRes.error;
+
+        setLots(lotsRes.data || []);
+        setSlots(slotsRes.data || []);
       } catch (err) {
         console.error("Supabase Error:", err);
       } finally {
         setLoading(false);
       }
     };
-    fetchLots();
+    
+    fetchData();
+
+    // 2. REAL-TIME SUBSCRIPTION para sa Parking Lots
+    const lotsChannel = supabase
+      .channel('realtime:parking_lots')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'parking_lots' },
+        (payload) => {
+          setLots((currentLots) => {
+            if (payload.eventType === 'INSERT') return [...currentLots, payload.new];
+            if (payload.eventType === 'UPDATE') return currentLots.map((lot) => lot.id === payload.new.id ? { ...lot, ...payload.new } : lot);
+            if (payload.eventType === 'DELETE') return currentLots.filter((lot) => lot.id !== payload.old.id);
+            return currentLots;
+          });
+        }
+      )
+      .subscribe();
+
+    // 3. REAL-TIME SUBSCRIPTION para sa Parking Slots (Ito yung fix para maging accurate ang count)
+    const slotsChannel = supabase
+      .channel('realtime:parking_slots')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'parking_slots' },
+        (payload) => {
+          setSlots((currentSlots) => {
+            if (payload.eventType === 'INSERT') return [...currentSlots, payload.new];
+            if (payload.eventType === 'UPDATE') return currentSlots.map((slot) => slot.id === payload.new.id ? payload.new : slot);
+            if (payload.eventType === 'DELETE') return currentSlots.filter((slot) => slot.id !== payload.old.id);
+            return currentSlots;
+          });
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscriptions kapag nag-unmount ang component
+    return () => {
+      supabase.removeChannel(lotsChannel);
+      supabase.removeChannel(slotsChannel);
+    };
   }, []);
 
-  // NEW FUNCTION: Kukuha ng daan (route) mula sa OSRM API
+  // Kukuha ng daan (route) mula sa OSRM API
   const handleShowRoute = async (targetLat: number, targetLng: number) => {
     if (!userCoords) {
       alert("Please allow location access to get directions.");
@@ -152,7 +202,20 @@ export default function ParkingMapPage() {
     }
   };
 
-  const filteredAndSorted = lots
+  // Compute muna natin ang accurate count galing sa parking_slots table bago natin i-filter
+  const computedLots = lots.map(lot => {
+    const lotSlots = slots.filter(s => s.lot_id === lot.id);
+    
+    // Kung may naka-assign na slots sa parking lot na ito base sa slots table, gamitin yun.
+    if (lotSlots.length > 0) {
+      const available = lotSlots.filter(s => s.status === 'available').length;
+      return { ...lot, available_slots: available, total_slots: lotSlots.length };
+    }
+    
+    return lot; // Fallback sa dating count kung walang nakitang slot records sa DB
+  });
+
+  const filteredAndSorted = computedLots
     .filter((lot) => {
       const matchSearch = lot.name.toLowerCase().includes(search.toLowerCase()) ||
                           lot.address.toLowerCase().includes(search.toLowerCase());
@@ -234,7 +297,7 @@ export default function ParkingMapPage() {
                 />
               )}
 
-              {/* NEW: In-app route line (Polyline) */}
+              {/* In-app route line (Polyline) */}
               {routeCoords && (
                 <Polyline 
                   positions={routeCoords} 
@@ -288,7 +351,6 @@ export default function ParkingMapPage() {
                     
                     {/* BUTTONS: Route sa Map + Waze */}
                     <div className="flex gap-2">
-                      {/* NEW: Show Route Button */}
                       <button 
                         onClick={(e) => { e.stopPropagation(); handleShowRoute(lot.latitude, lot.longitude); }}
                         className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-xl text-[10px] font-black flex items-center justify-center gap-1.5 transition-colors"
@@ -297,7 +359,6 @@ export default function ParkingMapPage() {
                         ROUTE
                       </button>
 
-                      {/* Waze Action Button */}
                       <button 
                         onClick={() => openWaze(lot.latitude, lot.longitude)}
                         className="flex-1 bg-[#33CCFF] hover:bg-[#2DBBEA] text-white py-2 rounded-xl text-[10px] font-black flex items-center justify-center gap-1.5 transition-colors"
@@ -354,7 +415,6 @@ export default function ParkingMapPage() {
                 </div>
 
                 <div className="flex items-center gap-1">
-                  {/* NEW: List View Draw Route Button */}
                   <button 
                     onClick={(e) => { e.stopPropagation(); handleShowRoute(lot.latitude, lot.longitude); }}
                     className="p-3 bg-blue-500/10 text-blue-500 rounded-full hover:bg-blue-500 hover:text-white transition-all"
@@ -363,7 +423,6 @@ export default function ParkingMapPage() {
                     <RouteIcon size={18} />
                   </button>
 
-                  {/* List View Waze Button */}
                   <button 
                     onClick={() => openWaze(lot.latitude, lot.longitude)}
                     className="p-3 bg-[#33CCFF]/10 text-[#33CCFF] rounded-full hover:bg-[#33CCFF] hover:text-white transition-all"
@@ -379,4 +438,4 @@ export default function ParkingMapPage() {
       </div>
     </MobileLayout>
   );
-} 
+}

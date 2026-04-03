@@ -37,6 +37,7 @@ const parseTimeWithAnchor = (timeStr: string, anchorDate: Date) => {
 };
 
 // 🔥 UPDATED: CountdownTimer with Overnight Fix
+// 🔥 UPDATED: CountdownTimer with Overnight Fix & 10-min Red Warning
 function CountdownTimer({ 
   startTime, 
   endTime, 
@@ -81,7 +82,8 @@ function CountdownTimer({
         const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const s = Math.floor((diff % (1000 * 60)) / 1000);
 
-        if (h === 0 && m < 5) setIsUrgent(true); 
+        // BAGONG LOGIC: Kapag 0 hours at less than 10 minutes, magiging red (isUrgent)
+        if (h === 0 && m < 10) setIsUrgent(true); 
         else setIsUrgent(false);
 
         const display = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
@@ -124,6 +126,7 @@ export default function DriverHome() {
   const [dbParkingLots, setDbParkingLots] = useState<any[]>([]); 
   const [dbSlots, setDbSlots] = useState<any[]>([]); 
   const [activeReservation, setActiveReservation] = useState<any>(null);
+  const [hasUnreadNotifs, setHasUnreadNotifs] = useState(false); // 🔥 NOTIF STATE
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -133,7 +136,6 @@ export default function DriverHome() {
     try {
       const { data: reservations } = await supabase
         .from("reservations")
-        // 🔥 Kinuha natin pati start_time at created_at para sa computation
         .select("id, slot_id, start_time, end_time, created_at")
         .eq("user_id", userId)
         .in("status", activeStatuses);
@@ -148,7 +150,6 @@ export default function DriverHome() {
         let startDateTime = parseTimeWithAnchor(res.start_time || res.end_time, anchorDate);
         let endDateTime = parseTimeWithAnchor(res.end_time, anchorDate);
 
-        // OVERNIGHT FIX
         if (endDateTime < startDateTime) {
           endDateTime.setDate(endDateTime.getDate() + 1);
         }
@@ -163,9 +164,7 @@ export default function DriverHome() {
     }
   }, []);
 
-  // 1. Lagyan natin ng (isSilent = false) ang fetchAllData
   const fetchAllData = useCallback(async (isSilent = false) => {
-    // Pag silent update, WAG mong paikutin yung refresh button
     if (!isSilent) setIsRefreshing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -181,6 +180,20 @@ export default function DriverHome() {
 
       const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user.id).single();
       if (profile?.full_name) setUserName(profile.full_name.split(" ")[0]);
+
+      // 🔥 FIXED: Mas direct na query, kukuha lang kahit isa para mas mabilis at sigurado
+      const { data: unreadNotif, error: notifError } = await supabase
+        .from("notifications")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("read", false)
+        .limit(1);
+
+      if (!notifError) {
+        setHasUnreadNotifs(unreadNotif && unreadNotif.length > 0);
+      } else {
+        console.error("Notif Fetch Error:", notifError);
+      }
 
       const [lotsRes, slotsRes] = await Promise.all([
         supabase.from("parking_lots").select("*").order("name", { ascending: true }),
@@ -208,9 +221,9 @@ export default function DriverHome() {
           lotName: getJoinValue(rawRes.parking_lots)?.name || "Parking Lot",
           slotLabel: getJoinValue(rawRes.parking_slots)?.label || "-",
           vehiclePlate: rawRes.plate_number || "N/A",
-          startTime: rawRes.start_time || "-", // 🔥 Ipapasa natin sa timer
+          startTime: rawRes.start_time || "-", 
           endTime: rawRes.end_time || "-",
-          createdAt: rawRes.created_at, // 🔥 Anchor natin para iwas bug
+          createdAt: rawRes.created_at, 
           status: rawRes.status || "PENDING"
         });
       } else {
@@ -224,24 +237,25 @@ export default function DriverHome() {
     }
   }, [runCleanup]);
 
-// 2. Ibalik natin ang useEffect na may Real-Time, pero papasahan natin ng `true` (silent)
   useEffect(() => {
-    fetchAllData(); // Initial load (may loading spinner)
+    fetchAllData(); 
 
-    // Real-time listener para sa live updates
+    // 🔥 Make sure enabled sa Supabase Dashboard ang Replication/Realtime ng 'notifications' table!
     const channel = supabase.channel('db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'parking_slots' }, () => {
-          fetchAllData(true); // "true" means silent update (walang blinking)
+          fetchAllData(true); 
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => {
-          fetchAllData(true); // "true" means silent update
+          fetchAllData(true); 
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
+          fetchAllData(true); // Ito ang magti-trigger ng silent re-fetch pag may bagong notif
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, [fetchAllData]);
 
-  // 🔥 ACCURATE STATS FIX: Helper para i-filter ang mga slots na galing sa BUKAS na lots
   const isLotOpen = (openHoursStr?: string) => {
     if (!openHoursStr) return true;
     const hoursText = openHoursStr.toLowerCase();
@@ -261,7 +275,6 @@ export default function DriverHome() {
   const openLotIds = dbParkingLots.filter(lot => isLotOpen(lot.open_hours)).map(lot => lot.id);
   const activeSlots = dbSlots.filter(s => openLotIds.includes(s.lot_id));
 
-  // Computations gamit ang filtered na activeSlots
   const totalAvailable = activeSlots.filter((s) => s.status === 'available').length;
   const totalOccupied = activeSlots.filter((s) => s.status !== 'available').length;
   
@@ -282,7 +295,8 @@ export default function DriverHome() {
       headerRight={
         <button onClick={() => navigate("/notifications")} className="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted">
           <Bell size={20} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full" />
+          {/* 🔥 Dito lalabas yung red dot KAPAG MAY UNREAD NOTIFICATIONS lang */}
+          {hasUnreadNotifs && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full" />}
         </button>
       }
     >
@@ -305,7 +319,6 @@ export default function DriverHome() {
         <div className="mx-4 mt-6">
           <div className="flex justify-between items-end mb-2">
             <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">My Current Booking</h3>
-            {/* 🔥 DITO YUNG FIX: Ginawang arrow function para hindi ipasa ang Mouse Event */}
             <button onClick={() => fetchAllData(false)} className="flex items-center gap-1 text-[10px] font-bold text-blue-600 active:opacity-50">
               <RefreshCcw size={10} className={cn(isRefreshing && "animate-spin")} />
               {isRefreshing ? "Updating..." : "Refresh"}
@@ -326,7 +339,6 @@ export default function DriverHome() {
               <div className="mt-4 flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/10">
                 <div>
                    <p className="text-[8px] uppercase text-white/40 font-bold mb-1">Time Remaining</p>
-                   {/* 🔥 IPINASA ANG MGA BAGONG PROPS DITO */}
                    <CountdownTimer 
                      startTime={activeReservation.startTime}
                      endTime={activeReservation.endTime} 
@@ -376,25 +388,22 @@ export default function DriverHome() {
                 const lotSlots = dbSlots.filter(s => s.lot_id === lot.id);
                 const available = lotSlots.filter(s => s.status === 'available').length;
                 
-                // 🔥 LOGIC PARA SA DYNAMIC COLOR TEXT INDICATOR
-                let slotsColorClass = "text-rose-600"; // Red pag <= 10
-                if (available >= 30) slotsColorClass = "text-emerald-600"; // Green pag >= 30
-                else if (available > 10) slotsColorClass = "text-amber-500"; // Yellow pag 11-29
+                let slotsColorClass = "text-rose-600"; 
+                if (available >= 30) slotsColorClass = "text-emerald-600"; 
+                else if (available > 10) slotsColorClass = "text-amber-500"; 
 
-                // 🔥 LOGIC PARA SA "open_hours" TEXT COLUMN
                 let isOpen = true;
                 let openTimeDisplay = "tomorrow";
 
                 if (lot.open_hours) {
                   const hoursText = lot.open_hours.toLowerCase();
                   
-                  // Kung hindi "24 hours", kailangan natin i-check ang oras
                   if (!hoursText.includes("24 hour")) {
                     const times = lot.open_hours.split("-").map((t: string) => t.trim());
                     
                     if (times.length === 2) {
-                      const startTimeStr = times[0]; // ex: "10:00 AM"
-                      const endTimeStr = times[1];   // ex: "9:00 PM"
+                      const startTimeStr = times[0]; 
+                      const endTimeStr = times[1];  
 
                       const startMins = parseOpenHoursToMins(startTimeStr);
                       const endMins = parseOpenHoursToMins(endTimeStr);
@@ -402,12 +411,9 @@ export default function DriverHome() {
                       const now = new Date();
                       const currentMins = now.getHours() * 60 + now.getMinutes();
 
-                      // Check kung bukas
                       if (startMins < endMins) {
-                        // Normal hours (e.g. 8am to 5pm)
                         isOpen = currentMins >= startMins && currentMins < endMins;
                       } else {
-                        // Overnight (e.g. 10pm to 6am)
                         isOpen = currentMins >= startMins || currentMins < endMins;
                       }
 
@@ -431,7 +437,6 @@ export default function DriverHome() {
                           <p className={cn("font-bold text-sm", !isOpen && "text-gray-500")}>
                             {lot.name}
                           </p>
-                          {/* BADGE NA LALABAS KAPAG SARADO */}
                           {!isOpen && (
                             <span className="bg-rose-100 text-rose-700 text-[9px] font-black px-1.5 py-0.5 rounded flex items-center tracking-wider uppercase">
                               Closed
@@ -441,11 +446,9 @@ export default function DriverHome() {
                         <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
                           <MapPin size={10}/> {lot.address}
                         </p>
-                        {/* Papakita natin yung hours bilang text sa baba ng address */}
                         <p className="text-[9px] font-medium text-amber-600 mt-1">
                           🕒 {lot.open_hours}
                         </p>
-                        {/* 🔥 IDINAGDAG NA DYNAMIC TEXT INDICATOR SA BABA NG HOURS */}
                         {isOpen && (
                           <p className={cn("text-[10px] font-extrabold mt-0.5", slotsColorClass)}>
                             {available} {available === 1 ? 'slot' : 'slots'} available
@@ -457,7 +460,6 @@ export default function DriverHome() {
                       </p>
                     </div>
 
-                    {/* KUNG BUKAS, IPAPAKITA ANG AVAILABILITY BAR. KUNG SARADO, IPAPAKITA YUNG NOTE */}
                     {isOpen ? (
                       <AvailabilityBar available={available} total={lotSlots.length} />
                     ) : (
