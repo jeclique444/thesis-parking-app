@@ -32,6 +32,7 @@ export default function ReservationConfirmPage() {
   const plateNumber = searchParams.get("plate");
   const paymentMethod = searchParams.get("pay"); 
   const totalAmount = searchParams.get("total");
+  const statusFromUrl = searchParams.get("status"); // <--- Dagdag: kinuha ang status sa URL
   const slotId = params.slotId;
 
   const [lot, setLot] = useState<any>(null);
@@ -126,7 +127,7 @@ const handlePayment = async () => {
           duration: parseInt(duration || "3"),
           total_amount: parseFloat(totalAmount || "40"),
           payment_method: paymentMethod,
-          status: "active" // Tiyak na papasok ito bilang active
+          status: statusFromUrl || "booked" // <--- Binago: dynamic status na imbes na 'active'
         })
         .select()
         .single();
@@ -192,7 +193,7 @@ const handlePayment = async () => {
         <div className="text-center">
           <h2 className="text-2xl font-black text-foreground">Payment Received</h2>
           <p className="text-sm text-muted-foreground mt-2 px-4">
-            Your reservation for <strong>{plateNumber}</strong> is now active.
+            Your reservation for <strong>{plateNumber}</strong> is now {statusFromUrl === 'active' ? 'active' : 'confirmed'}.
           </p>
         </div>
         <div className="w-full bg-gray-50 rounded-3xl p-6 border border-gray-100 space-y-3">

@@ -82,10 +82,11 @@ export default function ReservationPage() {
         setLot(lotRes.data);
         setSlot(slotRes.data);
 
+        // Kumuha ng reservation na 'active' o 'booked' para sa slot na ito
         const { data: slotResData } = await supabase
           .from("reservations")
           .select("*")
-          .eq("status", "active")
+          .in("status", ["active", "booked", "reserved"])
           .eq("slot_id", slotId)
           .limit(1); 
         
@@ -105,7 +106,7 @@ export default function ReservationPage() {
           const { data: activeResData } = await supabase
             .from("reservations")
             .select("*")
-            .eq("status", "active")
+            .in("status", ["active", "booked", "reserved"])
             .eq("user_id", user.id);
             
           if (activeResData && activeResData.length > 0) {
@@ -212,9 +213,6 @@ export default function ReservationPage() {
   const isExceedingCloseTime = checkExceedsCloseTime();
   const availableVehicles = userVehicles.filter(v => !activePlates.includes(v.plate));
   
-  // 🔥 UPDATED LOGIC: 
-  // Magiging Walk-in Only lang kung ang label ay C1 O KAYA is_reservable ay false.
-  // Kung is_pwd ay true PERO reservable (true), hindi ito magba-block para sa PWD reservation.
   const isWalkInOnly = 
     slot?.label === "C1" || 
     slot?.is_reservable === false || 
@@ -242,7 +240,13 @@ export default function ReservationPage() {
     selectedDateTime.setHours(selH, selM, 0, 0);
 
     const diffMins = (selectedDateTime.getTime() - now.getTime()) / 60000;
-    const initialSlotStatus = diffMins > 30 ? "reserved" : "occupied"; 
+
+    /**
+     * 🔥 UPDATED LOGIC:
+     * Kung ang arrival time ay higit sa 10 minuto mula ngayon, 'booked' ang status.
+     * Kapag 'booked', lalabas ang "Confirm Entrance" sa Admin Scanner.
+     */
+    const initialSlotStatus = diffMins > 10 ? "booked" : "active"; 
 
     const [endH] = endTime24.split(":").map(Number);
     const isNextDay = endH < selH ? "true" : "false";

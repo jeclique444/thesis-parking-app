@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminReservations (Added Date Column from created_at)
+ * iParkBayan — AdminReservations (Added Booked Status & Cross-Midnight Fix)
  */
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/AdminLayout";
@@ -13,6 +13,7 @@ const PENALTY_RATE_PER_HOUR = 50;
 
 const statusStyles: Record<string, string> = {
   pending: "bg-amber-100 text-amber-700 border-amber-200",
+  booked: "bg-indigo-100 text-indigo-700 border-indigo-200", // IBINALIK NATIN ANG BOOKED STATUS
   active: "bg-blue-100 text-blue-700 border-blue-200",
   completed: "bg-emerald-100 text-emerald-700 border-emerald-200",
   cancelled: "bg-rose-100 text-rose-700 border-rose-200",
@@ -64,7 +65,7 @@ export default function AdminReservations() {
         shortId: res.id.substring(0, 8).toUpperCase(),
         lotName: res.parking_lots?.name || "Unknown Lot",
         slotLabel: res.parking_slots?.label || "N/A",
-        createdAt: res.created_at, // KINUHA NATIN ANG DATE MULA SA DATABASE
+        createdAt: res.created_at, 
         startTime: res.start_time,
         endTime: res.end_time,
         totalPrice: res.total_amount || 0,
@@ -81,17 +82,26 @@ export default function AdminReservations() {
     }
   };
 
-  const calculateFine = (endTimeStr: string, status: string) => {
+  const calculateFine = (startTimeStr: string, endTimeStr: string, status: string, createdAt: string) => {
     if (status.toLowerCase() !== 'active') return 0;
+    if (!startTimeStr || !endTimeStr || !createdAt) return 0;
     
-    // Convert 12h (AM/PM) to 24h for calculation
-    const [time, modifier] = endTimeStr.split(' ');
-    let [hours, minutes] = time.split(':').map(Number);
-    if (modifier === 'PM' && hours < 12) hours += 12;
-    if (modifier === 'AM' && hours === 12) hours = 0;
+    const [startT, startMod] = startTimeStr.split(' ');
+    let [startH, startM] = startT.split(':').map(Number);
+    if (startMod === 'PM' && startH < 12) startH += 12;
+    if (startMod === 'AM' && startH === 12) startH = 0;
 
-    const end = new Date();
-    end.setHours(hours, minutes, 0, 0);
+    const [endT, endMod] = endTimeStr.split(' ');
+    let [endH, endM] = endT.split(':').map(Number);
+    if (endMod === 'PM' && endH < 12) endH += 12;
+    if (endMod === 'AM' && endH === 12) endH = 0;
+
+    const end = new Date(createdAt);
+    end.setHours(endH, endM, 0, 0);
+
+    if (endH < startH || (endH === startH && endM < startM)) {
+      end.setDate(end.getDate() + 1);
+    }
     
     if (currentTime <= end) return 0;
 
@@ -101,7 +111,7 @@ export default function AdminReservations() {
   };
 
   const updateReservationStatus = async (res: any, newStatus: string) => {
-    const fine = calculateFine(res.endTime, res.status);
+    const fine = calculateFine(res.startTime, res.endTime, res.status, res.createdAt);
     const finalAmount = Number(res.totalPrice) + fine;
 
     try {
@@ -116,7 +126,8 @@ export default function AdminReservations() {
       if (resError) throw resError;
 
       let slotStatus = 'available';
-      if (newStatus === 'active' || newStatus === 'pending') slotStatus = 'reserved';
+      // Kasama na ang booked sa pag-hold/reserve ng slot para hindi ma-double book
+      if (newStatus === 'active' || newStatus === 'pending' || newStatus === 'booked') slotStatus = 'reserved';
       
       await supabase.from('parking_slots').update({ status: slotStatus }).eq('id', res.slotId);
 
@@ -127,8 +138,28 @@ export default function AdminReservations() {
     }
   };
 
-  const checkIsOverstaying = (endTimeStr: string, status: string) => {
-    return calculateFine(endTimeStr, status) > 0;
+  // BAGONG FUNCTION PARA SA APPROVAL LOGIC
+  const handleApprove = (res: any) => {
+    if (!res.startTime || !res.createdAt) {
+      updateReservationStatus(res, 'active');
+      return;
+    }
+
+    const [startT, startMod] = res.startTime.split(' ');
+    let [startH, startM] = startT.split(':').map(Number);
+    if (startMod === 'PM' && startH < 12) startH += 12;
+    if (startMod === 'AM' && startH === 12) startH = 0;
+
+    const startDateTime = new Date(res.createdAt);
+    startDateTime.setHours(startH, startM, 0, 0);
+
+    // KUNG FUTURE PA ANG START TIME = BOOKED. KUNG PAST O PRESENT NA = ACTIVE.
+    const newStatus = currentTime < startDateTime ? 'booked' : 'active';
+    updateReservationStatus(res, newStatus);
+  };
+
+  const checkIsOverstaying = (startTimeStr: string, endTimeStr: string, status: string, createdAt: string) => {
+    return calculateFine(startTimeStr, endTimeStr, status, createdAt) > 0;
   };
 
   const filteredReservations = reservations.filter(res => 
@@ -138,7 +169,7 @@ export default function AdminReservations() {
 
   const pendingCount = reservations.filter(r => r.status === 'pending').length;
   const activeCount = reservations.filter(r => r.status === 'active').length;
-  const overstayCount = reservations.filter(r => checkIsOverstaying(r.endTime, r.status)).length;
+  const overstayCount = reservations.filter(r => checkIsOverstaying(r.startTime, r.endTime, r.status, r.createdAt)).length;
 
   return (
     <AdminLayout title="Reservations">
@@ -177,8 +208,8 @@ export default function AdminReservations() {
                 <tr className="text-xs text-muted-foreground border-b uppercase font-black">
                   <th className="text-left pb-3">Booking ID</th>
                   <th className="text-left pb-3">Location & Slot</th>
-                  <th className="text-left pb-3">Date</th> {/* BAGONG COLUMN */}
-                  <th className="text-left pb-3">Time</th> {/* PINALITAN MULA SA SCHEDULE */}
+                  <th className="text-left pb-3">Date</th> 
+                  <th className="text-left pb-3">Time</th> 
                   <th className="text-left pb-3 text-rose-600">Fine</th>
                   <th className="text-left pb-3">Status</th>
                   <th className="text-right pb-3">Actions</th>
@@ -186,7 +217,7 @@ export default function AdminReservations() {
               </thead>
               <tbody className="divide-y">
                 {filteredReservations.map((res) => {
-                  const fine = calculateFine(res.endTime, res.status);
+                  const fine = calculateFine(res.startTime, res.endTime, res.status, res.createdAt);
                   const isOverstaying = fine > 0;
                   return (
                     <tr key={res.id} className={cn("hover:bg-muted/30 transition-colors", isOverstaying && "bg-rose-50/50")}>
@@ -196,7 +227,6 @@ export default function AdminReservations() {
                         <p className="text-[10px] text-primary font-black uppercase">Slot: {res.slotLabel}</p>
                       </td>
                       
-                      {/* DATE DATA COLUMN */}
                       <td className="py-4 text-xs font-semibold text-slate-700">
                         {res.createdAt ? new Date(res.createdAt).toLocaleDateString('en-US', {
                           month: 'short',
@@ -205,7 +235,6 @@ export default function AdminReservations() {
                         }) : "N/A"}
                       </td>
 
-                      {/* TIME DATA COLUMN */}
                       <td className="py-4 text-xs">
                         <p>{res.startTime}</p>
                         <p className={cn("font-bold", isOverstaying ? "text-rose-600" : "text-muted-foreground")}>to {res.endTime}</p>
@@ -219,16 +248,27 @@ export default function AdminReservations() {
                       </td>
                       <td className="py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
+                          {/* BINAGO ANG ONCLICK PARA TUMAWAG SA handleApprove */}
                           {res.status === 'pending' && (
-                            <Button size="sm" className="h-8 bg-blue-600 text-white rounded-lg" onClick={() => updateReservationStatus(res, 'active')}>
+                            <Button size="sm" className="h-8 bg-blue-600 text-white rounded-lg" onClick={() => handleApprove(res)}>
                               Approve
                             </Button>
                           )}
-                          {(res.status === 'pending' || res.status === 'active') && (
+                          
+                          {/* DAGDAG: KUNG BOOKED NA, MAY BUTTON PARA GAWING ACTIVE KAPAG DUMATING NA */}
+                          {res.status === 'booked' && (
+                            <Button size="sm" className="h-8 bg-indigo-600 text-white rounded-lg" onClick={() => updateReservationStatus(res, 'active')}>
+                              Set Active
+                            </Button>
+                          )}
+
+                          {/* KASAMA NA ANG BOOKED SA MGA PWEDENG I-CANCEL */}
+                          {(res.status === 'pending' || res.status === 'active' || res.status === 'booked') && (
                             <Button variant="outline" size="sm" className="h-8 text-rose-600 rounded-lg" onClick={() => window.confirm("Cancel?") && updateReservationStatus(res, 'cancelled')}>
                               <XCircle size={14} className="mr-1" /> Cancel
                             </Button>
                           )}
+
                           {res.status === 'active' && (
                             <Button size="sm" className={cn("h-8 rounded-lg text-white font-bold", isOverstaying ? "bg-rose-600" : "bg-emerald-600")} onClick={() => updateReservationStatus(res, 'completed')}>
                               {isOverstaying ? <Coins size={14} className="mr-1" /> : <CheckCircle size={14} className="mr-1" />}
@@ -247,4 +287,4 @@ export default function AdminReservations() {
       </div>
     </AdminLayout>
   );
-}
+} 

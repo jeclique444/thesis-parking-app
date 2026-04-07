@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import MobileLayout from "@/components/MobileLayout";
-import { Clock, Car, Calendar, CheckCircle2 } from "lucide-react";
+import { Clock, Car, Calendar, CheckCircle2, BookmarkCheck } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 import { cn } from "@/lib/utils";
 
@@ -49,8 +49,10 @@ export default function MyReservationsPage() {
   // FILTER LOGIC
   const filteredReservations = reservations.filter((res) => {
     if (activeTab === "all") return true;
-    if (activeTab === "active") return res.status === "active";
-    if (activeTab === "completed") return res.status !== "active"; 
+    // Ang 'active' tab ay magpapakita na ngayon ng parehong 'active' at 'booked'
+    if (activeTab === "active") return res.status === "active" || res.status === "booked";
+    // Ang 'completed' ay lahat ng hindi active o booked (e.g., completed, cancelled)
+    if (activeTab === "completed") return res.status !== "active" && res.status !== "booked"; 
     return true;
   });
 
@@ -85,11 +87,11 @@ export default function MyReservationsPage() {
               className={cn(
                 "flex-1 py-1.5 text-[11px] font-bold capitalize tracking-wide rounded-lg transition-all",
                 activeTab === tab 
-                  ? "bg-[#003366] text-white shadow-sm" // Ibinalik ang blue bg para sa active tab
+                  ? "bg-[#003366] text-white shadow-sm" 
                   : "text-gray-500 hover:bg-gray-200"
               )}
             >
-              {tab}
+              {tab === "active" ? "Active / Booked" : tab}
             </button>
           ))}
         </div>
@@ -111,7 +113,8 @@ export default function MyReservationsPage() {
         ) : (
           <div className="space-y-3">
             {filteredReservations.map((res) => {
-              const isActive = res.status === "active";
+              const isOngoing = res.status === "active";
+              const isBooked = res.status === "booked";
 
               return (
                 <div 
@@ -125,12 +128,12 @@ export default function MyReservationsPage() {
                     </h3>
                     <div className={cn(
                       "px-2 py-1 rounded-full text-[10px] font-medium flex items-center gap-1",
-                      isActive 
-                        ? "bg-[#e6f8ef] text-[#00a85a]" 
-                        : "bg-[#f1f5f9] text-[#64748b]" 
+                      isOngoing ? "bg-[#e6f8ef] text-[#00a85a]" : 
+                      isBooked ? "bg-blue-50 text-blue-600" : 
+                      "bg-[#f1f5f9] text-[#64748b]"
                     )}>
-                      <CheckCircle2 size={11} />
-                      {isActive ? "Active" : "Completed"}
+                      {isBooked ? <BookmarkCheck size={11} /> : <CheckCircle2 size={11} />}
+                      {isOngoing ? "Active" : isBooked ? "Booked" : "Completed"}
                     </div>
                   </div>
 
@@ -142,7 +145,7 @@ export default function MyReservationsPage() {
                   {/* DETAILS: Schedule (Left) & Duration (Right) */}
                   <div className="flex flex-row justify-between items-center w-full gap-2 text-[11px] text-gray-500 mb-3">
                     
-                    {/* SCHEDULE (CLOCK ICON) - Nasa Kaliwa Na */}
+                    {/* SCHEDULE (CLOCK ICON) */}
                     <div className="flex items-center gap-1.5 min-w-0">
                       <Clock size={13} className="shrink-0" />
                       <span className="truncate">
@@ -150,7 +153,7 @@ export default function MyReservationsPage() {
                       </span>
                     </div>
 
-                    {/* DURATION (CAR ICON) - Nasa Kanan Na */}
+                    {/* DURATION (CAR ICON) */}
                     <div className="flex items-center justify-end gap-1.5 shrink-0">
                       <Car size={13} className="text-gray-700" />
                       <span className="font-semibold text-gray-700">{res.duration} hr{res.duration > 1 ? 's' : ''}</span>

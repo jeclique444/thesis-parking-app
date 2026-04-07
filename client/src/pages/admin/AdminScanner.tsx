@@ -103,7 +103,7 @@ export default function AdminScanner() {
     };
   }, [bookingData?.id]);
 
-  // 2. Search Function (Manual at Auto-scan)
+// 2. Search Function (Manual at Auto-scan)
   const handleManualSearch = async (val: string) => {
     if (!val) return;
     if (!managerLotId) {
@@ -129,23 +129,30 @@ export default function AdminScanner() {
         `)
         .eq("lot_id", managerLotId);
 
+      // Check kung UUID (ID) o Plate Number ang input
       if (isUUID(val)) {
         query = query.eq("id", val);
       } else {
         query = query.ilike("plate_number", `%${val}%`);
       }
 
-      const { data, error } = await query.maybeSingle(); 
+      // Kunin ang listahan ng bookings na hindi pa 'completed' o 'cancelled'
+      const { data, error } = await query
+        .in("status", ["pending", "booked", "active", "reserved"]) 
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
-      if (!data) {
-        toast.error("No booking found in your parking lot.");
+
+      if (!data || data.length === 0) {
+        toast.error("No active or pending booking found.");
         setBookingData(null);
       } else {
-        setBookingData(data);
-        toast.success("Booking found!");
+        const priorityBooking = data.find(b => b.status.toLowerCase() === 'active') || data[0];
+        setBookingData(priorityBooking);
+        toast.success(`Booking found for ${priorityBooking.plate_number}!`);
       }
     } catch (err: any) {
+      console.error("Search error:", err);
       toast.error("Search failed.");
     } finally {
       setIsLoading(false);
@@ -157,15 +164,23 @@ export default function AdminScanner() {
     handleManualSearch(searchInput.trim());
   };
 
-  // 3. Status Update
+  // 3. Status Update (With Early Arrival Support)
   const handleUpdateStatus = async (newStatus: 'active' | 'completed') => {
     if (!bookingData) return;
     setIsLoading(true);
 
     try {
+      const updatePayload: any = { status: newStatus };
+      
+      if (newStatus === 'active') {
+        const now = new Date();
+        const currentTimeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+        updatePayload.start_time = currentTimeStr;
+      }
+
       const { error: resError } = await supabase
         .from("reservations")
-        .update({ status: newStatus })
+        .update(updatePayload)
         .eq("id", bookingData.id);
 
       if (resError) throw resError;
@@ -262,11 +277,11 @@ export default function AdminScanner() {
                   <div className="flex justify-center mb-6">
                     <span className={cn(
                       "px-4 py-1.5 rounded-full text-xs font-bold uppercase flex items-center gap-1.5",
-                      bookingData.status === 'pending' ? "bg-amber-100 text-amber-700" :
-                      bookingData.status === 'active' ? "bg-emerald-100 text-emerald-700" :
-                      bookingData.status === 'completed' ? "bg-blue-100 text-blue-700" : "bg-rose-100 text-rose-700"
+                      bookingData.status.toLowerCase() === 'pending' || bookingData.status.toLowerCase() === 'booked' ? "bg-amber-100 text-amber-700" :
+                      bookingData.status.toLowerCase() === 'active' ? "bg-emerald-100 text-emerald-700" :
+                      bookingData.status.toLowerCase() === 'completed' ? "bg-blue-100 text-blue-700" : "bg-rose-100 text-rose-700"
                     )}>
-                      {bookingData.status === 'active' ? <CheckCircle2 size={14} /> : <Clock size={14} />}
+                      {bookingData.status.toLowerCase() === 'active' ? <CheckCircle2 size={14} /> : <Clock size={14} />}
                       {bookingData.status}
                     </span>
                   </div>
@@ -284,23 +299,21 @@ export default function AdminScanner() {
                         <p className="font-bold text-primary">{bookingData.parking_slots?.label || "N/A"}</p>
                       </div>
 
-                      {/* BAGONG SECTION: Schedule */}
                     <div className="col-span-2 border-y border-slate-200 py-3">
                     <p className="text-[10px] text-slate-500 uppercase font-bold mb-1 flex items-center gap-1">
-                       <Calendar size={12}/> Schedule Details
-                     </p>
+                        <Calendar size={12}/> Schedule Details
+                      </p>
                     <p className="font-bold text-slate-700 flex items-center gap-2">
                     <span className="bg-white px-2 py-0.5 rounded border border-slate-200">
-                     {/* Gagamit tayo ng fallback: reservation_date o created_at */}
                    {bookingData.reservation_date 
-                     ? new Date(bookingData.reservation_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                      : bookingData.created_at 
-                         ? new Date(bookingData.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                         : "N/A"}
+                      ? new Date(bookingData.reservation_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                       : bookingData.created_at 
+                          ? new Date(bookingData.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                          : "N/A"}
                     </span>
-                     <span className="text-slate-400 text-xs">|</span>
+                      <span className="text-slate-400 text-xs">|</span>
                     <span className="text-primary">{bookingData.start_time || "00:00"} - {bookingData.end_time || "00:00"}</span>
-                     </p>
+                      </p>
                     </div>
 
                       <div>
@@ -332,16 +345,18 @@ export default function AdminScanner() {
                   </div>
 
                   <div className="mt-auto space-y-3">
-                    {bookingData.status === 'pending' && (
+                    {/* BUTTON 1: PARA SA PAGPASOK */}
+                    {(bookingData.status.toLowerCase() === 'pending' || bookingData.status.toLowerCase() === 'booked' || bookingData.status.toLowerCase() === 'reserved') && (
                       <button 
                         onClick={() => handleUpdateStatus('active')}
                         disabled={isLoading}
                         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all shadow-md active:scale-95"
                       >
-                        <ArrowRightCircle size={18} /> Confirm Entry
+                        <ArrowRightCircle size={18} /> Confirm Entrance
                       </button>
                     )}
-                    {bookingData.status === 'active' && (
+                    {/* BUTTON 2: PARA SA PAGLABAS */}
+                    {bookingData.status.toLowerCase() === 'active' && (
                       <button 
                         onClick={() => handleUpdateStatus('completed')}
                         disabled={isLoading}
