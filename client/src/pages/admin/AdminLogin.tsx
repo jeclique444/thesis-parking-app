@@ -99,7 +99,7 @@ export default function AdminLogin() {
               </svg>
             </div>
             <span className="text-xl font-extrabold text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              iPark<span className="text-amber-400">Bayan</span>
+              Par<span className="text-amber-400">Kada</span>
             </span>
           </div>
           <div>
@@ -136,7 +136,7 @@ export default function AdminLogin() {
                 <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
               </svg>
             </div>
-            <span className="text-xl font-extrabold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>iParkBayan</span>
+            <span className="text-xl font-extrabold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>ParKada</span>
           </div>
 
           <div className="flex items-center gap-2 mb-2">
@@ -153,7 +153,7 @@ export default function AdminLogin() {
               <Label className="text-sm font-semibold">Email Address</Label>
               <Input
                 type="email"
-                placeholder="admin@iparkbayan.ph"
+                placeholder="admin@parkada.ph"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="h-12 rounded-xl bg-muted/40"

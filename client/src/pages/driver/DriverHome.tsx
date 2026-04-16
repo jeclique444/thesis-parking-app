@@ -282,7 +282,7 @@ export default function DriverHome() {
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   if (loading) return (
-    <MobileLayout title="ECPark">
+    <MobileLayout title="ParKada">
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
       </div>
@@ -291,7 +291,7 @@ export default function DriverHome() {
 
   return (
     <MobileLayout
-      title="ECPark"
+      title="ParKada"
       headerRight={
         <button onClick={() => navigate("/notifications")} className="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted">
           <Bell size={20} />

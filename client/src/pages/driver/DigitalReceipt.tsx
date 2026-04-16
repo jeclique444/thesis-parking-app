@@ -196,7 +196,7 @@ export default function DigitalReceiptPage() {
                </div>
             </div>
             <h2 className="text-xl font-black uppercase tracking-widest">Confirmed Booking</h2>
-            <p className="text-[10px] opacity-80 font-bold uppercase tracking-widest">ECPark Official Ticket</p>
+            <p className="text-[10px] opacity-80 font-bold uppercase tracking-widest">Parkada Official Ticket</p>
           </div>
 
           <div className="p-8 text-center space-y-6 bg-white">

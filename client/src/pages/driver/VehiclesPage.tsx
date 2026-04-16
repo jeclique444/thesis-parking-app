@@ -20,38 +20,33 @@ export default function VehiclesPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ plate: "", model: "", color: "" });
 
+  const MAX_VEHICLES = 3; 
+  const isMaxReached = vehicles.length >= MAX_VEHICLES;
+
   useEffect(() => {
     fetchVehicles();
   }, []);
 
-  // 1. Fetch from Database
- // 1. Fetch from Database
+  // 1. Fetch from Database (KUKUNIN LANG ANG MGA ACTIVE)
   const fetchVehicles = async () => {
     try {
-      // Kunin ang current logged-in user
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       
       if (authError || !user) {
-        console.error("Hindi naka-login o may error sa auth:", authError);
         setLoading(false);
-        return; // Stop execution kung walang user
+        return; 
       }
 
-      console.log("Naka-login si:", user.id); // Idinagdag para ma-check mo sa console
-
-      // Kunin ang mga sasakyan ng user na ito
+      // 🔥 Kukunin lang natin yung mga is_active = true
       const { data, error } = await supabase
         .from("vehicles")
         .select("*")
         .eq("user_id", user.id)
+        .eq("is_active", true) 
         .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Error pagkuha ng sasakyan:", error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log("Nakuha na data mula sa DB:", data); // Idinagdag para makita ang laman
       setVehicles(data || []);
       
     } catch (err: any) {
@@ -62,7 +57,7 @@ export default function VehiclesPage() {
     }
   };
 
-  // 2. Add Vehicle to DB + Notification
+  // 2. Add Vehicle
   const addVehicle = async () => {
     if (!form.plate || !form.model || !form.color) {
       toast.error("Please fill all fields");
@@ -72,24 +67,70 @@ export default function VehiclesPage() {
     setAdding(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setAdding(false);
+        return;
+      }
 
-      const { error } = await supabase
+      // 🔥 STRICT PLATE SANITIZATION 🔥
+      // Tatanggalin lahat ng letters/numbers na HINDI A-Z at 0-9 (spaces, dashes, etc.)
+      const sanitizedPlate = form.plate.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+      // Check for exact duplicate sa system natin (kahit dinelete na dati, bawal pa rin magkapareho)
+      const { data: existingVehicle, error: checkError } = await supabase
+        .from("vehicles")
+        .select("id")
+        .eq("plate", sanitizedPlate)
+        .maybeSingle(); 
+
+      if (checkError) throw checkError;
+
+      if (existingVehicle) {
+        toast.error(`Plate number ${sanitizedPlate} is already registered!`);
+        setAdding(false);
+        return; 
+      }
+
+      // Bilangin lang ang ACTIVE na sasakyan para sa Limit (is_active = true)
+      const { count, error: countError } = await supabase
+        .from("vehicles")
+        .select("*", { count: 'exact', head: true })
+        .eq("user_id", user.id)
+        .eq("is_active", true);
+
+      if (countError) throw countError;
+
+      if ((count || 0) >= MAX_VEHICLES) {
+        toast.error("You've reached the maximum limit of 3 registered vehicles. Please delete an existing one first.");
+        setOpen(false); 
+        setForm({ plate: "", model: "", color: "" }); 
+        setAdding(false); 
+        return; 
+      }
+
+      // Save to database
+      const { error: insertError } = await supabase
         .from("vehicles")
         .insert([{
           user_id: user.id,
-          plate: form.plate.toUpperCase(), // 🔥 Binago ito mula plate_number papuntang plate
-          model: form.model,
-          color: form.color
+          plate: sanitizedPlate, // Naka-sanitize na na plate ang isesave
+          model: form.model.trim(),
+          color: form.color.trim(),
+          is_active: true // Default na active
         }]);
 
-      if (error) throw error;
+      if (insertError?.code === '23505') { 
+        toast.error(`Plate number ${sanitizedPlate} is already in the system!`);
+        setAdding(false);
+        return;
+      } else if (insertError) {
+        throw insertError;
+      }
 
-      // 🔥 TRIGGER NOTIFICATION
       await supabase.from("notifications").insert([{
         user_id: user.id,
         title: "Vehicle Registered 🚗",
-        message: `Your ${form.model} (${form.plate.toUpperCase()}) has been added to your garage.`,
+        message: `Your ${form.model} (${sanitizedPlate}) has been added to your garage.`,
         type: "system",
         read: false
       }]);
@@ -97,23 +138,29 @@ export default function VehiclesPage() {
       toast.success("Vehicle added!");
       setForm({ plate: "", model: "", color: "" });
       setOpen(false);
-      fetchVehicles(); // Refresh list
+      fetchVehicles(); 
     } catch (err: any) {
-      toast.error(err.message);
+      toast.error(err.message || "Something went wrong.");
     } finally {
       setAdding(false);
     }
   };
 
-  // 3. Remove Vehicle from DB
+  // 3. Remove Vehicle from DB (SOFT DELETE)
   const removeVehicle = async (id: string, plate: string) => {
     const confirm = window.confirm(`Are you sure you want to remove ${plate}?`);
     if (!confirm) return;
 
     try {
-      const { error } = await supabase.from("vehicles").delete().eq("id", id);
+      // 🔥 Imbes na .delete(), inupdate lang natin yung is_active para maging false
+      const { error } = await supabase
+        .from("vehicles")
+        .update({ is_active: false })
+        .eq("id", id);
+        
       if (error) throw error;
 
+      // Tanggalin sa UI yung sasakyan
       setVehicles((v) => v.filter((x) => x.id !== id));
       toast.success("Vehicle removed");
     } catch (err: any) {
@@ -146,7 +193,7 @@ export default function VehiclesPage() {
                 <p className="text-[11px] font-bold text-slate-400 uppercase">{v.model} • {v.color}</p>
               </div>
               <button 
-                onClick={() => removeVehicle(v.id, v.plate)} // 🔥 Binago ito mula v.plate_number
+                onClick={() => removeVehicle(v.id, v.plate)} 
                 className="w-10 h-10 flex items-center justify-center text-slate-300 hover:text-rose-500 transition-colors"
                   >
                 <Trash2 size={18} />
@@ -156,11 +203,22 @@ export default function VehiclesPage() {
         )}
 
         {/* Add Button Section */}
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(isOpen) => {
+          if (isOpen && isMaxReached) return;
+          setOpen(isOpen);
+        }}>
           <DialogTrigger asChild>
-            <Button variant="outline" className="w-full h-14 rounded-2xl border-2 border-dashed border-slate-200 text-slate-500 font-bold hover:bg-slate-50 transition-all">
+            <Button 
+              variant="outline" 
+              disabled={isMaxReached}
+              className={`w-full h-14 rounded-2xl border-2 border-dashed font-bold transition-all ${
+                isMaxReached 
+                  ? "border-slate-100 bg-slate-50 text-slate-400 opacity-60 cursor-not-allowed" 
+                  : "border-slate-200 text-slate-500 hover:bg-slate-50" 
+              }`}
+            >
               <Plus size={18} className="mr-2" />
-              Register New Vehicle
+              {isMaxReached ? "Max Limit Reached (3/3)" : "Register New Vehicle"}
             </Button>
           </DialogTrigger>
           <DialogContent className="rounded-[2rem] w-[92%] max-w-md mx-auto p-6">
@@ -172,7 +230,7 @@ export default function VehiclesPage() {
                 <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Plate Number</Label>
                 <Input 
                   value={form.plate} 
-                  onChange={(e) => setForm((f) => ({ ...f, plate: e.target.value.toUpperCase() }))} 
+                  onChange={(e) => setForm((f) => ({ ...f, plate: e.target.value }))} 
                   placeholder="ABC 1234" 
                   className="h-12 rounded-xl font-mono font-black uppercase bg-slate-50 border-none" 
                 />

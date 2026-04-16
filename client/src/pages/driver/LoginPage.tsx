@@ -117,7 +117,7 @@ export default function LoginPage() {
 
         <div className="absolute bottom-8 left-6 right-6">
           <p className="text-white/70 text-sm font-medium mb-1">
-            {view === "login" ? "Welcome back to iParkBayan" : "Account Recovery"}
+            {view === "login" ? "Welcome to ParKada: Your Parking Buddy" : "Account Recovery"}
           </p>
           <h1 className="text-3xl font-extrabold text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
             {view === "login" ? "Sign In" : "Reset Password"}
@@ -144,16 +144,9 @@ export default function LoginPage() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-semibold text-gray-700">Password</Label>
-                <button 
-                  type="button" 
-                  onClick={() => setView("forgot")} 
-                  className="text-xs font-semibold text-primary hover:underline"
-                >
-                  Forgot?
-                </button>
-              </div>
+              {/* Nilinis ko yung label part, inalis na yung button dito */}
+              <Label className="text-sm font-semibold text-gray-700">Password</Label>
+              
               <div className="relative">
                 <Input 
                   type={showPass ? "text" : "password"} 
@@ -171,12 +164,23 @@ export default function LoginPage() {
                   {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
+
+              {/* Dito ko inilipat ang Forgot Password sa ilalim ng input */}
+              <div className="flex justify-end pt-1">
+                <button 
+                  type="button" 
+                  onClick={() => setView("forgot")} 
+                  className="text-sm font-semibold text-primary hover:underline"
+                >
+                  Forgot Password?
+                </button>
+              </div>
             </div>
 
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-14 text-base font-bold rounded-xl mt-4 shadow-md hover:shadow-lg transition-all flex justify-center items-center gap-2"
+              className="w-full h-14 text-base font-bold rounded-xl mt-2 shadow-md hover:shadow-lg transition-all flex justify-center items-center gap-2"
               style={{ background: "oklch(0.22 0.07 255)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
             >
               {loading && <Loader2 className="h-5 w-5 animate-spin" />}

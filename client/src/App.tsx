@@ -27,6 +27,7 @@ import BookingPage from "./pages/driver/BookingPage";
 import ProfilePage from "./pages/driver/ProfilePage";
 import VehiclesPage from "./pages/driver/VehiclesPage";
 import NotificationsPage from "./pages/driver/NotificationsPage";
+import VerificationPage from "./pages/driver/VerificationPage"; // Siguraduhin na tama ang path
 
 // Admin Pages
 import AdminLogin from "./pages/admin/AdminLogin";
@@ -38,6 +39,8 @@ import AdminReports from "./pages/admin/AdminReports";
 import AdminPersonnel from "./pages/admin/AdminPersonnel";
 import AdminScanner from "./pages/admin/AdminScanner"; // Ayusin mo ang path kung saan mo man isinave
 import AdminSettings from "./pages/admin/AdminSettings";
+import AdminVerifications from "./pages/admin/AdminVerificationsPage";
+import TermsPage from "./pages/driver/TermsPage";
 
 function Router() {
   return (
@@ -49,6 +52,7 @@ function Router() {
       {/* Dito natin sinisiguro na lalabas ang Register Page */}
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
+      <Route path="/terms" component={TermsPage} />
       <Route path="/update-password" component={UpdatePasswordPage} />
 
       {/* 3. STATIC DRIVER PAGES */}
@@ -58,6 +62,7 @@ function Router() {
       <Route path="/profile" component={ProfilePage} />
       <Route path="/vehicles" component={VehiclesPage} />
       <Route path="/notifications" component={NotificationsPage} />
+      <Route path="/driver/verification" component={VerificationPage} />
 
       {/* 4. ADMIN SECTION */}
       <Route path="/admin" component={AdminLogin} />
@@ -69,6 +74,7 @@ function Router() {
       <Route path="/admin/personnel" component={AdminPersonnel} />
       <Route path="/admin/scanner" component={AdminScanner} />
       <Route path="/admin/settings" component={AdminSettings} />
+      <Route path="/admin/verifications" component={AdminVerifications} />
 
       {/* 5. DYNAMIC ROUTES (Dapat laging nasa huli) */}
       {/* Nilalagay natin ito sa dulo para hindi nito ma-block ang /register */}

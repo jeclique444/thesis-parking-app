@@ -1,28 +1,21 @@
 /*
- * iParkBayan — ReservationPage (Fixed Route & Removed Icon)
+ * iParkBayan — ReservationPage (With Verification Check + Park Now Logic)
+ * Unverified users: Walk-in only, view map, navigate, save favorites
+ * Verified users: Full reservation capabilities with online payment
+ * "Park Now" system: Start time is always current time when booking
+ * Duration limit: Based on remaining operating hours (max 6 hrs)
+ * UI: Clean, modern card-based layout
  */
 import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
 import MobileLayout from "@/components/MobileLayout";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarIcon, ChevronRight, Check, Clock, Ticket, AlertCircle, Accessibility } from "lucide-react";
+import { ChevronRight, Check, Clock, Ticket, AlertCircle, Accessibility, Shield, Play, Timer, Car, Calendar, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "../../supabaseClient";
+import { useVerification } from "@/hooks/useVerification";
 
-// Components
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format, isToday } from "date-fns";
-
-// Function para makuha ang current time (Format: HH:mm)
-const getCurrentTime = () => {
-  const now = new Date();
-  const hours = now.getHours().toString().padStart(2, '0');
-  const minutes = now.getMinutes().toString().padStart(2, '0');
-  return `${hours}:${minutes}`;
-};
-
-// Helper function para makuha ang Closing Time
+// Helper function para makuha ang Closing Time (24h format)
 const getLotClosingTime24 = (openHours: string) => {
   if (!openHours || openHours.toLowerCase().includes("24 hours")) return "23:59";
   
@@ -42,7 +35,43 @@ const getLotClosingTime24 = (openHours: string) => {
     
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
   }
-  return "23:59"; 
+  return "23:59";
+};
+
+// Helper: Get remaining minutes until closing time
+const getRemainingMinutesUntilClose = (openHours: string): number => {
+  if (!openHours || openHours.toLowerCase().includes("24 hours")) return 24 * 60;
+  
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes();
+  const currentTotalMins = currentHour * 60 + currentMinute;
+  
+  const closeTime24 = getLotClosingTime24(openHours);
+  const [closeH, closeM] = closeTime24.split(":").map(Number);
+  let closeTotalMins = closeH * 60 + closeM;
+  
+  if (closeTotalMins <= currentTotalMins) {
+    return 0;
+  }
+  
+  return closeTotalMins - currentTotalMins;
+};
+
+// Helper: Get maximum allowed duration based on remaining hours (capped at 6 hours)
+const getMaxDuration = (openHours: string): number => {
+  const remainingMins = getRemainingMinutesUntilClose(openHours);
+  const remainingHours = Math.floor(remainingMins / 60);
+  const MAX_DURATION = 6;
+  
+  return Math.min(remainingHours, MAX_DURATION);
+};
+
+// Helper: Format minutes to readable time
+const formatMinutesToTime = (minutes: number): string => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours}h ${mins}m`;
 };
 
 export default function ReservationPage() {
@@ -63,14 +92,27 @@ export default function ReservationPage() {
 
   // USER INPUTS
   const [plateNumber, setPlateNumber] = useState("");
-  const [date, setDate] = useState<Date | undefined>(new Date()); 
-  const [startTime, setStartTime] = useState(getCurrentTime());
   const [duration, setDuration] = useState(3);
   const [paymentMethod, setPaymentMethod] = useState<"gcash" | "maya">("gcash");
 
   // USER VEHICLES STATES
   const [userVehicles, setUserVehicles] = useState<any[]>([]);
   const [activePlates, setActivePlates] = useState<string[]>([]);
+  
+  // VERIFICATION HOOK
+  const { isVerified, verificationStatus, isLoading: verificationLoading } = useVerification();
+
+  // PARK NOW LOGIC: Start time is ALWAYS current time
+  const getCurrentTime24 = () => {
+    const now = new Date();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
+  const startTime = getCurrentTime24();
+  const maxDuration = lot ? getMaxDuration(lot.open_hours) : 6;
+  const remainingMins = lot ? getRemainingMinutesUntilClose(lot.open_hours) : 360;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -82,7 +124,6 @@ export default function ReservationPage() {
         setLot(lotRes.data);
         setSlot(slotRes.data);
 
-        // Kumuha ng reservation na 'active' o 'booked' para sa slot na ito
         const { data: slotResData } = await supabase
           .from("reservations")
           .select("*")
@@ -122,6 +163,12 @@ export default function ReservationPage() {
     fetchData();
   }, [lotId, slotId]);
 
+  useEffect(() => {
+    if (duration > maxDuration) {
+      setDuration(maxDuration);
+    }
+  }, [maxDuration, duration]);
+
   const calculateEndTime24 = (start: string, dur: number) => {
     if (!start) return "";
     const [hours, minutes] = start.split(":").map(Number);
@@ -137,57 +184,11 @@ export default function ReservationPage() {
     return `${displayH}:${m.toString().padStart(2, '0')} ${ampm}`;
   };
 
-  const isTimeValid = () => {
-    if (!date || !startTime) return true;
-    if (isToday(date)) {
-      const now = new Date();
-      const currentHours = now.getHours();
-      const currentMinutes = now.getMinutes();
-      const [selectedHours, selectedMinutes] = startTime.split(":").map(Number);
-
-      if (
-        selectedHours < currentHours || 
-        (selectedHours === currentHours && selectedMinutes < currentMinutes)
-      ) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  const checkAdvanceLimit = () => {
-    if (!date || !startTime) return false;
-    const now = new Date();
-    const selectedDateTime = new Date(date);
-    const [selH, selM] = startTime.split(":").map(Number);
-    selectedDateTime.setHours(selH, selM, 0, 0);
-
-    const diffMins = (selectedDateTime.getTime() - now.getTime()) / 60000;
-    return diffMins > 180; 
-  };
-
-  const timeIsValid = isTimeValid();
-  const isTooAdvance = checkAdvanceLimit();
   const endTime24 = calculateEndTime24(startTime, duration);
+  const startTimeFormatted = format12Hour(startTime);
+  const endTimeFormatted = format12Hour(endTime24);
 
-  const calculateAdvanceFee = () => {
-    if (!startTime || !date || isTooAdvance) return 0;
-    
-    const now = new Date();
-    const selectedDateTime = new Date(date);
-    const [selH, selM] = startTime.split(":").map(Number);
-    selectedDateTime.setHours(selH, selM, 0, 0);
-
-    const diffMins = Math.floor((selectedDateTime.getTime() - now.getTime()) / 60000);
-
-    if (diffMins <= 30) return 0; 
-
-    const ADVANCE_FEE_RATE = 10;
-    const advanceHours = Math.ceil((diffMins - 30) / 60); 
-
-    return advanceHours > 0 ? advanceHours * ADVANCE_FEE_RATE : 0;
-  };
-
+  const calculateAdvanceFee = () => 0;
   const advanceFee = calculateAdvanceFee();
   const baseRate = 30; 
   const extendedFee = duration > 3 ? (duration - 3) * 10 : 0; 
@@ -212,17 +213,34 @@ export default function ReservationPage() {
 
   const isExceedingCloseTime = checkExceedsCloseTime();
   const availableVehicles = userVehicles.filter(v => !activePlates.includes(v.plate));
+  const isParkingClosed = remainingMins <= 0;
   
   const isWalkInOnly = 
     slot?.label === "C1" || 
     slot?.is_reservable === false || 
-    String(slot?.is_reservable) === "false";
+    String(slot?.is_reservable) === "false" ||
+    !isVerified;
 
-  const isBlocked = activeReservation !== null || availableVehicles.length === 0 || isWalkInOnly;
+  const isBlocked = 
+    activeReservation !== null || 
+    availableVehicles.length === 0 || 
+    isWalkInOnly ||
+    !isVerified ||
+    isParkingClosed ||
+    isExceedingCloseTime;
 
   const isMyBooking = activeReservation?.user_id === userId;
 
   const handleProceed = () => {
+    if (!isVerified) {
+      navigate('/driver/verification');
+      return;
+    }
+
+    if (isParkingClosed) {
+      return alert("Parking lot is currently closed. Please check operating hours.");
+    }
+
     if (isWalkInOnly) {
       const msg = (slot?.is_pwd === true || String(slot?.is_pwd) === "true")
         ? "Ang PWD slot ay para sa walk-in lamang."
@@ -231,38 +249,105 @@ export default function ReservationPage() {
     }
     if (isBlocked) return alert("Hindi ka pwedeng mag-proceed dahil may active booking ka pa.");
     if (isExceedingCloseTime) return alert("Exceeds operating hours.");
-    if (isTooAdvance) return alert("Advance booking cannot exceed 3 hours.");
-    if (!plateNumber || !startTime || !date || !timeIsValid) return;
+    if (!plateNumber) return;
     
-    const now = new Date();
-    const [selH, selM] = startTime.split(":").map(Number);
-    const selectedDateTime = new Date(date);
-    selectedDateTime.setHours(selH, selM, 0, 0);
-
-    const diffMins = (selectedDateTime.getTime() - now.getTime()) / 60000;
-
-    /**
-     * 🔥 UPDATED LOGIC:
-     * Kung ang arrival time ay higit sa 10 minuto mula ngayon, 'booked' ang status.
-     * Kapag 'booked', lalabas ang "Confirm Entrance" sa Admin Scanner.
-     */
-    const initialSlotStatus = diffMins > 10 ? "booked" : "active"; 
-
+    const initialSlotStatus = "active"; 
     const [endH] = endTime24.split(":").map(Number);
+    const [selH] = startTime.split(":").map(Number);
     const isNextDay = endH < selH ? "true" : "false";
-    const formattedDate = format(date, "yyyy-MM-dd");
+    const formattedDate = new Date().toISOString().split('T')[0];
     
-    navigate(`/reserve/${slotId}/confirm?lot=${lotId}&date=${formattedDate}&start=${format12Hour(startTime)}&end=${format12Hour(endTime24)}&dur=${duration}&plate=${plateNumber}&pay=${paymentMethod}&total=${totalCost}&advanceFee=${advanceFee}&extendedFee=${extendedFee}&status=${initialSlotStatus}&nextDay=${isNextDay}&start24=${startTime}&end24=${endTime24}`);
+    navigate(`/reserve/${slotId}/confirm?lot=${lotId}&date=${formattedDate}&start=${startTimeFormatted}&end=${endTimeFormatted}&dur=${duration}&plate=${plateNumber}&pay=${paymentMethod}&total=${totalCost}&advanceFee=${advanceFee}&extendedFee=${extendedFee}&status=${initialSlotStatus}&nextDay=${isNextDay}&start24=${startTime}&end24=${endTime24}`);
   };
 
-  if (loading) return <div className="p-20 text-center font-bold text-primary animate-pulse">Loading...</div>;
+  if (loading || verificationLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[oklch(0.22_0.07_255)] mx-auto mb-4"></div>
+          <p className="text-gray-500 font-medium">Loading reservation details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const durationOptions = [1, 2, 3, 4, 5, 6].filter(h => h <= maxDuration);
 
   return (
-    <MobileLayout title="Reserve Slot" showBack onBack={() => navigate(`/parking/${lotId}`)}>
-      <div className="page-enter p-4 space-y-4 pb-24">
+    <MobileLayout title="Reservation" showBack onBack={() => navigate(`/parking/${lotId}`)}>
+      <div className="page-enter p-4 space-y-3 pb-24 bg-gray-50">
         
-        {availableVehicles.length === 0 && !activeReservation && !isWalkInOnly && (
-          <div className="bg-red-500 text-white p-5 rounded-3xl shadow-lg border-2 border-red-400 flex flex-col justify-center animate-in slide-in-from-top duration-500">
+        {/* ========== UNVERIFIED USER NOTICE ========== */}
+        {!isVerified && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-4 shadow-md">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+                <Shield className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-black text-blue-900 text-base">Unverified Account</h3>
+                <p className="text-xs text-blue-700">Walk-in access only • Verify to unlock full features</p>
+              </div>
+            </div>
+            
+            <div className="bg-white/60 rounded-xl p-3 mb-4">
+              <p className="text-[10px] font-bold uppercase text-blue-800 mb-2">Available for you:</p>
+              <div className="space-y-2">
+                {["View availability", "Navigate to location", "Check rates & hours"].map((item) => (
+                  <div key={item} className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                      <Check className="w-3 h-3 text-white" />
+                    </div>
+                    <span className="text-sm text-gray-700">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Button
+              onClick={() => navigate('/driver/verification')}
+              className="w-full h-12 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+            >
+              <Shield className="w-4 h-4 mr-2" />
+              Verify Now (2 mins)
+            </Button>
+            
+            <p className="text-[9px] text-center text-blue-600 mt-3">
+              Verification unlocks: Online reservations • GCash/Maya • Multiple vehicles
+            </p>
+          </div>
+        )}
+
+        {/* ========== VERIFIED BADGE ========== */}
+        {isVerified && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-2.5 flex items-center gap-2">
+            <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+              <Check className="w-3.5 h-3.5 text-white" />
+            </div>
+            <span className="text-xs font-bold text-green-800">Verified Account • Full Access</span>
+          </div>
+        )}
+
+        {/* ========== PARKING CLOSED NOTICE ========== */}
+        {isParkingClosed && (
+          <div className="bg-red-500 text-white p-5 rounded-2xl shadow-lg border-2 border-red-400">
+            <p className="text-[10px] font-bold uppercase opacity-90 flex items-center gap-1 mb-1">
+              <AlertCircle size={12}/> Parking Closed
+            </p>
+            <h3 className="font-black text-lg leading-tight">Outside Operating Hours</h3>
+            <p className="text-xs opacity-90 mt-1">Operating hours: {lot?.open_hours}</p>
+            <Button 
+              onClick={() => window.history.back()}
+              className="bg-white text-red-600 hover:bg-red-50 font-black rounded-xl text-xs h-10 px-4 mt-3"
+            >
+              Go Back
+            </Button>
+          </div>
+        )}
+
+        {/* ========== NO VEHICLES WARNING ========== */}
+        {availableVehicles.length === 0 && !activeReservation && !isWalkInOnly && isVerified && (
+          <div className="bg-red-500 text-white p-5 rounded-2xl shadow-lg border-2 border-red-400">
             <p className="text-[10px] font-bold uppercase opacity-90 flex items-center gap-1 mb-1">
               <AlertCircle size={12}/> Action Not Allowed
             </p>
@@ -277,7 +362,7 @@ export default function ReservationPage() {
             {userActiveBooking && (
               <Button 
                 onClick={() => navigate(`/receipt/${userActiveBooking.id}?from=reservations`)}
-                className="bg-white text-red-600 hover:bg-red-50 font-black rounded-xl text-xs h-10 px-4 self-start mt-3"
+                className="bg-white text-red-600 hover:bg-red-50 font-black rounded-xl text-xs h-10 px-4"
               >
                 View My Current Ticket
               </Button>
@@ -285,8 +370,12 @@ export default function ReservationPage() {
           </div>
         )}
 
+        {/* ========== ACTIVE RESERVATION ========== */}
         {activeReservation && !isWalkInOnly && (
-          <div className={cn("text-white p-5 rounded-3xl shadow-lg border-2 flex justify-between items-center animate-in slide-in-from-top duration-500", isMyBooking ? "bg-blue-500 border-blue-400" : "bg-emerald-500 border-emerald-400")}>
+          <div className={cn(
+            "text-white p-5 rounded-2xl shadow-lg border-2 flex justify-between items-center",
+            isMyBooking ? "bg-blue-500 border-blue-400" : "bg-emerald-500 border-emerald-400"
+          )}>
             <div>
               <p className="text-[10px] font-bold uppercase opacity-90 flex items-center gap-1">
                 <Ticket size={10}/> {isMyBooking ? "Your Active Booking" : "Slot Currently Taken"}
@@ -298,7 +387,7 @@ export default function ReservationPage() {
             {isMyBooking ? (
               <Button 
                 onClick={() => navigate(`/receipt/${activeReservation.id}?from=reservations`)}
-                className="bg-white text-blue-600 hover:bg-blue-50 font-black rounded-xl text-xs h-10 px-4 shadow-sm"
+                className="bg-white text-blue-600 hover:bg-blue-50 font-black rounded-xl text-xs h-10 px-4"
               >
                 View Ticket
               </Button>
@@ -310,10 +399,10 @@ export default function ReservationPage() {
           </div>
         )}
 
-        {/* Note for PWD and General Walk-in Only Slots */}
-        {isWalkInOnly && (
+        {/* ========== WALK-IN ONLY NOTICE ========== */}
+        {isWalkInOnly && (slot?.label === "C1" || slot?.is_reservable === false) && (
           <div className={cn(
-            "text-white p-5 rounded-3xl shadow-lg border-2 flex flex-col justify-center animate-in slide-in-from-top duration-500",
+            "text-white p-5 rounded-2xl shadow-lg border-2",
             (slot?.is_pwd === true || String(slot?.is_pwd) === "true") ? "bg-blue-600 border-blue-400" : "bg-gray-500 border-gray-400"
           )}>
             <p className="text-[10px] font-bold uppercase opacity-90 flex items-center gap-1 mb-1">
@@ -327,192 +416,266 @@ export default function ReservationPage() {
             </h3>
             <p className="text-xs opacity-90 mt-1">
               {(slot?.is_pwd === true || String(slot?.is_pwd) === "true")
-                ? "Ang slot na ito ay nakalaan para sa mga PWD walk-in customers lamang. Mangyari po na pumili ng ibang slot para sa online reservation."
-                : "Ang pwestong ito ay nakalaan lamang para sa mga walk-in customers. Mangyari po na bumalik sa map at pumili ng green (Available) slot."}
+                ? "Ang slot na ito ay nakalaan para sa mga PWD walk-in customers lamang."
+                : "Ang pwestong ito ay nakalaan lamang para sa mga walk-in customers."}
             </p>
             <Button 
               onClick={() => window.history.back()}
-              className="bg-white text-gray-800 hover:bg-gray-100 font-black rounded-xl text-xs h-10 px-4 mt-3 self-start"
+              className="bg-white text-gray-800 hover:bg-gray-100 font-black rounded-xl text-xs h-10 px-4 mt-3"
             >
               Pumili ng ibang Slot
             </Button>
           </div>
         )}
 
-        {/* SLOT INFO CARD */}
-        <div className={cn("text-white rounded-3xl p-6 shadow-lg transition-colors", isBlocked ? "bg-gray-400" : "bg-[oklch(0.22_0.07_255)]")}>
+        {/* ========== SLOT INFO CARD ========== */}
+        <div className={cn(
+          "text-white rounded-2xl p-5 shadow-lg transition-colors",
+          isBlocked && isVerified ? "bg-gray-400" : "bg-gradient-to-br from-[oklch(0.22_0.07_255)] to-[oklch(0.28_0.07_255)]"
+        )}>
           <div className="flex justify-between items-start">
             <div>
               <p className="opacity-70 text-[10px] font-bold uppercase tracking-widest">{lot?.name}</p>
               <div className="flex items-center gap-2">
-                <h2 className="text-3xl font-black mt-1">Slot {slot?.label}</h2>
+                <h2 className="text-2xl font-black mt-0.5">Slot {slot?.label}</h2>
                 {(slot?.is_pwd === true || String(slot?.is_pwd) === "true") && (
-                   <Accessibility size={24} className="mt-1 opacity-80" />
+                   <Accessibility size={20} className="opacity-80" />
                 )}
               </div>
-              <p className="text-[10px] opacity-80 mt-1 flex items-center gap-1"><Clock size={10}/> {lot?.open_hours}</p>
+              <p className="text-[10px] opacity-80 mt-1 flex items-center gap-1">
+                <Clock size={10}/> {lot?.open_hours}
+              </p>
             </div>
-            <div className="text-right flex flex-col items-end">
-              <p className="text-[10px] font-bold opacity-80 uppercase">Base (3 hrs): ₱{baseRate}</p>
+            <div className="text-right">
+              <p className="text-[10px] font-bold opacity-70 uppercase">Base (3h)</p>
+              <p className="text-sm font-bold">₱{baseRate}</p>
               {extendedFee > 0 && (
-                <p className="text-[10px] font-bold text-orange-200 uppercase">Extra ({duration - 3} hrs): +₱{extendedFee}</p>
+                <>
+                  <p className="text-[10px] font-bold text-orange-200 uppercase mt-1">Extra</p>
+                  <p className="text-sm font-bold text-orange-200">+₱{extendedFee}</p>
+                </>
               )}
-              {advanceFee > 0 && !isTooAdvance && (
-                <p className="text-[10px] font-bold text-yellow-300 uppercase">Holding Fee: +₱{advanceFee}</p>
-              )}
-              <div className="mt-1 border-t border-white/20 pt-1 w-full text-right">
+              <div className="mt-2 border-t border-white/20 pt-2">
                 <p className="text-[10px] font-bold opacity-70 uppercase">Total</p>
-                <p className="text-xl font-black">₱{isTooAdvance || isWalkInOnly ? "--" : totalCost}</p>
+                <p className="text-xl font-black">₱{isParkingClosed || isWalkInOnly ? "--" : totalCost}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* INPUTS CONTAINER */}
-        <div className={cn("bg-white rounded-2xl p-4 border shadow-sm", isBlocked ? "opacity-50 pointer-events-none" : "border-gray-100")}>
-          <label className="text-[10px] font-black uppercase text-muted-foreground mb-2 block tracking-widest">Arrival Date</label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant={"outline"} className="w-full h-12 justify-start text-left font-bold rounded-xl border-gray-200">
-                <CalendarIcon className="mr-2 h-4 w-4 text-primary" />
-                {date ? format(date, "MMMM d, yyyy") : <span>Pick a date</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={date}
-                onSelect={setDate}
-                initialFocus
-                disabled={(d) => d < new Date(new Date().setHours(0,0,0,0))} 
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
+        {/* ========== REMAINING TIME INFO ========== */}
+        {isVerified && !isParkingClosed && (
+          <div className="bg-blue-50 rounded-xl p-3 border border-blue-200 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Timer className="w-4 h-4 text-blue-600" />
+              <span className="text-xs font-bold text-blue-800">
+                Remaining: {formatMinutesToTime(remainingMins)}
+              </span>
+            </div>
+            <span className="text-[10px] text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+              Max {maxDuration}h
+            </span>
+          </div>
+        )}
 
-        <div className={cn("bg-white rounded-2xl p-4 border shadow-sm", isBlocked ? "opacity-50 pointer-events-none" : "border-gray-100")}>
-          <label className="text-[10px] font-black uppercase text-muted-foreground mb-2 block tracking-widest">Select Vehicle</label>
-          <div className="relative">
-            <select 
-              value={plateNumber}
-              onChange={(e) => setPlateNumber(e.target.value)}
-              disabled={isBlocked}
-              className="flex h-12 w-full rounded-xl border border-gray-200 bg-transparent px-3 py-1 text-sm font-bold shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary appearance-none cursor-pointer"            
-            >
-              <option value="" disabled>-- Choose a vehicle model and plate number --</option>
-              {availableVehicles.map((v) => (
-                <option key={v.id} value={v.plate}>
-                  {v.plate} ({v.model})
-                </option>
-              ))}
-            </select>
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-              <ChevronRight size={20} className="text-gray-400 rotate-90" />
+        {/* ========== VEHICLE & DURATION (Side by Side) ========== */}
+        <div className={cn(
+          "grid grid-cols-2 gap-3",
+          (isBlocked || !isVerified) ? "opacity-50 pointer-events-none" : ""
+        )}>
+          {/* Select Vehicle */}
+          <div className="bg-white rounded-xl p-3 border border-gray-200 shadow-sm">
+            <label className="text-[10px] font-black uppercase text-gray-500 mb-1.5 flex items-center gap-1">
+              <Car className="w-3 h-3" />
+              Vehicle
+            </label>
+            <div className="relative">
+              <select 
+                value={plateNumber}
+                onChange={(e) => setPlateNumber(e.target.value)}
+                disabled={isBlocked || !isVerified}
+                className="w-full bg-transparent text-sm font-bold outline-none cursor-pointer appearance-none pr-5 truncate"
+              >
+                <option value="" disabled>Select vehicle</option>
+                {availableVehicles.map((v) => (
+                  <option key={v.id} value={v.plate}>
+                    {v.plate}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none">
+                <ChevronRight size={14} className="text-gray-400 rotate-90" />
+              </div>
+            </div>
+            {plateNumber && (
+              <p className="text-[9px] text-gray-400 mt-1 truncate">
+                {availableVehicles.find(v => v.plate === plateNumber)?.model || ""}
+              </p>
+            )}
+          </div>
+
+          {/* Duration */}
+          <div className="bg-white rounded-xl p-3 border border-gray-200 shadow-sm">
+            <label className="text-[10px] font-black uppercase text-gray-500 mb-1.5 flex items-center gap-1">
+              <Timer className="w-3 h-3" />
+              Duration
+            </label>
+            <div className="relative">
+              <select 
+                value={duration} 
+                onChange={(e) => setDuration(Number(e.target.value))}
+                className="w-full bg-transparent text-sm font-bold outline-none cursor-pointer appearance-none pr-5"
+                disabled={isBlocked || !isVerified}
+              >
+                {durationOptions.map(h => (
+                  <option key={h} value={h}>{h} Hour{h>1?'s':''}</option>
+                ))}
+              </select>
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none">
+                <ChevronRight size={14} className="text-gray-400 rotate-90" />
+              </div>
             </div>
           </div>
         </div>
 
-        <div className={cn("grid grid-cols-2 gap-3", isBlocked ? "opacity-50 pointer-events-none" : "")}>
-          <div className={cn("bg-white rounded-2xl p-4 border shadow-sm relative flex flex-col justify-center", (isTooAdvance || !timeIsValid) ? "border-red-300 bg-red-50" : "border-gray-100")}>
-            <label className="text-[10px] font-black uppercase text-muted-foreground mb-1 block">Arrival Time</label>
-            <input 
-              type="time" 
-              value={startTime} 
-              onChange={(e) => setStartTime(e.target.value)}
-              className={cn(
-                "w-full bg-transparent font-black text-lg outline-none cursor-pointer",
-                (!timeIsValid || isTooAdvance) && "text-red-600"
-              )}
-              required
-              disabled={isBlocked}
-            />
+        {/* ========== TIME RANGE (Single Row) ========== */}
+        <div className={cn(
+          "bg-white rounded-xl p-4 border border-gray-200 shadow-sm",
+          (isBlocked || !isVerified) ? "opacity-50 pointer-events-none" : ""
+        )}>
+          <label className="text-[10px] font-black uppercase text-gray-500 mb-2 flex items-center gap-1">
+            <Calendar className="w-3 h-3" />
+            Parking Time
+          </label>
+          
+          <div className="flex items-center justify-between bg-gray-50 rounded-xl p-3 border border-gray-100">
+            <div className="text-center flex-1">
+              <p className="text-[9px] font-bold uppercase text-gray-400 mb-0.5">Start</p>
+              <p className="text-lg font-black text-green-700">{startTimeFormatted}</p>
+              <p className="text-[8px] text-green-600 flex items-center justify-center gap-0.5 mt-0.5">
+                <Play className="w-2 h-2" /> Book Now
+              </p>
+            </div>
+            
+            <div className="px-4">
+              <div className="w-8 h-0.5 bg-gray-300 rounded-full"></div>
+            </div>
+            
+            <div className="text-center flex-1">
+              <p className="text-[9px] font-bold uppercase text-gray-400 mb-0.5">End</p>
+              <p className="text-lg font-black text-gray-800">{endTimeFormatted}</p>
+              <p className="text-[8px] text-gray-400 mt-0.5">Estimated</p>
+            </div>
           </div>
           
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm relative flex flex-col justify-center">
-            <label className="text-[10px] font-black uppercase text-muted-foreground mb-1 block">Duration</label>
-            <select 
-              value={duration} 
-              onChange={(e) => setDuration(Number(e.target.value))}
-              className="w-full bg-transparent font-black text-lg outline-none cursor-pointer appearance-none"
-              disabled={isBlocked}
-            >
-              {[1, 2, 3, 4, 5, 6, 7, 8, 12].map(h => <option key={h} value={h}>{h} Hour{h>1?'s':''}</option>)}
-            </select>
-            <div className="absolute right-4 top-1/2 translate-y-1 pointer-events-none">
-              <ChevronRight size={16} className="text-gray-400 rotate-90" />
-            </div>
-          </div>
+          <p className="text-[9px] text-gray-400 text-center mt-2">
+            Reservation starts immediately after payment
+          </p>
         </div>
 
-        {/* ERROR MESSAGES */}
-        {!timeIsValid && (
-          <div className="text-red-500 text-xs font-bold text-center animate-in fade-in">
-            Invalid time. Cannot book a time in the past.
-          </div>
-        )}
-
-        {isTooAdvance && (
-          <div className="bg-red-50 text-red-700 p-4 rounded-2xl border border-red-200 flex items-start gap-3 animate-in slide-in-from-top duration-300">
-            <AlertCircle size={20} className="mt-0.5 shrink-0 text-red-500" />
+        {/* ========== EXCEEDS CLOSING TIME ERROR ========== */}
+        {isExceedingCloseTime && isVerified && (
+          <div className="bg-orange-50 text-orange-700 p-3 rounded-xl border border-orange-200 flex items-start gap-2">
+            <AlertCircle size={16} className="shrink-0 text-orange-500 mt-0.5" />
             <div>
-              <p className="text-sm font-black uppercase tracking-wider mb-0.5">Booking Too Advance</p>
-              <p className="text-xs opacity-90">
-                You can only book a slot up to <b>3 hours in advance</b> from the current time. Please select a closer arrival time.
+              <p className="text-xs font-black uppercase">Exceeds Closing Time</p>
+              <p className="text-[10px] opacity-90">
+                This lot closes at <b>{format12Hour(getLotClosingTime24(lot?.open_hours))}</b>
               </p>
             </div>
           </div>
         )}
 
-        {isExceedingCloseTime && (
-          <div className="bg-orange-50 text-orange-700 p-4 rounded-2xl border border-orange-200 flex items-start gap-3 animate-in slide-in-from-top duration-300">
-            <AlertCircle size={20} className="mt-0.5 shrink-0 text-orange-500" />
-            <div>
-              <p className="text-sm font-black uppercase tracking-wider mb-0.5">Exceeds Closing Time</p>
-              <p className="text-xs opacity-90">
-                You are exceeding the time limit. This lot closes at <b>{format12Hour(getLotClosingTime24(lot?.open_hours))}</b>.
-              </p>
+        {/* ========== PAYMENT METHOD ========== */}
+        {isVerified && (
+          <div className={cn(
+            "bg-white rounded-xl p-4 border border-gray-200 shadow-sm",
+            isBlocked ? "opacity-50 pointer-events-none" : ""
+          )}>
+            <label className="text-[10px] font-black uppercase text-gray-500 mb-3 flex items-center gap-1">
+              <CreditCard className="w-3 h-3" />
+              Payment Method
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button 
+                onClick={() => setPaymentMethod("gcash")} 
+                className={cn(
+                  "h-14 rounded-xl border-2 flex items-center justify-center gap-2 transition-all",
+                  paymentMethod === "gcash" 
+                    ? "border-blue-500 bg-blue-50" 
+                    : "border-gray-200 bg-white"
+                )}
+              >
+                <div className="w-6 h-6 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-black text-xs">G</span>
+                </div>
+                <span className="font-bold text-blue-600">GCash</span>
+                {paymentMethod === "gcash" && <Check size={14} className="text-blue-600" />}
+              </button>
+              <button 
+                onClick={() => setPaymentMethod("maya")} 
+                className={cn(
+                  "h-14 rounded-xl border-2 flex items-center justify-center gap-2 transition-all",
+                  paymentMethod === "maya" 
+                    ? "border-emerald-500 bg-emerald-50" 
+                    : "border-gray-200 bg-white"
+                )}
+              >
+                <div className="w-6 h-6 bg-emerald-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-black text-xs">M</span>
+                </div>
+                <span className="font-bold text-emerald-600">Maya</span>
+                {paymentMethod === "maya" && <Check size={14} className="text-emerald-600" />}
+              </button>
             </div>
           </div>
         )}
 
-        <div className={cn("space-y-3", isBlocked ? "opacity-50 pointer-events-none" : "")}>
-          <h3 className="text-xs font-black uppercase text-muted-foreground tracking-widest ml-1">Payment Method</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => setPaymentMethod("gcash")} className={cn("h-16 rounded-2xl border-2 flex flex-col items-center justify-center transition-all relative", paymentMethod === "gcash" ? "border-blue-500 bg-blue-50/50" : "border-gray-100 bg-white")}>
-              <span className="text-blue-600 font-black text-lg">GCash</span>
-              {paymentMethod === "gcash" && <div className="absolute top-1 right-1 bg-blue-500 rounded-full p-0.5"><Check size={10} className="text-white"/></div>}
-            </button>
-            <button onClick={() => setPaymentMethod("maya")} className={cn("h-16 rounded-2xl border-2 flex flex-col items-center justify-center transition-all relative", paymentMethod === "maya" ? "border-emerald-500 bg-emerald-50/50" : "border-gray-100 bg-white")}>
-              <span className="text-emerald-600 font-black text-lg">Maya</span>
-              {paymentMethod === "maya" && <div className="absolute top-1 right-1 bg-emerald-500 rounded-full p-0.5"><Check size={10} className="text-white"/></div>}
-            </button>
+        {/* ========== GRACE PERIOD POLICY ========== */}
+        {isVerified && (
+          <div className="bg-amber-50 rounded-xl p-3 border border-amber-200">
+            <p className="text-[10px] font-bold uppercase text-amber-800 mb-1">⏰ Grace Period Policy</p>
+            <p className="text-xs text-amber-700">
+              You have <b>1 hour</b> to arrive after booking. If you don't check in, 
+              your reservation will be cancelled and the slot released.
+              <span className="block mt-1 text-red-600 font-bold">No refunds for no-shows.</span>
+            </p>
           </div>
-        </div>
+        )}
 
+        {/* ========== ACTION BUTTON ========== */}
         <Button 
           onClick={handleProceed} 
-          disabled={isBlocked || !plateNumber || !startTime || !timeIsValid || isExceedingCloseTime || isTooAdvance} 
+          disabled={!isVerified || isBlocked || !plateNumber || isExceedingCloseTime || isParkingClosed} 
           className={cn(
-            "w-full h-16 rounded-2xl text-lg font-black shadow-xl transition-all",
-            isBlocked || !plateNumber || !startTime || !timeIsValid || isExceedingCloseTime || isTooAdvance
+            "w-full h-14 rounded-xl text-base font-black shadow-lg transition-all",
+            !isVerified || isBlocked || !plateNumber || isExceedingCloseTime || isParkingClosed
               ? "bg-gray-300 text-gray-500 cursor-not-allowed" 
-              : "bg-[oklch(0.22_0.07_255)] text-white" 
+              : "bg-[oklch(0.22_0.07_255)] text-white hover:bg-[oklch(0.25_0.07_255)] active:scale-[0.98]"
           )}
         >
-          {isWalkInOnly
-            ? ((slot?.is_pwd === true || String(slot?.is_pwd) === "true") ? "PWD Walk-in Only" : "Walk-in Only Slot")
-            : isBlocked 
-              ? "Action Not Allowed" 
-              : !timeIsValid 
-                ? "Invalid Arrival Time" 
-                : isTooAdvance
-                  ? "Exceeds 3 Hours Limit"
-                : isExceedingCloseTime
-                  ? "Exceeds Closing Time"
-                : !plateNumber
-                  ? "Select a Vehicle"
-                  : `Pay ₱${totalCost} to Reserve`}
+          {!isVerified ? (
+            "Verify Account to Park"
+          ) : isParkingClosed ? (
+            "Parking Currently Closed"
+          ) : isWalkInOnly ? (
+            (slot?.is_pwd === true || String(slot?.is_pwd) === "true") ? "PWD Walk-in Only" : "Walk-in Only Slot"
+          ) : isBlocked ? 
+            "Action Not Allowed" : 
+            isExceedingCloseTime ?
+              "Exceeds Closing Time" :
+              !plateNumber ?
+                "Select a Vehicle" :
+                `Pay ₱${totalCost} to Reserve Now`
+          }
         </Button>
+
+        {/* ========== CASH NOTE FOR UNVERIFIED ========== */}
+        {!isVerified && (
+          <p className="text-center text-[10px] text-gray-400">
+            💵 Unverified accounts can pay in cash at the parking location
+          </p>
+        )}
       </div>
     </MobileLayout>
   );

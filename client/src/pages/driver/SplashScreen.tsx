@@ -1,7 +1,7 @@
 /*
  * iParkBayan — SplashScreen / Landing
  * Design: Civic Tech / Filipino Urban Identity
- * Features: Auth Check (Auto-Login) & Enhanced Navigation
+ * Features: Auth Check (Auto-Login), Enhanced Navigation & Smart City Traffic Overlay
  */
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
@@ -28,10 +28,8 @@ export default function SplashScreen() {
       try {
         const { data } = await supabase.auth.getUser();
         if (data?.user) {
-          // Kung naka-login na, diretso sa Home
           navigate("/home");
         } else {
-          // Kung hindi pa, ipakita ang splash screen
           setCheckingAuth(false);
           setTimeout(() => setLoaded(true), 100);
         }
@@ -54,21 +52,76 @@ export default function SplashScreen() {
 
   return (
     <div className="mobile-shell flex flex-col overflow-hidden bg-white">
+      {/* MGA ASTIG NA SMART CITY ANIMATIONS */}
+      <style>
+        {`
+          @keyframes slowPan {
+            0% { transform: scale(1.05) translateX(-1%); }
+            50% { transform: scale(1.1) translateX(1%) translateY(1%); }
+            100% { transform: scale(1.05) translateX(-1%); }
+          }
+          /* Animasyon ng mga dumadaang sasakyan (Light Trails) */
+          @keyframes driveLeft {
+            0% { transform: translateX(150vw); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateX(-50vw); opacity: 0; }
+          }
+          @keyframes driveRight {
+            0% { transform: translateX(-50vw); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateX(150vw); opacity: 0; }
+          }
+          .trail-red {
+            box-shadow: 0 0 15px 3px rgba(239, 68, 68, 0.9);
+            background: #ef4444;
+          }
+          .trail-amber {
+            box-shadow: 0 0 15px 3px rgba(251, 191, 36, 0.9);
+            background: #fbbf24;
+          }
+        `}
+      </style>
+
       {/* Hero Section */}
-      <div className="relative h-[52vh] overflow-hidden">
+      <div className="relative h-[52vh] overflow-hidden bg-[#0A1D37]">
+        {/* Base Image (Umuuga nang kaunti) */}
         <img
           src={HERO_IMG}
           alt="Smart Parking"
-          className="w-full h-full object-cover scale-110"
+          className="w-full h-full object-cover opacity-80 mix-blend-luminosity"
+          style={{ animation: "slowPan 25s ease-in-out infinite" }}
         />
-        {/* Gradient overlay - Using Deep Navy to match Profile */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0A1D37]/40 via-[#0A1D37]/20 to-[#0A1D37]" />
+        
+        {/* Gradient Overlay para umangat ang text at ilaw */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0A1D37]/60 via-[#0A1D37]/30 to-[#0A1D37]" />
+
+        {/* SMART CITY TRAFFIC OVERLAY (Dito nagaganap ang magic) */}
+        <div 
+          className="absolute inset-0 pointer-events-none opacity-80" 
+          style={{ transform: "rotate(-12deg) scale(1.3)" }} /* Naka-anggulo para mukhang kalsada */
+        >
+          {/* Lane 1: Papuntang Kaliwa (Red Taillights) */}
+          <div className="absolute top-[40%] w-full h-2">
+            <div className="w-16 h-1.5 rounded-full trail-red absolute" style={{ animation: "driveLeft 3s linear infinite" }} />
+            <div className="w-24 h-1.5 rounded-full trail-red absolute" style={{ animation: "driveLeft 4.5s linear infinite 1.5s" }} />
+            <div className="w-10 h-1.5 rounded-full trail-red absolute" style={{ animation: "driveLeft 2.5s linear infinite 3s" }} />
+          </div>
+
+          {/* Lane 2: Papuntang Kanan (Amber Headlights) */}
+          <div className="absolute top-[48%] w-full h-2">
+            <div className="w-20 h-1.5 rounded-full trail-amber absolute" style={{ animation: "driveRight 3.5s linear infinite 0.5s" }} />
+            <div className="w-12 h-1.5 rounded-full trail-amber absolute" style={{ animation: "driveRight 2.8s linear infinite 2s" }} />
+            <div className="w-32 h-1.5 rounded-full trail-amber absolute" style={{ animation: "driveRight 5s linear infinite 1s" }} />
+          </div>
+        </div>
 
         {/* Logo & Title */}
-        <div className={`absolute inset-0 flex flex-col items-center justify-end pb-10 px-6 transition-all duration-1000 ${loaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-          <img src={LOGO_IMG} alt="iParkBayan" className="w-20 h-20 rounded-[2rem] shadow-2xl mb-6 border-4 border-white/10" />
+        <div className={`absolute inset-0 flex flex-col items-center justify-end pb-10 px-6 transition-all duration-1000 z-10 ${loaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+          <img src={LOGO_IMG} alt="iParkBayan" className="w-20 h-20 rounded-[2rem] shadow-2xl mb-6 border-4 border-white/10 relative z-10" />
           <h1 className="text-4xl font-black text-white text-center tracking-tighter" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            iPark<span className="text-amber-400">Bayan</span>
+            Par<span className="text-amber-400">Kada</span>
           </h1>
           <p className="text-white/70 text-xs text-center mt-2 font-bold uppercase tracking-[0.2em]">
             Lipa City Downtown
@@ -77,7 +130,7 @@ export default function SplashScreen() {
       </div>
 
       {/* Bottom Sheet */}
-      <div className={`flex-1 bg-white rounded-t-[2.5rem] -mt-8 px-8 pt-10 pb-10 flex flex-col shadow-2xl transition-all duration-1000 delay-300 ${loaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-20"}`}>
+      <div className={`flex-1 bg-white rounded-t-[2.5rem] -mt-8 px-8 pt-10 pb-10 flex flex-col shadow-2xl relative z-20 transition-all duration-1000 delay-300 ${loaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-20"}`}>
         
         {/* Features List */}
         <div className="space-y-6 mb-8">

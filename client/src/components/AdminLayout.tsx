@@ -8,7 +8,8 @@ import { useState, useEffect, useCallback } from "react";
 import { 
   LayoutDashboard, ParkingSquare, BookOpen, BarChart3, 
   Settings, LogOut, Bell, User, MapPin, Building2, 
-  Shield, CheckCircle2, Users, QrCode, Clock 
+  Shield, CheckCircle2, Users, QrCode, Clock,
+  ShieldCheck // <-- DINAGDAG KO ITO PARA SA VERIFICATION ICON
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -23,6 +24,8 @@ const allNavItems = [
   { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard", allowedRoles: ["superadmin", "manager"] },
   { path: "/admin/lots", icon: MapPin, label: "Parking Lots", allowedRoles: ["superadmin"] },
   { path: "/admin/personnel", icon: User, label: "Personnel", allowedRoles: ["superadmin"] }, 
+  // DITO KO DINAGDAG ANG VERIFICATIONS, SUPERADMIN LANG ANG MAY ACCESS
+  { path: "/admin/verifications", icon: ShieldCheck, label: "Verifications", allowedRoles: ["superadmin"] },
   { path: "/admin/scanner", icon: QrCode, label: "QR Scanner", allowedRoles: ["manager"] }, 
   { path: "/admin/slots", icon: ParkingSquare, label: "Parking Slots", allowedRoles: ["superadmin", "manager"] },
   { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["superadmin", "manager"] },
@@ -165,7 +168,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             </svg>
           </div>
           <div>
-            <p className="font-bold text-sm text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>iParkBayan</p>
+            <p className="font-bold text-sm text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>ParKada</p>
             <p className="text-xs text-sidebar-foreground/60 capitalize">
               {adminRole === 'superadmin' ? 'Super Admin' : 'Lot Manager'} Panel
             </p>
