@@ -12,9 +12,10 @@ import { toast } from "sonner";
 
 // Allowed 4-Wheel Car Brands in the Philippines
 const ALLOWED_CAR_BRANDS = [
-  "Toyota", "Mitsubishi", "Ford", "Nissan", "Honda", "Hyundai", 
-  "Kia", "Isuzu", "Suzuki", "Chevrolet", "Mazda", "Geely", 
-  "MG", "Changan", "GAC", "BYD", "Subaru", "Others"
+  "Audi", "BMW", "BYD", "Changan", "Chery", "Chevrolet", "Dodge", "Dongfeng", "Ford", "Foton", 
+  "GAC Motor", "Geely", "GWM", "Honda", "Hyundai", "Isuzu", "Jaecoo", "Jaguar", "Jeep", "Jetour", "Kia", 
+  "Land Rover", "Lexus", "Mahindra", "Mazda", "Mercedes-Benz", "MG", "Mini", "Mitsubishi", "Nissan", "Omoda", 
+  "Peugeot", "Porsche", "Subaru", "Suzuki", "Tata", "Toyota", "Volkswagen", "Volvo", "Wuling"
 ];
 
 export default function RegisterPage() {
@@ -81,6 +82,20 @@ export default function RegisterPage() {
     return false;
   };
 
+  // --- PASSWORD STRENGTH CHECKER ---
+  const getPasswordStrength = (pwd: string) => {
+    if (!pwd) return "";
+    const hasLower = /[a-z]/.test(pwd);
+    const hasUpper = /[A-Z]/.test(pwd);
+    const hasNumber = /[0-9]/.test(pwd);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>\-_\+=]/.test(pwd);
+    const hasMinLength = pwd.length >= 8;
+
+    if (hasMinLength && hasLower && hasUpper && hasNumber && hasSpecial) return "Very Strong";
+    if (hasMinLength && ((hasLower && hasUpper) || (hasLower && hasNumber) || (hasUpper && hasNumber))) return "Strong";
+    return "Weak Password";
+  };
+
   const handleNextStep = async () => {
     if (!fullName || !email || !phoneNumber || !password || !confirmPassword) {
       toast.error("Please fill in all personal details.");
@@ -99,8 +114,9 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length < 8) {
-      toast.error("Password must be at least 8 characters.");
+    // --- STRICT VERY STRONG PASSWORD VALIDATION ---
+    if (getPasswordStrength(password) !== "Very Strong") {
+      toast.error("Password must be Very Strong (at least 8 chars, uppercase, lowercase, number, and special character).");
       return;
     }
 
@@ -524,6 +540,18 @@ export default function RegisterPage() {
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                {/* --- PASSWORD STRENGTH INDICATOR UI --- */}
+                {password && (
+                  <div className="mt-1.5 text-xs font-semibold">
+                    <span className={
+                      getPasswordStrength(password) === "Very Strong" ? "text-green-600" :
+                      getPasswordStrength(password) === "Strong" ? "text-amber-500" :
+                      "text-red-500"
+                    }>
+                      {getPasswordStrength(password)}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -544,6 +572,12 @@ export default function RegisterPage() {
                     {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                {/* --- PASSWORD MATCH INDICATOR UI --- */}
+                {confirmPassword && password !== confirmPassword && (
+                  <div className="mt-1.5 text-xs font-semibold text-red-500">
+                    Password do not match
+                  </div>
+                )}
               </div>
 
               <div className="pt-4 pb-2">
@@ -707,55 +741,36 @@ export default function RegisterPage() {
 
               {/* Status/Error Text For Lockout */}
               {isLocked && (
-                <p className="text-sm font-bold text-red-500 bg-red-50 p-3 rounded-lg w-full">
-                  Locked out. Try again in {lockoutRemaining} min{lockoutRemaining > 1 ? 's' : ''}.
-                </p>
+                <div className="text-red-500 text-sm font-semibold">
+                  Locked out for {lockoutRemaining} minutes.
+                </div>
               )}
 
-              <div className="w-full pt-4 space-y-4">
-                <Button 
-                  onClick={handleVerifyOtpAndSave} 
-                  disabled={loading || otpCode.length !== 6 || isLocked} 
-                  className="w-full h-14 text-base font-bold rounded-xl shadow-lg text-white disabled:opacity-70 transition-transform active:scale-95" 
-                  style={{ background: isLocked ? "#94a3b8" : "oklch(0.22 0.07 255)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+              <div className="pt-2 pb-2 w-full">
+                <Button
+                  onClick={handleVerifyOtpAndSave}
+                  disabled={loading || isLocked}
+                  className="w-full h-14 text-base font-bold rounded-xl shadow-lg transition-transform active:scale-95 text-white disabled:opacity-70"
+                  style={{ background: "oklch(0.22 0.07 255)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                 >
-                  {loading ? <Loader2 className="animate-spin" size={20} /> : isLocked ? `Locked (${lockoutRemaining}m)` : "Verify & Create Account"}
+                  {loading ? <Loader2 className="animate-spin" size={20} /> : "Verify & Continue"}
                 </Button>
+              </div>
 
-                {/* RESEND OTP BUTTON W/ TIMER */}
+              <div className="pt-4 flex flex-col items-center gap-3">
+                <p className="text-sm text-slate-500">Didn't receive the code?</p>
                 <button
                   onClick={() => handleResendOtp(false)}
-                  disabled={resending || countdown > 0 || isLocked}
-                  className="flex items-center justify-center gap-2 w-full py-2 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors disabled:opacity-50"
+                  disabled={countdown > 0 || resending}
+                  className="flex items-center gap-2 text-sm font-bold disabled:opacity-50 transition-opacity"
+                  style={{ color: "oklch(0.22 0.07 255)" }}
                 >
-                  {countdown > 0 ? (
-                    `Resend code in ${Math.floor(countdown / 60)}:${(countdown % 60).toString().padStart(2, '0')}`
-                  ) : resending ? (
-                    <><Loader2 className="animate-spin" size={16} /> Resending...</>
-                  ) : (
-                    <><RefreshCcw size={16} /> Didn't receive the code? Resend</>
-                  )}
+                  {resending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
+                  {countdown > 0 ? `Resend code in ${countdown}s` : "Resend Code"}
                 </button>
               </div>
             </div>
           )}
-
-          {/* Login Link - Show only on step 1 & 2 */}
-          {(step === 1 || step === 2) && (
-            <div className="mt-auto pt-6 pb-4 text-center">
-              <p className="text-sm text-slate-500">
-                Already have an account?{" "}
-                <button 
-                  onClick={() => navigate("/login")} 
-                  className="font-bold hover:underline"
-                  style={{ color: "oklch(0.22 0.07 255)" }}
-                >
-                  Sign In
-                </button>
-              </p>
-            </div>
-          )}
-
         </div>
       </div>
     </div>
