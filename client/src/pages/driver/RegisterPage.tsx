@@ -431,7 +431,14 @@ export default function RegisterPage() {
             You can verify your account later in the app settings to unlock full features.
           </p>
           <Button
-            onClick={() => navigate("/login")}
+            onClick={() => {
+              // Ipapalabas ang tamang welcome message para sa mga bagong user
+              toast.success("Welcome To Parkada!");
+              
+              // Didiretso na sa home page. 
+              // (Palitan ang "/home" ng "/dashboard" kung iyon ang ginagamit ninyong link)
+              navigate("/home"); 
+            }}
             className="w-full h-14 text-base font-bold rounded-xl shadow-lg transition-transform active:scale-95 text-white"
             style={{ background: "oklch(0.22 0.07 255)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
           >
