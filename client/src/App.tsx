@@ -28,6 +28,7 @@ import ProfilePage from "./pages/driver/ProfilePage";
 import VehiclesPage from "./pages/driver/VehiclesPage";
 import NotificationsPage from "./pages/driver/NotificationsPage";
 import VerificationPage from "./pages/driver/VerificationPage"; // Siguraduhin na tama ang path
+import TermsPage from "./pages/driver/TermsPage";
 
 // Admin Pages
 import AdminLogin from "./pages/admin/AdminLogin";
@@ -40,7 +41,8 @@ import AdminPersonnel from "./pages/admin/AdminPersonnel";
 import AdminScanner from "./pages/admin/AdminScanner"; // Ayusin mo ang path kung saan mo man isinave
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminVerifications from "./pages/admin/AdminVerificationsPage";
-import TermsPage from "./pages/driver/TermsPage";
+import AdminStaffManagement from "./pages/admin/AdminStaffManagement";
+
 
 function Router() {
   return (
@@ -75,6 +77,7 @@ function Router() {
       <Route path="/admin/scanner" component={AdminScanner} />
       <Route path="/admin/settings" component={AdminSettings} />
       <Route path="/admin/verifications" component={AdminVerifications} />
+      <Route path="/admin/staffmanagement" component={AdminStaffManagement} />
 
       {/* 5. DYNAMIC ROUTES (Dapat laging nasa huli) */}
       {/* Nilalagay natin ito sa dulo para hindi nito ma-block ang /register */}

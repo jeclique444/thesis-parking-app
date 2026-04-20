@@ -42,7 +42,7 @@ export default function AdminLogin() {
       const userId = authData.user?.id;
 
       if (userId) {
-        // 2. Kunin ang profile data (ANG BOUNCER) - 🔴 INUPDATE: Isinama natin ang 'status'
+        // 2. Kunin ang profile data (ANG BOUNCER)
         const { data: profileData, error: profileError } = await supabase
           .from('admin_profiles')
           .select('lot_id, role, status')
@@ -51,13 +51,13 @@ export default function AdminLogin() {
 
         // Kung walang record (regular user siya) -> KICK OUT!
         if (profileError || !profileData) {
-          await supabase.auth.signOut(); // I-force logout ang session
+          await supabase.auth.signOut(); 
           throw new Error("Access Denied: Wala kang access sa admin portal.");
         }
 
-        // 🔴 3. DITO PAPASOK ANG SUSPENSION CHECK
+        // 3. DITO PAPASOK ANG SUSPENSION CHECK
         if (profileData.status === 'Suspended') {
-          await supabase.auth.signOut(); // I-kick out agad sa session
+          await supabase.auth.signOut(); 
           throw new Error("Access Denied: Ang iyong account ay suspended. Makipag-ugnayan sa Super Admin.");
         }
 
@@ -67,11 +67,20 @@ export default function AdminLogin() {
         if (profileData.lot_id) {
           localStorage.setItem("admin_lot_id", profileData.lot_id);
         } else {
-          localStorage.removeItem("admin_lot_id"); // Clear lot_id kung superadmin
+          localStorage.removeItem("admin_lot_id"); 
         }
         
-        toast.success("Welcome, Admin! Loading your portal...");
-        navigate("/admin/dashboard");
+        // 🚦 5. THE TRAFFIC ENFORCER (Role-Based Redirect) 🚦
+        if (profileData.role === 'guard') {
+          toast.success("Welcome, Guard! Opening scanner...");
+          navigate("/admin/scanner"); // 👈 Dito pupunta ang Guard
+        } else if (profileData.role === 'manager') {
+          toast.success("Welcome, Lot Manager!");
+          navigate("/admin/dashboard"); // 👈 Dito pupunta ang Manager
+        } else {
+          toast.success("Welcome, Super Admin!");
+          navigate("/admin/dashboard"); // 👈 Dito pupunta ang Super Admin
+        }
       }
       
     } catch (error: any) {

@@ -23,13 +23,14 @@ interface AdminLayoutProps {
 const allNavItems = [
   { path: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard", allowedRoles: ["superadmin", "manager"] },
   { path: "/admin/lots", icon: MapPin, label: "Parking Lots", allowedRoles: ["superadmin"] },
+   { path: "/admin/scanner", icon: QrCode, label: "QR Scanner", allowedRoles: ["manager", "guard"] },
+  { path: "/admin/slots", icon: ParkingSquare, label: "Parking Slots", allowedRoles: ["superadmin", "manager", "guard"] },
   { path: "/admin/personnel", icon: User, label: "Personnel", allowedRoles: ["superadmin"] }, 
   // DITO KO DINAGDAG ANG VERIFICATIONS, SUPERADMIN LANG ANG MAY ACCESS
-  { path: "/admin/verifications", icon: ShieldCheck, label: "Verifications", allowedRoles: ["superadmin"] },
-  { path: "/admin/scanner", icon: QrCode, label: "QR Scanner", allowedRoles: ["manager"] }, 
-  { path: "/admin/slots", icon: ParkingSquare, label: "Parking Slots", allowedRoles: ["superadmin", "manager"] },
+  { path: "/admin/verifications", icon: ShieldCheck, label: "Verifications", allowedRoles: ["superadmin"] }, 
   { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["superadmin", "manager"] },
   { path: "/admin/reports", icon: BarChart3, label: "Reports", allowedRoles: ["superadmin", "manager"] },
+  { path: "/admin/staffmanagement", icon: Users, label: "Staff Management", allowedRoles: ["manager"] },
   { path: "/admin/settings", icon: Settings, label: "Settings", allowedRoles: ["superadmin", "manager"] }, 
 ];
 
