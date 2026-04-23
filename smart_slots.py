@@ -13,14 +13,14 @@ from dotenv import load_dotenv
 # ---------------------------------------------------------
 load_dotenv() # This reads the hidden .env file
 
-SUPABASE_URL = os.getenv("https://sxpabcdahaovqpkwwqjj.supabase.co")
-SUPABASE_KEY = os.getenv("sb_secret_tAZ3LMdqCZeF8BjBKyKp_A_FqbFjqgg") # Ensure this is your Service Role key!
+VITE_SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
+VITE_SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY") # Ensure this is your Service Role key!
 
-if not SUPABASE_URL or not SUPABASE_KEY:
+if not VITE_SUPABASE_URL or not VITE_SUPABASE_SERVICE_KEY:
     print("❌ ERROR: Could not find Supabase keys. Make sure your .env file is set up correctly!")
     exit()
 
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+supabase: Client = create_client(VITE_SUPABASE_URL, VITE_SUPABASE_SERVICE_KEY)
 
 def update_supabase_bg(slot_label, db_status):
     """Runs the database update in the background so the camera feed doesn't lag."""
@@ -43,7 +43,7 @@ print("🧠 Loading custom AI brain (best.pt)...")
 model = YOLO("best.pt")
 
 # Tapo Camera RTSP Stream (Change to stream2 if the video lags)
-video_path = "rtsp://admincam:admin123@192.168.43.161:554/stream1" 
+video_path = "rtsp://admincam:admin123@10.21.48.81:554/stream2" 
 cap = cv2.VideoCapture(0) # For testing with webcam, change to 0. Use video_path for Tapo feed.
 
 all_slots = []
@@ -123,15 +123,15 @@ while True:
             break
             
         # Optional: Stabilization logic to prevent jitter
-        curr_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        if prev_pts is not None:
-            curr_pts, status, err = cv2.calcOpticalFlowPyrLK(prev_gray, curr_gray, prev_pts, None)
-            good_prev = prev_pts[status == 1]
-            good_curr = curr_pts[status == 1]
-            if len(good_prev) >= 4: 
-                matrix, _ = cv2.estimateAffinePartial2D(good_curr, good_prev)
-                if matrix is not None:
-                    frame = cv2.warpAffine(frame, matrix, (frame.shape[1], frame.shape[0]))
+        #curr_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        #if prev_pts is not None:
+            #curr_pts, status, err = cv2.calcOpticalFlowPyrLK(prev_gray, curr_gray, prev_pts, None)
+            #good_prev = prev_pts[status == 1]
+            #good_curr = curr_pts[status == 1]
+            #if len(good_prev) >= 4: 
+                #matrix, _ = cv2.estimateAffinePartial2D(good_curr, good_prev)
+                #if matrix is not None:
+                #    frame = cv2.warpAffine(frame, matrix, (frame.shape[1], frame.shape[0]))
 
     display_frame = frame.copy()
     
@@ -150,9 +150,9 @@ while True:
     free_count = 0
     full_count = 0
 
-    # ---------------------------------------------------------
-    # 6. LOGIC & SUPABASE SYNC
-    # ---------------------------------------------------------
+# ---------------------------------------------------------
+# 6. LOGIC & SUPABASE SYNC
+# ---------------------------------------------------------
     for i, slot in enumerate(all_slots):
         is_occupied = False
         for center in vehicle_centers:
