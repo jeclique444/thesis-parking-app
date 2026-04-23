@@ -70,7 +70,7 @@ export default function AdminSettings() {
           <div>
             <h4 className="text-amber-800 font-black text-sm uppercase tracking-wider">City Ordinance Configuration Panel</h4>
             <p className="text-amber-700/80 text-xs font-medium mt-1 leading-relaxed max-w-3xl">
-              Changes made here will affect the pricing, enforcement algorithms, and revenue computations across ALL iParkBayan branches globally. Ensure changes align with the latest Local Government Unit (LGU) and Republic Act mandates.
+              Changes made here will affect the pricing, enforcement algorithms, and revenue computations across ALL ParKada branches globally. Ensure changes align with the latest Local Government Unit (LGU) and Republic Act mandates.
             </p>
           </div>
         </div>

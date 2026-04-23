@@ -42,7 +42,7 @@ export default function AdminLogin() {
       const userId = authData.user?.id;
 
       if (userId) {
-        // 2. Kunin ang profile data (ANG BOUNCER) - 🔴 INUPDATE: Isinama natin ang 'status'
+        // 2. Kunin ang profile data (ANG BOUNCER)
         const { data: profileData, error: profileError } = await supabase
           .from('admin_profiles')
           .select('lot_id, role, status')
@@ -51,13 +51,13 @@ export default function AdminLogin() {
 
         // Kung walang record (regular user siya) -> KICK OUT!
         if (profileError || !profileData) {
-          await supabase.auth.signOut(); // I-force logout ang session
+          await supabase.auth.signOut(); 
           throw new Error("Access Denied: Wala kang access sa admin portal.");
         }
 
-        // 🔴 3. DITO PAPASOK ANG SUSPENSION CHECK
+        // 3. DITO PAPASOK ANG SUSPENSION CHECK
         if (profileData.status === 'Suspended') {
-          await supabase.auth.signOut(); // I-kick out agad sa session
+          await supabase.auth.signOut(); 
           throw new Error("Access Denied: Ang iyong account ay suspended. Makipag-ugnayan sa Super Admin.");
         }
 
@@ -67,11 +67,20 @@ export default function AdminLogin() {
         if (profileData.lot_id) {
           localStorage.setItem("admin_lot_id", profileData.lot_id);
         } else {
-          localStorage.removeItem("admin_lot_id"); // Clear lot_id kung superadmin
+          localStorage.removeItem("admin_lot_id"); 
         }
         
-        toast.success("Welcome, Admin! Loading your portal...");
-        navigate("/admin/dashboard");
+        // 🚦 5. THE TRAFFIC ENFORCER (Role-Based Redirect) 🚦
+        if (profileData.role === 'guard') {
+          toast.success("Welcome, Guard! Opening scanner...");
+          navigate("/admin/scanner"); // 👈 Dito pupunta ang Guard
+        } else if (profileData.role === 'manager') {
+          toast.success("Welcome, Lot Manager!");
+          navigate("/admin/dashboard"); // 👈 Dito pupunta ang Manager
+        } else {
+          toast.success("Welcome, Super Admin!");
+          navigate("/admin/dashboard"); // 👈 Dito pupunta ang Super Admin
+        }
       }
       
     } catch (error: any) {
@@ -99,7 +108,7 @@ export default function AdminLogin() {
               </svg>
             </div>
             <span className="text-xl font-extrabold text-white" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              iPark<span className="text-amber-400">Bayan</span>
+              Par<span className="text-amber-400">Kada</span>
             </span>
           </div>
           <div>
@@ -136,7 +145,7 @@ export default function AdminLogin() {
                 <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
               </svg>
             </div>
-            <span className="text-xl font-extrabold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>iParkBayan</span>
+            <span className="text-xl font-extrabold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>ParKada</span>
           </div>
 
           <div className="flex items-center gap-2 mb-2">
@@ -153,7 +162,7 @@ export default function AdminLogin() {
               <Label className="text-sm font-semibold">Email Address</Label>
               <Input
                 type="email"
-                placeholder="admin@iparkbayan.ph"
+                placeholder="admin@parkada.ph"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="h-12 rounded-xl bg-muted/40"

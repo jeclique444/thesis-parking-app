@@ -15,7 +15,7 @@ interface ThemeProviderProps {
   defaultTheme?: Theme;
   switchable?: boolean;
 }
-
+ 
 export function ThemeProvider({
   children,
   defaultTheme = "light",

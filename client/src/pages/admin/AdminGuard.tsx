@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminScanner (Manager QR & Manual Check-in + Guard Dashboard)
+ * iParkBayan — AdminScanner (Manager QR & Manual Check-in)
  * Design: Civic Tech / Filipino Urban Identity
  */
 import { useState, useEffect } from "react";
@@ -8,8 +8,7 @@ import { supabase } from "@/supabaseClient";
 import { toast } from "sonner";
 import { 
   Camera, Search, CheckCircle2, XCircle, 
-  Car, User, Clock, MapPin, Loader2, ArrowRightCircle, Calendar,
-  ListTodo, History
+  Car, User, Clock, MapPin, Loader2, ArrowRightCircle, Calendar
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Html5QrcodeScanner } from "html5-qrcode";
@@ -28,12 +27,7 @@ export default function AdminScanner() {
   // Dito natin ise-save ang nahanap na reservation
   const [bookingData, setBookingData] = useState<any | null>(null);
 
-  // 🔴 BAGONG STATES PARA SA GUARD DASHBOARD (Expected & History)
-  const [activeTab, setActiveTab] = useState<'expected' | 'history'>('expected');
-  const [expectedList, setExpectedList] = useState<any[]>([]);
-  const [historyList, setHistoryList] = useState<any[]>([]);
-
-  // 1. Kunin ang Lot ID ng naka-login na manager/guard
+  // 1. Kunin ang Lot ID ng naka-login na manager
   useEffect(() => {
     const fetchManagerData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -43,49 +37,11 @@ export default function AdminScanner() {
           .select("lot_id")
           .eq("id", user.id)
           .single();
-        if (data) {
-          setManagerLotId(data.lot_id);
-        }
+        if (data) setManagerLotId(data.lot_id);
       }
     };
     fetchManagerData();
   }, []);
-
-  // 🔴 BAGONG FUNCTION: Kunin ang Expected at History Lists
-  const fetchDashboardLists = async () => {
-    if (!managerLotId) return;
-
-    try {
-      // Fetch Expected Arrivals (Pending, Booked, Reserved)
-      const { data: expected } = await supabase
-        .from("reservations")
-        .select(`id, plate_number, start_time, end_time, status, profiles:user_id(full_name)`)
-        .eq("lot_id", managerLotId)
-        .in("status", ["active"])
-        .order("created_at", { ascending: true });
-      
-      if (expected) setExpectedList(expected);
-
-      // Fetch Recent History (Active/Parked at Completed) - limit to last 15
-      const { data: history } = await supabase
-        .from("reservations")
-        .select(`id, plate_number, start_time, end_time, status, created_at, profiles:user_id(full_name)`)
-        .eq("lot_id", managerLotId)
-        .in("status", ["active", "completed"])
-        .order("created_at", { ascending: false })
-        .limit(15);
-      
-      if (history) setHistoryList(history);
-
-    } catch (error) {
-      console.error("Error fetching dashboard lists:", error);
-    }
-  };
-
-  // I-run ang fetchDashboardLists kapag may lotId na
-  useEffect(() => {
-    fetchDashboardLists();
-  }, [managerLotId]);
 
   // 🟢 SCANNER LOGIC: Pinapagana ang camera
   useEffect(() => {
@@ -100,19 +56,14 @@ export default function AdminScanner() {
 
       scanner.render(
         (decodedText) => {
-          // 🔴 FIX: Linisin agad ang text para tanggal ang hidden spaces/newlines
-          const cleanText = decodedText.trim();
-
           try {
-            const parsed = JSON.parse(cleanText);
-            // 🔴 FIX: Siguraduhing malinis din ang nakuhang ID mula sa JSON
-            const idToSearch = (parsed.id || parsed.ref || cleanText).trim();
+            const parsed = JSON.parse(decodedText);
+            const idToSearch = parsed.id || parsed.ref || decodedText;
             setSearchInput(idToSearch);
             handleManualSearch(idToSearch);
           } catch (e) {
-            // Kung plain text (tulad ng Plate Number o raw UUID)
-            setSearchInput(cleanText);
-            handleManualSearch(cleanText);
+            setSearchInput(decodedText);
+            handleManualSearch(decodedText);
           }
           setIsScanning(false);
           scanner?.clear();
@@ -152,7 +103,7 @@ export default function AdminScanner() {
     };
   }, [bookingData?.id]);
 
-  // 2. Search Function (Manual at Auto-scan)
+// 2. Search Function (Manual at Auto-scan)
   const handleManualSearch = async (val: string) => {
     if (!val) return;
     if (!managerLotId) {
@@ -185,9 +136,9 @@ export default function AdminScanner() {
         query = query.ilike("plate_number", `%${val}%`);
       }
 
-      // Kunin ang listahan ng bookings na hindi pa 'cancelled'
+      // Kunin ang listahan ng bookings na hindi pa 'completed' o 'cancelled'
       const { data, error } = await query
-        .in("status", ["pending", "booked", "active", "reserved", "completed"]) 
+        .in("status", ["pending", "booked", "active", "reserved"]) 
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -196,10 +147,7 @@ export default function AdminScanner() {
         toast.error("No active or pending booking found.");
         setBookingData(null);
       } else {
-        // Priority: Active muna, kung wala, Pending/Booked, kung wala completed
-        const priorityBooking = data.find(b => b.status.toLowerCase() === 'active') || 
-                                data.find(b => ['pending', 'booked', 'reserved'].includes(b.status.toLowerCase())) || 
-                                data[0];
+        const priorityBooking = data.find(b => b.status.toLowerCase() === 'active') || data[0];
         setBookingData(priorityBooking);
         toast.success(`Booking found for ${priorityBooking.plate_number}!`);
       }
@@ -246,13 +194,6 @@ export default function AdminScanner() {
       }
 
       toast.success(`Successfully updated to ${newStatus}!`);
-      
-      // 🔴 REFRESH ANG LISTAHAN SA ILALIM PAGKATAPOS MAG-UPDATE
-      fetchDashboardLists();
-      
-      // Update local state temporarily to avoid another fetch
-      setBookingData((prev: any) => ({...prev, status: newStatus}));
-
     } catch (err) {
       toast.error("Update failed.");
     } finally {
@@ -261,17 +202,16 @@ export default function AdminScanner() {
   };
 
   return (
-    <AdminLayout title="Operations Hub">
+    <AdminLayout title="QR Scanner & Check-in">
       <div className="max-w-5xl mx-auto space-y-6">
-        
-        {/* TOP SECTION: Scanner at Verification */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          
           <div className="space-y-4">
             {/* Manual Input */}
             <div className="bg-white rounded-2xl p-6 border border-border shadow-sm">
               <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
                 <Search size={18} className="text-primary" />
-                Manual Search
+                Manual Verification
               </h3>
               <form onSubmit={handleSearchSubmit} className="flex gap-3">
                 <input
@@ -330,14 +270,14 @@ export default function AdminScanner() {
               {!bookingData ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center opacity-50">
                   <Car size={48} className="text-slate-300 mb-3" />
-                  <p className="text-sm font-medium text-slate-500">Scan a QR code or select from the list below</p>
+                  <p className="text-sm font-medium text-slate-500">No booking selected</p>
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col">
                   <div className="flex justify-center mb-6">
                     <span className={cn(
                       "px-4 py-1.5 rounded-full text-xs font-bold uppercase flex items-center gap-1.5",
-                      ['pending', 'booked', 'reserved'].includes(bookingData.status.toLowerCase()) ? "bg-amber-100 text-amber-700" :
+                      bookingData.status.toLowerCase() === 'pending' || bookingData.status.toLowerCase() === 'booked' ? "bg-amber-100 text-amber-700" :
                       bookingData.status.toLowerCase() === 'active' ? "bg-emerald-100 text-emerald-700" :
                       bookingData.status.toLowerCase() === 'completed' ? "bg-blue-100 text-blue-700" : "bg-rose-100 text-rose-700"
                     )}>
@@ -406,7 +346,7 @@ export default function AdminScanner() {
 
                   <div className="mt-auto space-y-3">
                     {/* BUTTON 1: PARA SA PAGPASOK */}
-                    {(['pending', 'booked', 'reserved'].includes(bookingData.status.toLowerCase())) && (
+                    {(bookingData.status.toLowerCase() === 'pending' || bookingData.status.toLowerCase() === 'booked' || bookingData.status.toLowerCase() === 'reserved') && (
                       <button 
                         onClick={() => handleUpdateStatus('active')}
                         disabled={isLoading}
@@ -431,119 +371,6 @@ export default function AdminScanner() {
             </div>
           </div>
         </div>
-
-        {/* BOTTOM SECTION: Guard Dashboard (Expected & History) */}
-        <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
-          {/* Tabs */}
-          <div className="flex border-b border-border">
-            <button
-              onClick={() => setActiveTab('expected')}
-              className={cn(
-                "flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors",
-                activeTab === 'expected' ? "bg-primary/5 text-primary border-b-2 border-primary" : "text-muted-foreground hover:bg-slate-50"
-              )}
-            >
-              <ListTodo size={18} />
-              Expected Arrivals ({expectedList.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('history')}
-              className={cn(
-                "flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors",
-                activeTab === 'history' ? "bg-primary/5 text-primary border-b-2 border-primary" : "text-muted-foreground hover:bg-slate-50"
-              )}
-            >
-              <History size={18} />
-              Recent Scans
-            </button>
-          </div>
-
-          {/* List Content */}
-          <div className="p-0">
-            {activeTab === 'expected' && (
-              <div className="divide-y divide-border">
-                {expectedList.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground text-sm">
-                    No expected arrivals right now.
-                  </div>
-                ) : (
-                  expectedList.map((item) => (
-                    <div 
-                      key={item.id} 
-                      onClick={() => {
-                        setSearchInput(item.id);
-                        handleManualSearch(item.id);
-                      }}
-                      className="p-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-700">
-                          <Car size={18} />
-                        </div>
-                        <div>
-                          <p className="font-bold text-foreground uppercase tracking-wide">{item.plate_number}</p>
-                          <p className="text-xs text-muted-foreground">{item.profiles?.full_name || "Guest"}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-primary">{item.start_time || "TBA"}</p>
-                        <p className="text-[10px] uppercase font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full inline-block mt-1">
-                          {item.status}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {activeTab === 'history' && (
-              <div className="divide-y divide-border">
-                {historyList.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground text-sm">
-                    No recent history.
-                  </div>
-                ) : (
-                  historyList.map((item) => (
-                    <div 
-                      key={item.id} 
-                      onClick={() => {
-                        setSearchInput(item.id);
-                        handleManualSearch(item.id);
-                      }}
-                      className="p-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={cn(
-                          "w-10 h-10 rounded-full flex items-center justify-center",
-                          item.status === 'active' ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"
-                        )}>
-                          <CheckCircle2 size={18} />
-                        </div>
-                        <div>
-                          <p className="font-bold text-foreground uppercase tracking-wide">{item.plate_number}</p>
-                          <p className="text-xs text-muted-foreground">{item.profiles?.full_name || "Guest"}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(item.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                        <p className={cn(
-                          "text-[10px] uppercase font-bold px-2 py-0.5 rounded-full inline-block mt-1",
-                          item.status === 'active' ? "text-emerald-600 bg-emerald-50" : "text-blue-600 bg-blue-50"
-                        )}>
-                          {item.status === 'active' ? 'Parked In' : 'Completed (Out)'}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
       </div>
     </AdminLayout>
   );

@@ -1,18 +1,17 @@
 /*
- * iParkBayan — DriverHome (With Live Countdown, Auto-Cleanup & Overnight Fix)
+ * iParkBayan — DriverHome (With Nearby Suggestion, Live Countdown, Auto-Cleanup & Overnight Fix)
  */
 import { useEffect, useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import MobileLayout from "@/components/MobileLayout";
-import { MapPin, Clock, ChevronRight, Bell, Search, RefreshCcw } from "lucide-react";
+import { MapPin, Clock, ChevronRight, Bell, Search, RefreshCcw, Navigation } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "../../supabaseClient";
 
 const MAP_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-lipa-map-bf9Bjp7jKhLR43sJchAZUD.webp";
 
-// 🔥 HELPER FUNCTIONS (Dapat nasa labas sila at magkahiwalay)
-
+// 🔥 HELPER FUNCTIONS
 const parseOpenHoursToMins = (timeStr: string) => {
   const match = timeStr.trim().match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
   if (!match) return 0;
@@ -36,19 +35,20 @@ const parseTimeWithAnchor = (timeStr: string, anchorDate: Date) => {
   return d;
 };
 
-// 🔥 UPDATED: CountdownTimer with Overnight Fix
-// 🔥 UPDATED: CountdownTimer with Overnight Fix & 10-min Red Warning
-function CountdownTimer({ 
-  startTime, 
-  endTime, 
-  createdAt, 
-  onExpire 
-}: { 
-  startTime: string; 
-  endTime: string; 
-  createdAt: string; 
-  onExpire: () => Promise<void> 
-}) {
+// 🔥 HAVERSINE FORMULA (Pang-compute ng distance in km)
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+  const R = 6371; // Radius ng Earth in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c; 
+};
+
+// 🔥 CountdownTimer
+function CountdownTimer({ startTime, endTime, createdAt, onExpire }: any) {
   const [timeLeft, setTimeLeft] = useState("");
   const [isUrgent, setIsUrgent] = useState(false);
 
@@ -65,10 +65,7 @@ function CountdownTimer({
         let startDateTime = parseTimeWithAnchor(startTime || endTime, anchorDate);
         let target = parseTimeWithAnchor(endTime, anchorDate);
 
-        // OVERNIGHT FIX: Kung mas maaga ang End kaysa Start, ibig sabihin bukas pa ito matatapos
-        if (target < startDateTime) {
-          target.setDate(target.getDate() + 1);
-        }
+        if (target < startDateTime) target.setDate(target.getDate() + 1);
 
         const diff = target.getTime() - now.getTime();
 
@@ -82,7 +79,6 @@ function CountdownTimer({
         const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const s = Math.floor((diff % (1000 * 60)) / 1000);
 
-        // BAGONG LOGIC: Kapag 0 hours at less than 10 minutes, magiging red (isUrgent)
         if (h === 0 && m < 10) setIsUrgent(true); 
         else setIsUrgent(false);
 
@@ -126,11 +122,30 @@ export default function DriverHome() {
   const [dbParkingLots, setDbParkingLots] = useState<any[]>([]); 
   const [dbSlots, setDbSlots] = useState<any[]>([]); 
   const [activeReservation, setActiveReservation] = useState<any>(null);
-  const [hasUnreadNotifs, setHasUnreadNotifs] = useState(false); // 🔥 NOTIF STATE
+  const [hasUnreadNotifs, setHasUnreadNotifs] = useState(false); 
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // 🔥 LBS STATE
+  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
 
   const activeStatuses = ["reserved", "active", "pending", "booked", "Reserved", "Active", "Pending", "Booked"];
+
+  // Kuhanin ang location ni User
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (error) => console.log("User denied location or error:", error),
+        { enableHighAccuracy: true }
+      );
+    }
+  }, []);
 
   const runCleanup = useCallback(async (userId: string) => {
     try {
@@ -150,9 +165,7 @@ export default function DriverHome() {
         let startDateTime = parseTimeWithAnchor(res.start_time || res.end_time, anchorDate);
         let endDateTime = parseTimeWithAnchor(res.end_time, anchorDate);
 
-        if (endDateTime < startDateTime) {
-          endDateTime.setDate(endDateTime.getDate() + 1);
-        }
+        if (endDateTime < startDateTime) endDateTime.setDate(endDateTime.getDate() + 1);
 
         if (now >= endDateTime) {
           await supabase.from("reservations").update({ status: "completed" }).eq("id", res.id);
@@ -171,9 +184,7 @@ export default function DriverHome() {
       const user = session?.user;
       
       if (!user) {
-        setLoading(false);
-        setIsRefreshing(false);
-        return;
+        setLoading(false); setIsRefreshing(false); return;
       }
 
       await runCleanup(user.id);
@@ -181,29 +192,24 @@ export default function DriverHome() {
       const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", user.id).single();
       if (profile?.full_name) setUserName(profile.full_name.split(" ")[0]);
 
-      // 🔥 FIXED: Mas direct na query, kukuha lang kahit isa para mas mabilis at sigurado
-      const { data: unreadNotif, error: notifError } = await supabase
+      const { data: unreadNotif } = await supabase
         .from("notifications")
         .select("id")
         .eq("user_id", user.id)
         .eq("read", false)
         .limit(1);
 
-      if (!notifError) {
-        setHasUnreadNotifs(unreadNotif && unreadNotif.length > 0);
-      } else {
-        console.error("Notif Fetch Error:", notifError);
-      }
+      setHasUnreadNotifs(!!(unreadNotif && unreadNotif.length > 0));
 
       const [lotsRes, slotsRes] = await Promise.all([
-        supabase.from("parking_lots").select("*").order("name", { ascending: true }),
+        supabase.from("parking_lots").select("*"),
         supabase.from("parking_slots").select("*")
       ]);
 
       if (lotsRes.data) setDbParkingLots(lotsRes.data);
       if (slotsRes.data) setDbSlots(slotsRes.data);
 
-      const { data: resData, error: resError } = await supabase
+      const { data: resData } = await supabase
         .from("reservations")
         .select(`*, parking_lots ( name ), parking_slots ( label )`)
         .eq("user_id", user.id)
@@ -211,12 +217,9 @@ export default function DriverHome() {
         .order("created_at", { ascending: false })
         .limit(1);
 
-      if (resError) console.error("Fetch Reservation Error:", resError);
-
       if (resData && resData.length > 0) {
         const rawRes = resData[0] as any;
         const getJoinValue = (val: any) => Array.isArray(val) ? val[0] : val;
-
         setActiveReservation({
           lotName: getJoinValue(rawRes.parking_lots)?.name || "Parking Lot",
           slotLabel: getJoinValue(rawRes.parking_slots)?.label || "-",
@@ -239,20 +242,11 @@ export default function DriverHome() {
 
   useEffect(() => {
     fetchAllData(); 
-
-    // 🔥 Make sure enabled sa Supabase Dashboard ang Replication/Realtime ng 'notifications' table!
     const channel = supabase.channel('db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'parking_slots' }, () => {
-          fetchAllData(true); 
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => {
-          fetchAllData(true); 
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => {
-          fetchAllData(true); // Ito ang magti-trigger ng silent re-fetch pag may bagong notif
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'parking_slots' }, () => fetchAllData(true))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => fetchAllData(true))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, () => fetchAllData(true))
       .subscribe();
-
     return () => { supabase.removeChannel(channel); };
   }, [fetchAllData]);
 
@@ -272,17 +266,63 @@ export default function DriverHome() {
     return true;
   };
 
+  // 🔥 LBS SORTING & FILTERING LOGIC
+  const getProcessedLots = () => {
+    let lotsWithData = dbParkingLots.map(lot => {
+      const lotSlots = dbSlots.filter(s => s.lot_id === lot.id);
+      const availableCount = lotSlots.filter(s => s.status === 'available').length;
+      
+      let distance = null;
+      if (userLocation && lot.latitude && lot.longitude) {
+        distance = calculateDistance(userLocation.lat, userLocation.lng, lot.latitude, lot.longitude);
+      }
+
+      // Check if open here so we can filter easily
+      const isOpen = isLotOpen(lot.open_hours);
+
+      return { ...lot, lotSlots, availableCount, distance, isOpen };
+    });
+
+    // I-FILTER: Tanggalin sa listahan kapag closed ang operating hours OR kapag 0 na ang available slots.
+    let filteredLots = lotsWithData.filter(lot => lot.isOpen && lot.availableCount > 0);
+
+    // I-SORT: Unahin ang pinakamalapit, kapag parehas ng layo, unahin ang may pinakamaraming available slots.
+    filteredLots.sort((a, b) => {
+      // Kapag walang distance data, ilagay sa huli
+      const distA = a.distance !== null ? a.distance : Infinity;
+      const distB = b.distance !== null ? b.distance : Infinity;
+
+      if (distA !== distB) {
+        return distA - distB; // 1st priority: Ascending Distance (Pinakamalapit muna)
+      }
+      
+      // 2nd priority: Descending Available Slots (Pinakamaraming slots muna kapag parehas distance)
+      return b.availableCount - a.availableCount;
+    });
+
+    // I-LIMIT: Ipakita lang ang 1 hanggang 5 na parking suggestions
+    return filteredLots.slice(0, 5);
+  };
+
+  const processedLots = getProcessedLots();
+  
   const openLotIds = dbParkingLots.filter(lot => isLotOpen(lot.open_hours)).map(lot => lot.id);
   const activeSlots = dbSlots.filter(s => openLotIds.includes(s.lot_id));
-
   const totalAvailable = activeSlots.filter((s) => s.status === 'available').length;
   const totalOccupied = activeSlots.filter((s) => s.status !== 'available').length;
+  
+  // 🔥 BAGONG CODE: I-count lang ang lots na OPEN at may AVAILABLE SLOT
+  const totalOpenLots = dbParkingLots.filter(lot => {
+    const isOpen = isLotOpen(lot.open_hours);
+    const hasAvailable = dbSlots.some(s => s.lot_id === lot.id && s.status === 'available');
+    return isOpen && hasAvailable;
+  }).length;
   
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   if (loading) return (
-    <MobileLayout title="ECPark">
+    <MobileLayout title="ParKada">
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
       </div>
@@ -291,11 +331,10 @@ export default function DriverHome() {
 
   return (
     <MobileLayout
-      title="ECPark"
+      title="ParKada"
       headerRight={
         <button onClick={() => navigate("/notifications")} className="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted">
           <Bell size={20} />
-          {/* 🔥 Dito lalabas yung red dot KAPAG MAY UNREAD NOTIFICATIONS lang */}
           {hasUnreadNotifs && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full" />}
         </button>
       }
@@ -368,7 +407,7 @@ export default function DriverHome() {
           {[
             { label: "Available", value: totalAvailable, color: "text-emerald-600", bg: "bg-emerald-50" },
             { label: "Occupied", value: totalOccupied, color: "text-rose-600", bg: "bg-rose-50" },
-            { label: "Total Lots", value: dbParkingLots.length, color: "text-blue-600", bg: "bg-blue-50" },
+            { label: "Total Lots", value: totalOpenLots, color: "text-blue-600", bg: "bg-blue-50" },
           ].map((s) => (
             <div key={s.label} className={cn("rounded-2xl p-3 text-center shadow-sm", s.bg)}>
               <p className={cn("text-2xl font-black", s.color)}>{s.value}</p>
@@ -377,101 +416,69 @@ export default function DriverHome() {
           ))}
         </div>
 
-    {/* Nearby Lots List */}
+        {/* Nearby Lots List */}
         <div className="mx-4 mt-8">
            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-sm font-extrabold">Nearby Parking</h3>
+              <h3 className="text-sm font-extrabold flex items-center gap-1.5">
+                Nearby Suggestions 
+                {userLocation && <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span></span>}
+              </h3>
               <button onClick={() => navigate("/map")} className="text-xs font-bold text-blue-600 flex items-center gap-1">View Map <ChevronRight size={14}/></button>
            </div>
+           
            <div className="space-y-3">
-              {dbParkingLots.map(lot => {
-                const lotSlots = dbSlots.filter(s => s.lot_id === lot.id);
-                const available = lotSlots.filter(s => s.status === 'available').length;
+              {processedLots.length > 0 ? processedLots.map(lot => {
+                const available = lot.availableCount;
                 
                 let slotsColorClass = "text-rose-600"; 
                 if (available >= 30) slotsColorClass = "text-emerald-600"; 
                 else if (available > 10) slotsColorClass = "text-amber-500"; 
 
-                let isOpen = true;
-                let openTimeDisplay = "tomorrow";
-
-                if (lot.open_hours) {
-                  const hoursText = lot.open_hours.toLowerCase();
-                  
-                  if (!hoursText.includes("24 hour")) {
-                    const times = lot.open_hours.split("-").map((t: string) => t.trim());
-                    
-                    if (times.length === 2) {
-                      const startTimeStr = times[0]; 
-                      const endTimeStr = times[1];  
-
-                      const startMins = parseOpenHoursToMins(startTimeStr);
-                      const endMins = parseOpenHoursToMins(endTimeStr);
-
-                      const now = new Date();
-                      const currentMins = now.getHours() * 60 + now.getMinutes();
-
-                      if (startMins < endMins) {
-                        isOpen = currentMins >= startMins && currentMins < endMins;
-                      } else {
-                        isOpen = currentMins >= startMins || currentMins < endMins;
-                      }
-
-                      openTimeDisplay = `tomorrow at ${startTimeStr}`;
-                    }
-                  }
-                }
-
                 return (
                   <div 
                     key={lot.id} 
-                    onClick={() => isOpen ? navigate(`/parking/${lot.id}`) : null} 
-                    className={cn(
-                      "bg-white p-4 rounded-2xl border border-gray-100 shadow-sm transition-all",
-                      isOpen ? "active:scale-[0.99] cursor-pointer" : "opacity-80 grayscale-[0.3] cursor-not-allowed"
-                    )}
+                    onClick={() => navigate(`/parking/${lot.id}`)} 
+                    className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm transition-all active:scale-[0.99] cursor-pointer"
                   >
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <div className="flex items-center gap-2">
-                          <p className={cn("font-bold text-sm", !isOpen && "text-gray-500")}>
+                          <p className="font-bold text-sm flex items-center gap-1.5">
                             {lot.name}
+                            {lot.distance !== null && (
+                              <span className="bg-blue-50 text-blue-700 text-[9px] font-bold px-1.5 py-0.5 rounded-sm flex items-center gap-0.5">
+                                <Navigation size={8} /> {lot.distance.toFixed(1)} km
+                              </span>
+                            )}
                           </p>
-                          {!isOpen && (
-                            <span className="bg-rose-100 text-rose-700 text-[9px] font-black px-1.5 py-0.5 rounded flex items-center tracking-wider uppercase">
-                              Closed
-                            </span>
-                          )}
                         </div>
-                        <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                          <MapPin size={10}/> {lot.address}
-                        </p>
+                        
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                            <MapPin size={10}/> {lot.address}
+                          </p>
+                        </div>
+
                         <p className="text-[9px] font-medium text-amber-600 mt-1">
                           🕒 {lot.open_hours}
                         </p>
-                        {isOpen && (
-                          <p className={cn("text-[10px] font-extrabold mt-0.5", slotsColorClass)}>
-                            {available} {available === 1 ? 'slot' : 'slots'} available
-                          </p>
-                        )}
+                        <p className={cn("text-[10px] font-extrabold mt-0.5", slotsColorClass)}>
+                          {available} {available === 1 ? 'slot' : 'slots'} available
+                        </p>
                       </div>
-                      <p className={cn("text-sm font-black", isOpen ? "text-blue-700" : "text-gray-400")}>
+                      <p className="text-sm font-black text-blue-700">
                         ₱{lot.rate_per_hour}/hr
                       </p>
                     </div>
 
-                    {isOpen ? (
-                      <AvailabilityBar available={available} total={lotSlots.length} />
-                    ) : (
-                      <div className="bg-gray-50 rounded-xl p-2.5 text-center border border-dashed border-gray-200 mt-1">
-                        <p className="text-[10px] font-bold text-gray-500">
-                          This lot is currently closed. Please reserve {openTimeDisplay}.
-                        </p>
-                      </div>
-                    )}
+                    <AvailabilityBar available={available} total={lot.lotSlots.length} />
                   </div>
                 )
-              })}
+              }) : (
+                 <div className="bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-6 text-center">
+                   <p className="text-xs text-muted-foreground font-medium">No nearby parking available right now.</p>
+                 </div>
+              )}
            </div>
         </div>
       </div>

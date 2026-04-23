@@ -267,7 +267,7 @@ const handlePayment = async () => {
         <div className="flex items-start gap-2 px-2 opacity-60">
            <Info size={14} className="shrink-0 mt-0.5" />
            <p className="text-[9px] font-medium leading-relaxed">
-             By clicking "Pay Now", you authorize iParkBayan to deduct ₱{totalAmount} from your {paymentMethod} account. This transaction is encrypted and secured.
+             By clicking "Pay Now", you authorize ParKada to deduct ₱{totalAmount} from your {paymentMethod} account. This transaction is encrypted and secured.
            </p>
         </div>
 
