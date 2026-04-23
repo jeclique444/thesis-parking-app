@@ -29,6 +29,7 @@ import VehiclesPage from "./pages/driver/VehiclesPage";
 import NotificationsPage from "./pages/driver/NotificationsPage";
 import VerificationPage from "./pages/driver/VerificationPage"; // Siguraduhin na tama ang path
 import TermsPage from "./pages/driver/TermsPage";
+import ExtensionPaymentPage from "./pages/driver/ExtendPaymentPage";
 
 // Admin Pages
 import AdminLogin from "./pages/admin/AdminLogin";
@@ -65,6 +66,7 @@ function Router() {
       <Route path="/vehicles" component={VehiclesPage} />
       <Route path="/notifications" component={NotificationsPage} />
       <Route path="/driver/verification" component={VerificationPage} />
+      <Route path="/payment/extension" component={ExtensionPaymentPage} />
 
       {/* 4. ADMIN SECTION */}
       <Route path="/admin" component={AdminLogin} />

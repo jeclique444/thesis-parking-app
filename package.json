@@ -1,5 +1,5 @@
 {
-  "name": "iparkbayan",
+  "name": "parkada",
   "version": "1.0.0",
   "type": "module",
   "license": "MIT",
@@ -7,7 +7,8 @@
     "dev": "vite --host",
     "build": "vite build",
     "build:server": "esbuild server/index.ts --platform=node --bundle --format=esm --outdir=dist --external:express",
-    "start": "NODE_ENV=production node dist/index.js",
+    "start:dev": "npx nodemon server.js",
+    "start:prod": "cross-env NODE_ENV=production node server.js",
     "preview": "vite preview --host",
     "check": "tsc --noEmit",
     "format": "prettier --write ."

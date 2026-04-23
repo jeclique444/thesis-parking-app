@@ -224,7 +224,7 @@ export default function ProfilePage() {
             icon={<HelpCircle size={20} />} 
             title="Help & Support" 
             label="FAQs and contact"
-            onClick={() => window.location.href = "mailto:support@iparkbayan.com"}
+            onClick={() => window.location.href = "mailto:yourparkada@gmail.com"}
             isLast
           />
         </div>
@@ -239,7 +239,7 @@ export default function ProfilePage() {
 
         <div className="pt-4 text-center pb-8">
           <p className="text-[10px] text-slate-400 font-medium">
-            iParkBayan v1.0.0 - De La Salle Lipa IT3C Group 9
+            ParKada v1.0. - De La Salle Lipa IT3C Group 9
           </p>
         </div>
 

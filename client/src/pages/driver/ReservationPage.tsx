@@ -38,24 +38,65 @@ const getLotClosingTime24 = (openHours: string) => {
   return "23:59";
 };
 
-// Helper: Get remaining minutes until closing time
+// Helper: Convert time string (HH:MM) to minutes since midnight
+const timeToMinutes = (timeStr: string): number => {
+  const [h, m] = timeStr.split(":").map(Number);
+  return h * 60 + m;
+};
+
+// Helper: Get remaining minutes until closing time (supports next-day closing)
 const getRemainingMinutesUntilClose = (openHours: string): number => {
   if (!openHours || openHours.toLowerCase().includes("24 hours")) return 24 * 60;
-  
+
+  const parts = openHours.split("-");
+  if (parts.length !== 2) return 0;
+
+  // Parse start time
+  let startStr = parts[0].trim().toUpperCase();
+  let startIsPM = startStr.includes("PM");
+  let startIsAM = startStr.includes("AM");
+  let startTimePart = startStr.replace("PM", "").replace("AM", "").trim();
+  let [startH, startM] = startTimePart.split(":").map(Number);
+  if (isNaN(startH)) return 0;
+  if (isNaN(startM)) startM = 0;
+  if (startIsPM && startH !== 12) startH += 12;
+  if (startIsAM && startH === 12) startH = 0;
+  const startMinutes = startH * 60 + startM;
+
+  // Parse end time
+  let endStr = parts[1].trim().toUpperCase();
+  let endIsPM = endStr.includes("PM");
+  let endIsAM = endStr.includes("AM");
+  let endTimePart = endStr.replace("PM", "").replace("AM", "").trim();
+  let [endH, endM] = endTimePart.split(":").map(Number);
+  if (isNaN(endH)) return 0;
+  if (isNaN(endM)) endM = 0;
+  if (endIsPM && endH !== 12) endH += 12;
+  if (endIsAM && endH === 12) endH = 0;
+  let endMinutes = endH * 60 + endM;
+
   const now = new Date();
-  const currentHour = now.getHours();
-  const currentMinute = now.getMinutes();
-  const currentTotalMins = currentHour * 60 + currentMinute;
-  
-  const closeTime24 = getLotClosingTime24(openHours);
-  const [closeH, closeM] = closeTime24.split(":").map(Number);
-  let closeTotalMins = closeH * 60 + closeM;
-  
-  if (closeTotalMins <= currentTotalMins) {
-    return 0;
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  // Check if closing time is on the next day
+  const isNextDay = endMinutes < startMinutes;
+  if (isNextDay) {
+    // If current time is before start time (e.g., 5 AM before 7 AM), parking is not yet open
+    if (currentMinutes < startMinutes) {
+      // Return remaining minutes until opening? Actually we want remaining until close, but parking not open yet.
+      // For our usage, if parking is not open, remaining should be 0 (closed) or maybe time until open? But better to return 0.
+      return 0;
+    }
+    // Current time is after start time, so we are in the open period that extends past midnight
+    // The closing time is tomorrow at endMinutes
+    const endTomorrow = endMinutes + 24 * 60;
+    return endTomorrow - currentMinutes;
+  } else {
+    // Normal day (end > start)
+    if (currentMinutes < startMinutes) return 0;
+    if (currentMinutes >= endMinutes) return 0;
+    return endMinutes - currentMinutes;
   }
-  
-  return closeTotalMins - currentTotalMins;
 };
 
 // Helper: Get maximum allowed duration based on remaining hours (capped at 6 hours)
@@ -200,28 +241,20 @@ export default function ReservationPage() {
   const extendedFee = duration > 3 ? (duration - 3) * 10 : 0; 
   const totalCost = baseRate + extendedFee + advanceFee; 
   
+  // Check if selected duration exceeds closing time (supports next-day)
   const checkExceedsCloseTime = () => {
     if (!lot?.open_hours || lot.open_hours.toLowerCase().includes("24 hours")) return false;
     
-    const closeTime24 = getLotClosingTime24(lot.open_hours);
-    const [closeH, closeM] = closeTime24.split(":").map(Number);
-    const [startH, startM] = startTime.split(":").map(Number);
-    
-    const endTotalMins = (startH * 60 + startM) + (duration * 60);
-    let closeTotalMins = closeH * 60 + closeM;
-
-    if (closeTotalMins <= 12 * 60 && startH >= 12) {
-       closeTotalMins += 24 * 60;
-    }
-
-    return endTotalMins > closeTotalMins;
+    const remaining = getRemainingMinutesUntilClose(lot.open_hours);
+    // If remaining time is less than selected duration (in minutes), it exceeds
+    return remaining < duration * 60;
   };
 
   const isExceedingCloseTime = checkExceedsCloseTime();
   const availableVehicles = userVehicles.filter(v => !activePlates.includes(v.plate));
   const isParkingClosed = remainingMins <= 0;
   
-  // ADD THIS: Check kung 1 hour or less na lang bago mag-close
+  // Check kung 1 hour or less na lang bago mag-close
   const isBookingCutoff = remainingMins > 0 && remainingMins <= 60;
 
   const isWalkInOnly = 

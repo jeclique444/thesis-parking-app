@@ -9,6 +9,24 @@ import { Clock, Car, Calendar, CheckCircle2, BookmarkCheck } from "lucide-react"
 import { supabase } from "../../supabaseClient";
 import { cn } from "@/lib/utils";
 
+// Helper: I-format ang ISO date string sa "hh:mm AM/PM"
+const formatTimeFromISO = (isoString: string) => {
+  if (!isoString) return "--:--";
+  const date = new Date(isoString);
+  let hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12 || 12;
+  return `${hours}:${minutes} ${ampm}`;
+};
+
+// Helper: I-format ang ISO date sa "MMM DD, YYYY"
+const formatDate = (dateString: string) => {
+  if (!dateString) return "";
+  const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' };
+  return new Date(dateString).toLocaleDateString('en-US', options);
+};
+
 export default function MyReservationsPage() {
   const [, navigate] = useLocation();
   const [reservations, setReservations] = useState<any[]>([]);
@@ -49,19 +67,10 @@ export default function MyReservationsPage() {
   // FILTER LOGIC
   const filteredReservations = reservations.filter((res) => {
     if (activeTab === "all") return true;
-    // Ang 'active' tab ay magpapakita na ngayon ng parehong 'active' at 'booked'
     if (activeTab === "active") return res.status === "active" || res.status === "booked";
-    // Ang 'completed' ay lahat ng hindi active o booked (e.g., completed, cancelled)
     if (activeTab === "completed") return res.status !== "active" && res.status !== "booked"; 
     return true;
   });
-
-  // DATE FORMATTER (Using created_at)
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "";
-    const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' };
-    return new Date(dateString).toLocaleDateString('en-US', options);
-  };
 
   if (loading) {
     return (
@@ -116,6 +125,11 @@ export default function MyReservationsPage() {
               const isOngoing = res.status === "active";
               const isBooked = res.status === "booked";
 
+              // I-format ang start_time at end_time kung sila ay ISO strings
+              const startTimeFormatted = formatTimeFromISO(res.start_time);
+              const endTimeFormatted = formatTimeFromISO(res.end_time);
+              const bookingDate = formatDate(res.created_at);
+
               return (
                 <div 
                   key={res.id}
@@ -145,11 +159,11 @@ export default function MyReservationsPage() {
                   {/* DETAILS: Schedule (Left) & Duration (Right) */}
                   <div className="flex flex-row justify-between items-center w-full gap-2 text-[11px] text-gray-500 mb-3">
                     
-                    {/* SCHEDULE (CLOCK ICON) */}
+                    {/* SCHEDULE (CLOCK ICON) - gamitin ang formatted times */}
                     <div className="flex items-center gap-1.5 min-w-0">
                       <Clock size={13} className="shrink-0" />
                       <span className="truncate">
-                        {formatDate(res.created_at)} • {res.start_time}–{res.end_time || res.start_time}
+                        {bookingDate} • {startTimeFormatted} – {endTimeFormatted}
                       </span>
                     </div>
 
