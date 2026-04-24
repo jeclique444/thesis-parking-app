@@ -93,11 +93,15 @@ export function Radar({
       const w = canvas.width;
       const h = canvas.height;
 
-      // ✅ Fix zoom: use 0.38 as base (fits comfortably), then apply scale as a mild multiplier capped at 1
-      const baseRadius = Math.min(w, h) * 0.38 * Math.min(scale, 1.0);
+      // 1. FIXED FOR TRANSPARENCY:
+      // Clear the entire canvas every frame so previous drawings disappear
+      ctx.clearRect(0, 0, w, h);
 
-      const cx = w / 2;
-      const cy = h / 2;
+      // 2. Only draw a solid background color if one was provided AND it's not "transparent"
+      if (backgroundColor && backgroundColor !== "transparent") {
+        ctx.fillStyle = backgroundColor;
+        ctx.fillRect(0, 0, w, h);
+      }
 
       // ✅ Smooth mouse offset with clamping so it never goes wild
       let offsetX = 0;

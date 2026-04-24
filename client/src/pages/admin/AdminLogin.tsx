@@ -87,35 +87,46 @@ export default function AdminLogin() {
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Left Panel — Radar Animation */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-black">
+{/* Left Panel — BRANDING OVER PARKING LOT PHOTO */}
+      <div 
+        className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-cover bg-center"
+        style={{ 
+          // 1. SET YOUR PARKING LOT BACKGROUND IMAGE HERE:
+          backgroundImage: "url('https://images.unsplash.com/photo-1590674042211-f1190547b744?q=80&w=1920&auto=format&fit=crop')" 
+        }}
+      >
+        {/* Dark overlay to ensure text readability over the photo */}
+        <div className="absolute inset-0 bg-gradient-to-br from-navy-950/95 to-navy-950/60" />
 
-        {/* Radar fills the entire panel */}
-        <div className="absolute inset-0">
-          <Radar
-            speed={0.9}
-            scale={1.3}
-            ringCount={10}
-            spokeCount={5}
-            ringThickness={0.05}
-            spokeThickness={0.01}
-            sweepSpeed={1.2}
-            sweepWidth={6}
-            sweepLobes={1}
-            color="#0df103"
-            backgroundColor="#100228"
-            falloff={1}
-            brightness={0.9}
-            enableMouseInteraction={true}
-            mouseInfluence={0.15}
-          />
+        {/* 2. THE RADAR WIDGET AREA — Centered, relative to panel */}
+        <div className="flex-1 flex items-center justify-center relative p-8">
+          
+          {/* A circular container for the radar to look like a screen widget */}
+          <div className="w-80 h-80 rounded-full border-4 border-navy-700 bg-navy-950/50 backdrop-blur-sm relative overflow-hidden shadow-2xl shadow-black/30">
+            {/* The Radar itself — note scale increased to fill the smaller container */}
+            <Radar
+              speed={0.7}
+              scale={1.5} // Increased scale slightly to fit circular view
+              ringCount={10}
+              spokeCount={5}
+              ringThickness={0.06}
+              spokeThickness={0.015}
+              sweepSpeed={1.0}
+              sweepWidth={6}
+              sweepLobes={1}
+              color="#F59E0B" // iParkBayan Amber pops better on photo
+              backgroundColor="transparent" // 3. MUST BE TRANSPARENT
+              falloff={1}
+              brightness={1.0}
+              enableMouseInteraction={true} // Mouse works only inside this circle
+              mouseInfluence={0.2}
+            />
+          </div>
         </div>
 
-        {/* Dark overlay to keep text readable over the animation */}
-        <div className="absolute inset-0 bg-black/40 pointer-events-none" />
-
-        {/* Branding content — sits on top */}
+        {/* Branding content — sits on top, mouse passes through */}
         <div className="absolute inset-0 flex flex-col justify-between p-12 z-10 pointer-events-none">
+          {/* Logo Section */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="oklch(0.18 0.06 255)">
@@ -130,6 +141,7 @@ export default function AdminLogin() {
             </span>
           </div>
 
+          {/* Text/Stats Section (Now aligned bottom left) */}
           <div>
             <h1
               className="text-4xl font-extrabold text-white leading-tight"
@@ -137,7 +149,7 @@ export default function AdminLogin() {
             >
               Smart Parking<br/>Management
             </h1>
-            <p className="text-white/70 mt-3 text-base">
+            <p className="text-white/80 mt-3 text-base max-w-sm">
               Monitor real-time parking availability, manage reservations, and generate reports for Lipa City Downtown.
             </p>
             <div className="grid grid-cols-3 gap-4 mt-8">
@@ -146,18 +158,19 @@ export default function AdminLogin() {
                 { label: "Active Users", value: "156" },
                 { label: "Today's Bookings", value: "28" },
               ].map(({ label, value }) => (
-                <div key={label} className="bg-white/10 rounded-xl p-3 text-center backdrop-blur-sm">
+                <div key={label} className="bg-white/10 rounded-xl p-3 text-center backdrop-blur-sm border border-white/10">
                   <p className="text-2xl font-extrabold text-white">{value}</p>
-                  <p className="text-[11px] text-white/60">{label}</p>
+                  <p className="text-[11px] text-white/70">{label}</p>
                 </div>
               ))}
             </div>
           </div>
 
+          {/* Footer Text */}
           <p className="text-white/40 text-xs">De La Salle Lipa · IT3C Group 9 · 2026</p>
         </div>
       </div>
-
+      
       {/* Right Panel — Login Form */}
       <div className="flex-1 flex items-center justify-center px-8 py-12">
         <div className="w-full max-w-sm">
