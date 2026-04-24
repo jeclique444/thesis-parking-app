@@ -110,14 +110,15 @@ export default function AdminLogin() {
           
           {/* Top: Branding */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="oklch(0.18 0.06 255)">
-                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-              </svg>
-            </div>
+            {/* Replace src with your actual logo path (e.g., "/logo.png" or "/assets/logo.svg") */}
+            <img 
+              src="/ParKada.png" 
+              alt="ParKada Logo" 
+              className="w-10 h-10 object-contain drop-shadow-md" 
+            />
             <span
               className="text-xl font-extrabold text-white"
-              style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+              style={{ fontFamily: "'DM Sans', sans-serif" }}
             >
               Par<span className="text-amber-400">Kada</span>
             </span>
@@ -129,7 +130,7 @@ export default function AdminLogin() {
             {/* The TrueFocus Component */}
             <div className="text-white w-full flex justify-start mb-6">
               <TrueFocus 
-                sentence="Smart Parking Management"
+                sentence="Parking Management Center"
                 manualMode={false}
                 blurAmount={4}
                 borderColor="#0df103" 
@@ -140,15 +141,15 @@ export default function AdminLogin() {
             </div>
 
             <p className="text-white/80 mt-6 text-lg max-w-md leading-relaxed drop-shadow-md">
-              Monitor real-time parking availability, manage reservations, and generate reports for Lipa City Downtown.
+              Your centralized hub for managing parking reservations, occupancy, and facility operations.
             </p>
 
             {/* Stats Grid */}
             <div className="grid grid-cols-3 gap-4 mt-12 w-full max-w-md">
               {[
-                { label: "Total Slots", value: "92" },
-                { label: "Active Users", value: "156" },
-                { label: "Today's Bookings", value: "28" },
+                { label: "Registered Partners", value: "4" },
+                { label: "Occupancy Rate", value: "86%" },
+                { label: "Active Users", value: "28" },
               ].map(({ label, value }) => (
                 <div key={label} className="bg-black/30 rounded-xl p-4 text-center backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors shadow-lg">
                   <p className="text-3xl font-extrabold text-white">{value}</p>
@@ -160,7 +161,10 @@ export default function AdminLogin() {
 
           {/* Bottom: Footer */}
           <p className="text-white/50 text-xs tracking-wide font-medium">
-            De La Salle Lipa · IT3C Group 9 · 2026
+             IT3C Group 9 · De La Salle Lipa · 2026
+          </p>
+          <p className="text-white/50 text-xs tracking-wide font-medium">
+             Alcantara · Cadeliña · Lique · Mendez
           </p>
         </div>
       </div>
