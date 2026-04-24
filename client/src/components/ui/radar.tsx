@@ -90,11 +90,17 @@ export function Radar({
     canvas.addEventListener("mouseleave", handleMouseLeave);
 
     const draw = () => {
+      if (!ctx || !canvas) return;
+
       const w = canvas.width;
       const h = canvas.height;
 
+      // 👇 THESE ARE THE TWO LINES THAT GOT DELETED! 👇
+      const cx = w / 2;
+      const cy = h / 2;
+      // 👆 ----------------------------------------- 👆
+
       // 1. FIXED FOR TRANSPARENCY:
-      // Clear the entire canvas every frame so previous drawings disappear
       ctx.clearRect(0, 0, w, h);
 
       // 2. Only draw a solid background color if one was provided AND it's not "transparent"
@@ -102,6 +108,8 @@ export function Radar({
         ctx.fillStyle = backgroundColor;
         ctx.fillRect(0, 0, w, h);
       }
+
+      // ... the rest of the file continues below drawing the rings using cx and cy ...
 
       // ✅ Smooth mouse offset with clamping so it never goes wild
       let offsetX = 0;
