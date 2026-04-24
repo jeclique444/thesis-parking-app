@@ -13,6 +13,7 @@ import { Eye, EyeOff, Shield, Loader2 } from "lucide-react";
 import { supabase } from "@/supabaseClient";
 import TrueFocus from "@/components/ui/focus";
 import DarkVeil from "@/components/ui/dark-veil"; // Make sure this says 'dark-veil' and not 'focus'!
+import logoImage from "@/assets/logo.png"; // Or whatever path reaches your assets folder
 
 export default function AdminLogin() {
   const [, navigate] = useLocation();
