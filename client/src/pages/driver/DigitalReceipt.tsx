@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "../../supabaseClient";
 import { toPng, toBlob } from "html-to-image";
 import { toast } from "sonner";
-import { QRCodeSVG } from "qrcode.react"; // <-- IMPORT ITO PARA SA TOTOONG QR CODE
+import { QRCodeSVG } from "qrcode.react";
 import { 
   MapPin, 
   Clock, 
@@ -20,28 +20,34 @@ import {
   CircleCheck 
 } from "lucide-react";
 
+// Helper: I-format ang ISO date string sa "hh:mm AM/PM"
+const formatTimeFromISO = (isoString: string) => {
+  if (!isoString) return "--:--";
+  const date = new Date(isoString);
+  let hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12 || 12;
+  return `${hours}:${minutes} ${ampm}`;
+};
+
 export default function DigitalReceiptPage() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const [res, setRes] = useState<any>(null);
-  // ==========================================
-  // 🟢 BAGONG STATE PARA KUNIN ANG TOTOONG REF NUMBER 🟢
-  // ==========================================
   const [receiptRef, setReceiptRef] = useState<string>("PROCESSING"); 
   const [loading, setLoading] = useState(true);
 
   const ticketRef = useRef<HTMLDivElement>(null);
 
-  // KUNIN ANG QUERY PARAMETER
   const searchParams = new URLSearchParams(window.location.search);
   const fromRoute = searchParams.get("from");
 
-  // DYNAMIC BACK HANDLER
   const handleBack = () => {
     if (fromRoute === "reservations") {
-      navigate("/home"); // Babalik sa My Home
+      navigate("/home");
     } else {
-      navigate("/reservations"); // Babalik sa Reservation (after successful booking)
+      navigate("/reservations");
     }
   };
 
@@ -58,14 +64,12 @@ export default function DigitalReceiptPage() {
     fixGoogleFontsCORS();
 
     const fetchReceipt = async () => {
-      // PREVENT SUPABASE ERROR KUNG WALANG ID
       if (!params.id || params.id === "undefined" || params.id === "null") {
         setLoading(false);
         return;
       }
 
       try {
-        // 1. KUNIN ANG RESERVATION DETAILS
         const { data: resData, error: resError } = await supabase
           .from("reservations")
           .select(`
@@ -79,9 +83,6 @@ export default function DigitalReceiptPage() {
         if (resError) throw resError;
         setRes(resData);
 
-        // ==========================================
-        // 🟢 2. KUNIN ANG TOTOONG REFERENCE NUMBER SA RECEIPTS TABLE 🟢
-        // ==========================================
         const { data: receiptData } = await supabase
           .from("receipts")
           .select("reference_no")
@@ -168,19 +169,21 @@ export default function DigitalReceiptPage() {
     </MobileLayout>
   );
 
-  // DATA NA NASA LOOB NG QR CODE
   const qrData = JSON.stringify({
-  id: res.id, // Booking ID (UUID) - Ito ang pinaka-reliable na search key
-  plate: res.plate_number,
-  ref: receiptRef
-});
-
+    id: res.id,
+    plate: res.plate_number,
+    ref: receiptRef
+  });
 
   const bookingDate = new Date(res.created_at).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric'
   });
+
+  // I-format ang start_time at end_time (ISO → readable time)
+  const startTimeFormatted = formatTimeFromISO(res.start_time);
+  const endTimeFormatted = formatTimeFromISO(res.end_time);
 
   return (
     <MobileLayout title="Digital Receipt" showBack onBack={handleBack}>
@@ -209,8 +212,7 @@ export default function DigitalReceiptPage() {
 
             <div className="flex justify-center">
               <div className="p-4 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
-                  {/* TOTOONG SCANNABLE QR CODE */}
-                 <QRCodeSVG value={qrData} size={120} level="M" />
+                  <QRCodeSVG value={qrData} size={120} level="M" />
               </div>
             </div>
 
@@ -238,9 +240,11 @@ export default function DigitalReceiptPage() {
                 <Clock size={16} className="text-primary shrink-0" />
                 <div>
                   <p className="text-[9px] font-black text-muted-foreground uppercase">Schedule</p>
-                  {/* 👇 Pinalitan natin ito para ipakita ang Date at Time */}
+                  {/* ✅ ITO ANG BAGO: formatted times, hindi ISO string */}
                   <p className="text-[11px] font-bold">{bookingDate}</p>
-                  <p className="text-[10px] font-medium text-muted-foreground">{res.start_time} - {res.end_time}</p>
+                  <p className="text-[10px] font-medium text-muted-foreground">
+                    {startTimeFormatted} - {endTimeFormatted}
+                  </p>
                 </div>
               </div>
               <div className="flex gap-3">

@@ -1,6 +1,7 @@
 /*
  * iParkBayan — ReservationConfirmPage (Payment Gateway & Details)
  * Design: Civic Tech / Filipino Urban Identity
+ * UPDATED: Real-time start_time/end_time, active status, extension/fine columns
  */
 import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
@@ -26,13 +27,11 @@ export default function ReservationConfirmPage() {
   
   const searchParams = new URLSearchParams(window.location.search);
   const lotId = searchParams.get("lot");
-  const startTime = searchParams.get("start");
-  const endTime = searchParams.get("end");
+  // Hindi na gagamitin ang start at end mula sa URL
   const duration = searchParams.get("dur");
   const plateNumber = searchParams.get("plate");
   const paymentMethod = searchParams.get("pay"); 
   const totalAmount = searchParams.get("total");
-  const statusFromUrl = searchParams.get("status"); // <--- Dagdag: kinuha ang status sa URL
   const slotId = params.slotId;
 
   const [lot, setLot] = useState<any>(null);
@@ -60,123 +59,96 @@ export default function ReservationConfirmPage() {
     fetchDetails();
   }, [lotId, slotId]);
 
-  // --- AUTO-RELEASE LOGIC ---
-  // ⚠️ KINOMMENT-OUT PARA HINDI MAG-AUTO COMPLETED/AVAILABLE AGAD YUNG SLOT ⚠️
-  /*
-  useEffect(() => {
-    if (!endTime || !slotId) return;
-
-    const checkAndRelease = async () => {
-      // Convert "14:30" (endTime) to a comparable Date object
-      const now = new Date();
-      const [hours, minutes] = endTime.split(':').map(Number);
-      const endDateTime = new Date();
-      endDateTime.setHours(hours, minutes, 0, 0);
-
-      // Kung ang oras ngayon ay lumagpas na sa endDateTime
-      if (now > endDateTime) {
-        console.log("Reservation expired. Releasing slot...");
-        await supabase
-          .from("parking_slots")
-          .update({ status: "available" })
-          .eq("id", slotId);
+  const triggerNotification = async (userId: string, slotLabel: string) => {
+    console.log("Sending notif to user:", userId);
+    const { error } = await supabase.from("notifications").insert([
+      {
+        user_id: userId,
+        title: "Congratulations! 🎉",
+        message: `Reservation confirmed for Slot ${slotLabel}.`,
+        type: "reservation",
+        read: false
       }
-    };
+    ]);
+    if (error) console.error("Notification trigger failed:", error.message);
+  };
 
-    // Check every 1 minute
-    const interval = setInterval(checkAndRelease, 60000);
-    return () => clearInterval(interval);
-  }, [endTime, slotId]);
-  */
+  // 🔥 UPDATED: Real-time start and end times
+  const handlePayment = async () => {
+    setIsProcessing(true);
+    
+    setTimeout(async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Not logged in");
 
-const triggerNotification = async (userId: string, slotLabel: string) => {
-  console.log("Sending notif to user:", userId); // I-check ito sa console
-  
-  const { error } = await supabase.from("notifications").insert([
-    {
-      user_id: userId, // Siguraduhin na ito ay auth.uid()
-      title: "Congratulations! 🎉",
-      message: `Reservation confirmed for Slot ${slotLabel}.`,
-      type: "reservation",
-      read: false
-    }
-  ]);
+        // Compute real start and end times
+        const now = new Date();
+        const startTimeISO = now.toISOString();
+        const durationHours = parseInt(duration || "3");
+        const endTimeDate = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
+        const endTimeISO = endTimeDate.toISOString();
 
-  if (error) console.error("Notification trigger failed:", error.message);
-};
+        // 1. SAVE TO RESERVATIONS (with new columns)
+        const { data: newRes, error: resError } = await supabase
+          .from("reservations")
+          .insert({
+            user_id: user.id,
+            lot_id: lotId,
+            slot_id: slotId,
+            plate_number: plateNumber?.toUpperCase(),
+            start_time: startTimeISO,
+            end_time: endTimeISO,
+            duration: durationHours,
+            total_amount: parseFloat(totalAmount || "40"),
+            payment_method: paymentMethod,
+            status: "active",                         // ← real-time active
+            extension_count: 0,
+            extension_fee: 0,
+            fine_amount: 0,
+            fine_paid: false,
+            original_end_time: endTimeISO
+          })
+          .select()
+          .single();
 
-// ... inside the handlePayment function:
-const handlePayment = async () => {
-  setIsProcessing(true);
-  
-  setTimeout(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not logged in");
+        if (resError) throw resError;
 
-      // 1. SAVE TO RESERVATIONS
-      const { data: newRes, error: resError } = await supabase
-        .from("reservations")
-        .insert({
-          user_id: user.id, 
-          lot_id: lotId,
-          slot_id: slotId,
-          plate_number: plateNumber?.toUpperCase(),
-          start_time: startTime,
-          end_time: endTime,
-          duration: parseInt(duration || "3"),
-          total_amount: parseFloat(totalAmount || "40"),
-          payment_method: paymentMethod,
-          status: statusFromUrl || "booked" // <--- Binago: dynamic status na imbes na 'active'
-        })
-        .select()
-        .single();
+        // 2. CREATE RECEIPT
+        const randomChars = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const refNo = `EZP-${randomChars}`;
+        const { error: receiptError } = await supabase
+          .from("receipts")
+          .insert({
+            reservation_id: newRes.id,
+            user_id: user.id,
+            reference_no: refNo,
+            amount_paid: parseFloat(totalAmount || "40"),
+            payment_method: paymentMethod || "Unknown"
+          });
+        if (receiptError) throw receiptError;
 
-      if (resError) throw resError;
+        // 3. UPDATE PARKING_SLOTS STATUS (occupied, not reserved)
+        const { error: updateError } = await supabase
+          .from("parking_slots")
+          .update({ status: "occupied" })
+          .eq("id", slotId);
+        if (updateError) throw updateError;
 
-      // ==========================================
-      // 🟢 BAGONG CODE PARA SA RECEIPTS TABLE 🟢
-      // ==========================================
-      // Gumawa ng random 6-character reference number (Hal. EZP-A1B2C3)
-      const randomChars = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const refNo = `EZP-${randomChars}`;
+        // 4. TRIGGER NOTIFICATION
+        await triggerNotification(user.id, slot?.label || "");
 
-      const { error: receiptError } = await supabase
-        .from("receipts")
-        .insert({
-          reservation_id: newRes.id,
-          user_id: user.id,
-          reference_no: refNo,
-          amount_paid: parseFloat(totalAmount || "40"),
-          payment_method: paymentMethod || "Unknown"
-        });
+        setNewReservationId(newRes.id);
+        setIsSuccess(true);
+        toast.success("Reservation successful!");
 
-      if (receiptError) throw receiptError;
-      // ==========================================
-
-      // 2. UPDATE PARKING_SLOTS STATUS
-      const { error: updateError } = await supabase
-        .from("parking_slots")
-        .update({ status: "reserved" }) 
-        .eq("id", slotId);
-
-      if (updateError) throw updateError;
-
-      // 3. 🔥 TRIGGER THE NOTIFICATION
-      await triggerNotification(user.id, slot?.label || "");
-
-      // Naka-base pa rin tayo sa Reservation ID para hindi masira yung redirect route mo
-      setNewReservationId(newRes.id);
-      setIsSuccess(true);
-      toast.success("Reservation successful!");
-
-    } catch (err: any) {
-      console.error("Full Error:", err);
-      toast.error("Process Failed: " + err.message);
-      setIsProcessing(false);
-    }
-  }, 2500);
-};
+      } catch (err: any) {
+        console.error("Full Error:", err);
+        toast.error("Process Failed: " + err.message);
+        setIsProcessing(false);
+      }
+    }, 2500);
+  };
 
   if (loading) return (
     <div className="flex items-center justify-center h-screen bg-white">
@@ -193,8 +165,9 @@ const handlePayment = async () => {
         <div className="text-center">
           <h2 className="text-2xl font-black text-foreground">Payment Received</h2>
           <p className="text-sm text-muted-foreground mt-2 px-4">
-            Your reservation for <strong>{plateNumber}</strong> is now {statusFromUrl === 'active' ? 'active' : 'confirmed'}.
+            Your reservation for <strong>{plateNumber}</strong> is now active.
           </p>
+          
         </div>
         <div className="w-full bg-gray-50 rounded-3xl p-6 border border-gray-100 space-y-3">
            <div className="flex justify-between text-xs font-bold">
@@ -217,6 +190,13 @@ const handlePayment = async () => {
       </div>
     );
   }
+
+  // Compute display times for UI (optional, just for reference)
+  const now = new Date();
+  const durationHours = parseInt(duration || "3");
+  const endTimeDate = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
+  const startTimeFormatted = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const endTimeFormatted = endTimeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   return (
     <MobileLayout title="Payment" showBack onBack={() => navigate(`/reserve/${slotId}?lot=${lotId}`)} >
@@ -259,7 +239,7 @@ const handlePayment = async () => {
             </div>
             <div className="space-y-1">
               <p className="text-[9px] font-black text-muted-foreground uppercase">Schedule</p>
-              <p className="text-sm font-bold">{startTime} - {endTime}</p>
+              <p className="text-sm font-bold">{startTimeFormatted} - {endTimeFormatted}</p>
             </div>
           </div>
         </div>
