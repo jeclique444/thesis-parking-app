@@ -102,10 +102,10 @@ export default function AdminLogin() {
             sweepSpeed={1.2}
             sweepWidth={6}
             sweepLobes={1}
-            color="#0df103"          {/* The crisp Neon Green */}
-            backgroundColor="#100228" {/* The Deep Purple */}
+            color="#0df103"
+            backgroundColor="#100228"
             falloff={1}
-            brightness={1.2}         {/* Boosted brightness */}
+            brightness={1.2}
             enableMouseInteraction={true}
             mouseInfluence={0.15}
           />
