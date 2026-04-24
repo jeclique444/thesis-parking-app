@@ -623,7 +623,7 @@ export default function DriverHome() {
                       {isAccredited ? (
                         <p className="text-sm font-black text-blue-700">₱{lot.rate_per_hour}/hr</p>
                       ) : (
-                        <p className="text-sm text-gray-400">—</p>
+                        <p className="text-sm text-gray-400"></p>
                       )}
                     </div>
                     {isAccredited && <AvailabilityBar available={available} total={lot.lotSlots.length} />}
