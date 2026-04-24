@@ -105,7 +105,7 @@ export default function AdminLogin() {
             color="#0df103"
             backgroundColor="#000000"
             falloff={1}
-            brightness={0.7}
+            brightness={0.9}
             enableMouseInteraction={false}
             mouseInfluence={0.35}
           />
