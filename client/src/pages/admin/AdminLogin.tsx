@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Eye, EyeOff, Shield, Loader2 } from "lucide-react";
 import { supabase } from "@/supabaseClient";
-import { Radar } from "@/components/ui/radar"; // 👈 adjust import path as needed
+import TrueFocus from "@/components/ui/focus";
 
 export default function AdminLogin() {
   const [, navigate] = useLocation();
@@ -87,32 +87,15 @@ export default function AdminLogin() {
 
   return (
     <div className="min-h-screen flex bg-background">
-{/* Left Panel — Radar Animation */}
+{/* Left Panel — TrueFocus UI */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-[#100228]">
         
-        {/* Radar Background */}
-        <div className="absolute inset-0">
-          <Radar
-            speed={0.9}
-            scale={1.3}
-            ringCount={10}
-            spokeCount={5}
-            ringThickness={0.05}
-            spokeThickness={0.01}
-            sweepSpeed={1.2}
-            sweepWidth={6}
-            sweepLobes={1}
-            color="#0df103"
-            backgroundColor="#100228"
-            falloff={1}
-            brightness={1.2}
-            enableMouseInteraction={true}
-            mouseInfluence={0.15}
-          />
-        </div>
+        {/* Subtle background glow to match the tech vibe */}
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#0df103]/10 rounded-full blur-[100px] pointer-events-none" />
 
-        {/* Branding content — sits on top, mouse passes right through to the canvas */}
-        <div className="absolute inset-0 flex flex-col justify-between p-12 z-10 pointer-events-none">
+        <div className="relative z-10 flex flex-col justify-between p-12 w-full h-full">
+          
+          {/* Top: Branding */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="oklch(0.18 0.06 255)">
@@ -127,31 +110,45 @@ export default function AdminLogin() {
             </span>
           </div>
 
-          <div>
-            <h1
-              className="text-4xl font-extrabold text-white leading-tight"
-              style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-            >
-              Smart Parking<br/>Management
-            </h1>
-            <p className="text-white/70 mt-3 text-base">
+          {/* Middle: The TrueFocus Hero Section */}
+          <div className="flex-1 flex flex-col justify-center items-start -mt-12">
+            
+            {/* The TrueFocus Component replacing the static H1 */}
+            <div className="text-white w-full flex justify-start mb-6">
+              <TrueFocus 
+                sentence="Smart Parking Management"
+                manualMode={false}
+                blurAmount={4}
+                borderColor="#0df103" // Matching your previous neon green
+                glowColor="rgba(13, 241, 3, 0.4)"
+                animationDuration={0.6}
+                pauseBetweenAnimations={1.5}
+              />
+            </div>
+
+            <p className="text-white/70 mt-6 text-lg max-w-md leading-relaxed">
               Monitor real-time parking availability, manage reservations, and generate reports for Lipa City Downtown.
             </p>
-            <div className="grid grid-cols-3 gap-4 mt-8">
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-3 gap-4 mt-12 w-full max-w-md">
               {[
                 { label: "Total Slots", value: "92" },
                 { label: "Active Users", value: "156" },
                 { label: "Today's Bookings", value: "28" },
               ].map(({ label, value }) => (
-                <div key={label} className="bg-white/10 rounded-xl p-3 text-center backdrop-blur-sm border border-white/5">
-                  <p className="text-2xl font-extrabold text-white">{value}</p>
-                  <p className="text-[11px] text-white/60">{label}</p>
+                <div key={label} className="bg-white/5 rounded-xl p-4 text-center backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-colors">
+                  <p className="text-3xl font-extrabold text-white">{value}</p>
+                  <p className="text-xs text-white/60 mt-1 uppercase tracking-wider font-semibold">{label}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          <p className="text-white/40 text-xs">De La Salle Lipa · IT3C Group 9 · 2026</p>
+          {/* Bottom: Footer */}
+          <p className="text-white/40 text-xs tracking-wide">
+            De La Salle Lipa · IT3C Group 9 · 2026
+          </p>
         </div>
       </div>
 
