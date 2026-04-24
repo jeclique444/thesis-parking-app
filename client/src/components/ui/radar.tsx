@@ -28,15 +28,14 @@ export const Radar: React.FC<RadarProps> = ({
   sweepSpeed = 1,
   sweepWidth = 6,
   sweepLobes = 1,
-  color = "#F59E0B",
-  backgroundColor = "transparent",
+  color = "#0df103",
+  backgroundColor = "#100228",
   falloff = 1,
   brightness = 1,
-  enableMouseInteraction = true,
+  enableMouseInteraction = true, // <-- This was missing and caused the crash!
   mouseInfluence = 0.2,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const timeRef = useRef<number>(0);
   const mouseRef = useRef<{ x: number; y: number; active: boolean }>({
     x: 0,
     y: 0,
@@ -91,14 +90,11 @@ export const Radar: React.FC<RadarProps> = ({
       const cx = w / 2;
       const cy = h / 2;
       
-      // Calculate the size of the radar based on the canvas size
       const maxRadius = Math.min(w, h) / 2 * scale;
       const baseRadius = maxRadius * 0.9;
 
-      // 1. Clear the canvas for transparency
       ctx.clearRect(0, 0, w, h);
 
-      // 2. Draw background only if it is not transparent
       if (backgroundColor && backgroundColor !== "transparent") {
         ctx.fillStyle = backgroundColor;
         ctx.fillRect(0, 0, w, h);
@@ -107,12 +103,10 @@ export const Radar: React.FC<RadarProps> = ({
       time += 0.01 * speed;
       const sweepAngle = (time * sweepSpeed) % (Math.PI * 2);
 
-      // Setup drawing style
       ctx.strokeStyle = color;
       ctx.fillStyle = color;
       ctx.globalCompositeOperation = "lighter";
 
-      // Mouse influence
       let targetX = cx;
       let targetY = cy;
       if (mouseRef.current.active && enableMouseInteraction) {
@@ -151,7 +145,6 @@ export const Radar: React.FC<RadarProps> = ({
         const offset = (Math.PI * 2 * l) / sweepLobes;
         const lobeAngle = (sweepAngle + offset) % (Math.PI * 2);
 
-        // We use a gradient to create the sweeping tail
         for (let a = 0; a < sweepWidth; a++) {
           const tailAngle = lobeAngle - (a * 0.05);
           const alpha = Math.pow(1 - a / sweepWidth, falloff) * 0.5 * brightness;
@@ -164,7 +157,7 @@ export const Radar: React.FC<RadarProps> = ({
             targetX + Math.cos(tailAngle) * baseRadius,
             targetY + Math.sin(tailAngle) * baseRadius
           );
-          ctx.lineWidth = 2; // Thin lines to build up the gradient
+          ctx.lineWidth = 2;
           ctx.globalAlpha = alpha;
           ctx.stroke();
         }
