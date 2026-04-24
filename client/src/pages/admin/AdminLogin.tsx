@@ -113,15 +113,15 @@ export default function AdminLogin() {
           <div className="flex items-center gap-3">
             {/* Replace src with your actual logo path (e.g., "/logo.png" or "/assets/logo.svg") */}
             <img 
-              src="/ParKada.png" 
+              src="/ParKadav2.png" 
               alt="ParKada Logo" 
-              className="w-10 h-10 object-contain drop-shadow-md" 
+              className="w-20 h-20 object-contain drop-shadow-md" 
             />
             <span
               className="text-xl font-extrabold text-white"
               style={{ fontFamily: "'DM Sans', sans-serif" }}
             >
-              Par<span className="text-amber-400">Kada</span>
+              ParKada
             </span>
           </div>
 
