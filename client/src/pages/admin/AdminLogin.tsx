@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Eye, EyeOff, Shield, Loader2 } from "lucide-react";
 import { supabase } from "@/supabaseClient";
 import TrueFocus from "@/components/ui/focus";
+import DarkVeil from "@/components/ui/dark-veil"; // Make sure this says 'dark-veil' and not 'focus'!
 
 export default function AdminLogin() {
   const [, navigate] = useLocation();
@@ -87,12 +88,24 @@ export default function AdminLogin() {
 
   return (
     <div className="min-h-screen flex bg-background">
-{/* Left Panel — TrueFocus UI */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-[#100228]">
+      
+{/* Left Panel — TrueFocus + DarkVeil Background */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-black">
         
-        {/* Subtle background glow to match the tech vibe */}
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#0df103]/10 rounded-full blur-[100px] pointer-events-none" />
+        {/* The WebGL Shader Background */}
+        <div className="absolute inset-0 z-0">
+          <DarkVeil
+            speed={0.2}              // Slow, moody movement
+            noiseIntensity={0.06}    // Subtle retro film grain
+            scanlineIntensity={0.3}  // Slight CRT scanlines
+            scanlineFrequency={800}
+            hueShift={280}           // Shifts the shader colors towards a deep purple/blue to match your vibe
+            warpAmount={0.3}
+            resolutionScale={1}
+          />
+        </div>
 
+        {/* The Foreground Content (Sits on top) */}
         <div className="relative z-10 flex flex-col justify-between p-12 w-full h-full">
           
           {/* Top: Branding */}
@@ -113,20 +126,20 @@ export default function AdminLogin() {
           {/* Middle: The TrueFocus Hero Section */}
           <div className="flex-1 flex flex-col justify-center items-start -mt-12">
             
-            {/* The TrueFocus Component replacing the static H1 */}
+            {/* The TrueFocus Component */}
             <div className="text-white w-full flex justify-start mb-6">
               <TrueFocus 
                 sentence="Smart Parking Management"
                 manualMode={false}
                 blurAmount={4}
-                borderColor="#0df103" // Matching your previous neon green
+                borderColor="#0df103" 
                 glowColor="rgba(13, 241, 3, 0.4)"
                 animationDuration={0.6}
                 pauseBetweenAnimations={1.5}
               />
             </div>
 
-            <p className="text-white/70 mt-6 text-lg max-w-md leading-relaxed">
+            <p className="text-white/80 mt-6 text-lg max-w-md leading-relaxed drop-shadow-md">
               Monitor real-time parking availability, manage reservations, and generate reports for Lipa City Downtown.
             </p>
 
@@ -137,16 +150,16 @@ export default function AdminLogin() {
                 { label: "Active Users", value: "156" },
                 { label: "Today's Bookings", value: "28" },
               ].map(({ label, value }) => (
-                <div key={label} className="bg-white/5 rounded-xl p-4 text-center backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-colors">
+                <div key={label} className="bg-black/30 rounded-xl p-4 text-center backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors shadow-lg">
                   <p className="text-3xl font-extrabold text-white">{value}</p>
-                  <p className="text-xs text-white/60 mt-1 uppercase tracking-wider font-semibold">{label}</p>
+                  <p className="text-xs text-white/70 mt-1 uppercase tracking-wider font-semibold">{label}</p>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Bottom: Footer */}
-          <p className="text-white/40 text-xs tracking-wide">
+          <p className="text-white/50 text-xs tracking-wide font-medium">
             De La Salle Lipa · IT3C Group 9 · 2026
           </p>
         </div>
