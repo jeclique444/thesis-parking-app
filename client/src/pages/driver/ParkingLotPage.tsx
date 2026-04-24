@@ -1,16 +1,30 @@
 /*
- * iParkBayan — ParkingLotPage (With Status Protection)
+ * iParkBayan — ParkingLotPage (With Status Protection + Rating Summary)
  */
 import { useEffect, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import MobileLayout from "@/components/MobileLayout";
 import ParkingSlotGrid from "@/components/parking/ParkingSlotGrid";
-import { MapPin, Clock, Car, ChevronRight, Info, AlertTriangle, Ban } from "lucide-react"; // Nagdagdag ng icons
+import { MapPin, Clock, Car, ChevronRight, Info, AlertTriangle, Ban, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "../../supabaseClient";
+
+// Helper: static star rendering (for average rating)
+const renderStaticStars = (rating: number) => {
+  const fullStars = Math.floor(rating);
+  const hasHalf = rating % 1 >= 0.5;
+  const emptyStars = 5 - fullStars - (hasHalf ? 1 : 0);
+  return (
+    <div className="flex items-center gap-0.5">
+      {[...Array(fullStars)].map((_, i) => <Star key={i} size={14} className="fill-amber-400 text-amber-400" />)}
+      {hasHalf && <Star size={14} className="fill-amber-400 text-amber-400" style={{ clipPath: 'inset(0 50% 0 0)' }} />}
+      {[...Array(emptyStars)].map((_, i) => <Star key={i} size={14} className="text-gray-300" />)}
+    </div>
+  );
+};
 
 export default function ParkingLotPage() {
   const params = useParams<{ id: string }>();
@@ -43,21 +57,14 @@ export default function ParkingLotPage() {
 
       if (slotsError) throw slotsError;
 
-      // ==========================================
-      // LOCAL DATA CACHE / OVERRIDE FOR C1
-      // ==========================================
+      // Override for C1
       const updatedSlots = (slotsData || []).map(slot => {
         if (slot.label === "C1") {
-          return { 
-            ...slot, 
-            is_reservable: false // Force walk-in status for C1
-          };
+          return { ...slot, is_reservable: false };
         }
         return slot;
       });
-
-      setSlots(updatedSlots); 
-      // ==========================================
+      setSlots(updatedSlots);
 
     } catch (error) {
       console.error("Fetch error:", error);
@@ -74,9 +81,7 @@ export default function ParkingLotPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'parking_slots', filter: `lot_id=eq.${params.id}` },
-        () => {
-          fetchLotDetails();
-        }
+        () => fetchLotDetails()
       )
       .subscribe();
 
@@ -86,12 +91,10 @@ export default function ParkingLotPage() {
   }, [params?.id]);
 
   const handleReserve = () => {
-    // 🔥 Protection: Bawal mag-reserve kung suspended
     if (lot?.status === 'suspended') {
       toast.error("This location is currently unavailable.");
       return;
     }
-
     if (!selectedSlot) {
       toast.error("Please select an available slot first");
       return;
@@ -113,12 +116,14 @@ export default function ParkingLotPage() {
 
   const isSuspended = lot.status === 'suspended';
   const availableCount = slots.filter(s => s.status === 'available').length;
+  const averageRating = lot.average_rating || 0;
+  const totalReviews = lot.total_reviews || 0;
 
   return (
     <MobileLayout title={lot.name} showBack onBack={() => navigate("/home")}>
       <div className="page-enter">
         
-        {/* 🔥 NEW: SUSPENSION NOTICE CARD */}
+        {/* Suspension notice */}
         {isSuspended && (
           <div className="mx-4 mt-4 p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl flex items-start gap-3 animate-in fade-in zoom-in-95 duration-300">
             <div className="bg-amber-100 p-2 rounded-full text-amber-600">
@@ -158,6 +163,16 @@ export default function ParkingLotPage() {
                 <MapPin size={12} />
                 <span className="text-xs">{lot.address}</span>
               </div>
+              {/* Rating summary (stars + count) */}
+              {averageRating > 0 && (
+                <div className="flex items-center gap-2 mt-2 pt-1">
+                  <div className="flex items-center gap-1">
+                    {renderStaticStars(averageRating)}
+                    <span className="text-xs font-bold ml-1">{averageRating.toFixed(1)}</span>
+                  </div>
+                  <span className="text-xs text-gray-400">({totalReviews} reviews)</span>
+                </div>
+              )}
             </div>
             <div className="text-right">
               <p className="text-lg font-extrabold text-[oklch(0.22_0.07_255)]">
@@ -176,7 +191,7 @@ export default function ParkingLotPage() {
         {/* Slot Grid Section */}
         <div className={cn(
           "mx-4 mt-4 bg-white rounded-2xl p-4 shadow-sm border border-gray-100 pb-6 transition-all",
-          isSuspended && "pointer-events-none opacity-40" // 🔥 Bawal pindutin ang slots
+          isSuspended && "pointer-events-none opacity-40"
         )}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold text-foreground">Select a Slot</h3>
@@ -192,7 +207,7 @@ export default function ParkingLotPage() {
             slots={slots}
             selectedSlot={selectedSlot?.id}
             onSelectSlot={setSelectedSlot}
-            interactive={!isSuspended && lot.type !== "public"} // 🔥 Disable interaction pag suspended
+            interactive={!isSuspended && lot.type !== "public"}
           />
         </div>
 
@@ -216,7 +231,6 @@ export default function ParkingLotPage() {
         <div className="mx-4 mt-6 mb-8">
           <Button
             onClick={handleReserve}
-            // 🔥 Disable button pag suspended
             disabled={isSuspended || !selectedSlot || lot.type === "public"}
             className="w-full h-14 text-base font-bold rounded-xl shadow-lg transition-all"
             style={{ 

@@ -65,33 +65,55 @@ export default function NotificationsPage() {
     }
   };
 
+  // 🔥 Improved deduplication: check existing notification for this reservation & type before sending
   const sendNotifIfNeeded = async (userId: string, title: string, message: string, type: string, reservationId: string, flagField: string) => {
-    const { data: res } = await supabase
-      .from("reservations")
-      .select(flagField)
-      .eq("id", reservationId)
-      .single();
-    
-    if (res && (res as any)[flagField] === true) return;
+    try {
+      // 1. Check if notification already exists for this reservation and title
+      const { data: existing } = await supabase
+        .from("notifications")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("reservation_id", reservationId)
+        .eq("title", title)
+        .maybeSingle();
 
-    await supabase.from("notifications").insert({
-      user_id: userId,
-      title,
-      message,
-      type,
-      recipient_role: 'user',
-      read: false
-    });
+      if (existing) return; // Already sent, skip
 
-    await supabase
-      .from("reservations")
-      .update({ [flagField]: true })
-      .eq("id", reservationId);
+      // 2. Check reservation flag to avoid race condition
+      const { data: res } = await supabase
+        .from("reservations")
+        .select(flagField)
+        .eq("id", reservationId)
+        .single();
 
-    toast.info(title);
+      if (res && (res as any)[flagField] === true) return;
+
+      // 3. Insert notification
+      const { error: insertError } = await supabase.from("notifications").insert({
+        user_id: userId,
+        title,
+        message,
+        type,
+        recipient_role: 'user',
+        read: false,
+        reservation_id: reservationId,   // optional: add column to link
+      });
+
+      if (insertError) throw insertError;
+
+      // 4. Update reservation flag
+      await supabase
+        .from("reservations")
+        .update({ [flagField]: true })
+        .eq("id", reservationId);
+
+      toast.info(title);
+    } catch (err) {
+      console.error("Failed to send notification:", err);
+    }
   };
 
-  // Background checker
+  // Background checker (every minute)
   useEffect(() => {
     if (!user) return;
 
@@ -114,7 +136,7 @@ export default function NotificationsPage() {
 
         for (const res of reservations) {
           const start = parseTime(res.start_time);
-          const end = parseTime(res.end_time);
+          let end = parseTime(res.end_time);
           if (end < start) end.setDate(end.getDate() + 1);
           const thirtyMinsBefore = new Date(start.getTime() - 30 * 60000);
           const shortSlot = res.slot_id?.split('-')[0] || res.slot_id;
@@ -161,6 +183,7 @@ export default function NotificationsPage() {
     };
 
     const interval = setInterval(runCheck, 60000);
+    runCheck(); // run immediately
     return () => clearInterval(interval);
   }, [user]);
 
@@ -176,12 +199,12 @@ export default function NotificationsPage() {
     init();
   }, [fetchNotifications]);
 
-  // Real-time subscription
+  // Real-time subscription (only for new inserts, no duplicates)
   useEffect(() => {
     if (!user?.id) return;
     const channel = supabase.channel('notif-realtime-user')
       .on('postgres_changes', { 
-        event: '*', 
+        event: 'INSERT', 
         schema: 'public', 
         table: 'notifications',
         filter: `user_id=eq.${user.id}`
@@ -315,4 +338,4 @@ export default function NotificationsPage() {
       </div>
     </MobileLayout>
   );
-} 
+}

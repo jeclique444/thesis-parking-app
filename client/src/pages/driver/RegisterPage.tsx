@@ -1,785 +1,736 @@
 /*
- * iParkBayan — RegisterPage (Connected to Supabase)
- * Multi-step registration: Personal -> Vehicle -> OTP Verification -> Success
- * Constrained to Mobile View with Strict Validations.
+ * iParkBayan — ReservationPage (With Verification Check + Park Now Logic)
+ * Unverified users: Walk-in only, view map, navigate, save favorites
+ * Verified users: Full reservation capabilities with online payment
+ * "Park Now" system: Start time is always current time when booking
+ * Duration limit: Based on remaining operating hours (max 6 hrs)
+ * UI: Clean, modern card-based layout
  */
 import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useParams } from "wouter";
+import MobileLayout from "@/components/MobileLayout";
 import { Button } from "@/components/ui/button";
-import { Eye, EyeOff, CheckCircle2, ArrowLeft, Loader2, RefreshCcw } from "lucide-react";
+import { ChevronRight, Check, Clock, Ticket, AlertCircle, Accessibility, Shield, Play, Timer, Car, Calendar, CreditCard } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { supabase } from "../../supabaseClient";
-import { toast } from "sonner";
+import { useVerification } from "@/hooks/useVerification";
 
-// Allowed 4-Wheel Car Brands in the Philippines
-const ALLOWED_CAR_BRANDS = [
-  "Audi", "BMW", "BYD", "Changan", "Chery", "Chevrolet", "Dodge", "Dongfeng", "Ford", "Foton", 
-  "GAC Motor", "Geely", "GWM", "Honda", "Hyundai", "Isuzu", "Jaecoo", "Jaguar", "Jeep", "Jetour", "Kia", 
-  "Land Rover", "Lexus", "Mahindra", "Mazda", "Mercedes-Benz", "MG", "Mini", "Mitsubishi", "Nissan", "Omoda", 
-  "Peugeot", "Porsche", "Subaru", "Suzuki", "Tata", "Toyota", "Volkswagen", "Volvo", "Wuling"
-];
-
-export default function RegisterPage() {
-  const [, navigate] = useLocation();
-  const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [resending, setResending] = useState(false);
+// Helper function para makuha ang Closing Time (24h format)
+const getLotClosingTime24 = (openHours: string) => {
+  if (!openHours || openHours.toLowerCase().includes("24 hours")) return "23:59";
   
-  // View State for Terms & Conditions
-  const [showTerms, setShowTerms] = useState(false);
+  const parts = openHours.split("-");
+  if (parts.length === 2) {
+    let closeStr = parts[1].trim().toUpperCase();
+    let isPM = closeStr.includes("PM");
+    let isAM = closeStr.includes("AM");
+    let timePart = closeStr.replace("PM", "").replace("AM", "").trim();
+    let [h, m] = timePart.split(":").map(Number);
+    
+    if (isNaN(h)) return "23:59";
+    if (isNaN(m)) m = 0;
+    
+    if (isPM && h !== 12) h += 12;
+    if (isAM && h === 12) h = 0;
+    
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  }
+  return "23:59";
+};
 
-  // Step 1: Personal Info
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+// Helper: Convert time string (HH:MM) to minutes since midnight
+const timeToMinutes = (timeStr: string): number => {
+  const [h, m] = timeStr.split(":").map(Number);
+  return h * 60 + m;
+};
 
-  // Step 2: Vehicle Info & Terms
+// Helper: Get remaining minutes until closing time (supports next-day closing)
+const getRemainingMinutesUntilClose = (openHours: string): number => {
+  if (!openHours || openHours.toLowerCase().includes("24 hours")) return 24 * 60;
+
+  const parts = openHours.split("-");
+  if (parts.length !== 2) return 0;
+
+  // Parse start time
+  let startStr = parts[0].trim().toUpperCase();
+  let startIsPM = startStr.includes("PM");
+  let startIsAM = startStr.includes("AM");
+  let startTimePart = startStr.replace("PM", "").replace("AM", "").trim();
+  let [startH, startM] = startTimePart.split(":").map(Number);
+  if (isNaN(startH)) return 0;
+  if (isNaN(startM)) startM = 0;
+  if (startIsPM && startH !== 12) startH += 12;
+  if (startIsAM && startH === 12) startH = 0;
+  const startMinutes = startH * 60 + startM;
+
+  // Parse end time
+  let endStr = parts[1].trim().toUpperCase();
+  let endIsPM = endStr.includes("PM");
+  let endIsAM = endStr.includes("AM");
+  let endTimePart = endStr.replace("PM", "").replace("AM", "").trim();
+  let [endH, endM] = endTimePart.split(":").map(Number);
+  if (isNaN(endH)) return 0;
+  if (isNaN(endM)) endM = 0;
+  if (endIsPM && endH !== 12) endH += 12;
+  if (endIsAM && endH === 12) endH = 0;
+  let endMinutes = endH * 60 + endM;
+
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  // Check if closing time is on the next day
+  const isNextDay = endMinutes < startMinutes;
+  if (isNextDay) {
+    // If current time is before start time (e.g., 5 AM before 7 AM), parking is not yet open
+    if (currentMinutes < startMinutes) {
+      return 0;
+    }
+    // Current time is after start time, so we are in the open period that extends past midnight
+    const endTomorrow = endMinutes + 24 * 60;
+    return endTomorrow - currentMinutes;
+  } else {
+    // Normal day (end > start)
+    if (currentMinutes < startMinutes) return 0;
+    if (currentMinutes >= endMinutes) return 0;
+    return endMinutes - currentMinutes;
+  }
+};
+
+// Helper: Get maximum allowed duration based on remaining hours (capped at 6 hours)
+const getMaxDuration = (openHours: string): number => {
+  if (!openHours || openHours.toLowerCase().includes("24 hours")) return 6;
+  
+  const remainingMins = getRemainingMinutesUntilClose(openHours);
+  const remainingHours = Math.floor(remainingMins / 60);
+  const MAX_DURATION = 6;
+  
+  // Saka lang hindi na tatanggap kapag 1 hr (60 mins) o pababa na lang ang remaining
+  if (remainingMins <= 60) return 0;
+  
+  // Minus 1 hour para may allowance at hindi mag-spill over sa closing time
+  return Math.min(remainingHours - 1, MAX_DURATION);
+};
+
+// Helper: Format minutes to readable time
+const formatMinutesToTime = (minutes: number): string => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours}h ${mins}m`;
+};
+
+export default function ReservationPage() {
+  const params = useParams<{ slotId: string }>();
+  const [, navigate] = useLocation();
+  const searchParams = new URLSearchParams(window.location.search);
+  const lotId = searchParams.get("lot");
+  const slotId = params.slotId;
+
+  const [lot, setLot] = useState<any>(null);
+  const [slot, setSlot] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  
+  // ACTIVE RESERVATION STATES
+  const [activeReservation, setActiveReservation] = useState<any>(null); 
+  const [userActiveBooking, setUserActiveBooking] = useState<any>(null); 
+
+  // USER INPUTS
   const [plateNumber, setPlateNumber] = useState("");
-  const [vehicleBrand, setVehicleBrand] = useState("");
-  const [vehicleModel, setVehicleModel] = useState("");
-  const [vehicleColor, setVehicleColor] = useState("");
-  const [agreeTc, setAgreeTc] = useState(false);
+  const [duration, setDuration] = useState(3);
+  const [paymentMethod, setPaymentMethod] = useState<"gcash" | "maya">("gcash");
 
-  // Step 3: OTP Verification & Limits
-  const [otpCode, setOtpCode] = useState("");
-  const [countdown, setCountdown] = useState(0);
-  const [attempts, setAttempts] = useState(0);
-  const [lockoutTime, setLockoutTime] = useState<number | null>(null);
+  // USER VEHICLES STATES
+  const [userVehicles, setUserVehicles] = useState<any[]>([]);
+  const [activePlates, setActivePlates] = useState<string[]>([]);
+  
+  // VERIFICATION HOOK
+  const { isVerified, verificationStatus, isLoading: verificationLoading } = useVerification();
 
-  // Timer Effect for OTP Resend Cooldown
+  // PARK NOW LOGIC: Start time is ALWAYS current time
+  const getCurrentTime24 = () => {
+    const now = new Date();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+
+  const startTime = getCurrentTime24();
+  const maxDuration = lot ? getMaxDuration(lot.open_hours) : 6;
+  const remainingMins = lot ? getRemainingMinutesUntilClose(lot.open_hours) : 360;
+
   useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [countdown]);
+    const fetchData = async () => {
+      try {
+        const [lotRes, slotRes] = await Promise.all([
+          supabase.from("parking_lots").select("*").eq("id", lotId).single(),
+          supabase.from("parking_slots").select("*").eq("id", slotId).single(),
+        ]);
+        setLot(lotRes.data);
+        setSlot(slotRes.data);
 
-  // Check if email or phone already exists in profiles
-  const checkExistingUser = async () => {
-    const { data: existingUser, error } = await supabase
-      .from("profiles")
-      .select("email, phone_number")
-      .or(`email.eq.${email},phone_number.eq.${phoneNumber}`);
+        const { data: slotResData } = await supabase
+          .from("reservations")
+          .select("*")
+          .in("status", ["active", "booked", "reserved"])
+          .eq("slot_id", slotId)
+          .limit(1); 
+        
+        if (slotResData && slotResData.length > 0) {
+          setActiveReservation(slotResData[0]);
+        }
 
-    if (error) throw error;
-    
-    if (existingUser && existingUser.length > 0) {
-      const emailExists = existingUser.some(user => user.email === email);
-      const phoneExists = existingUser.some(user => user.phone_number === phoneNumber);
-      
-      if (emailExists && phoneExists) {
-        throw new Error("Both email and phone number are already registered.");
-      } else if (emailExists) {
-        throw new Error("Email is already registered. Please use a different email.");
-      } else if (phoneExists) {
-        throw new Error("Phone number is already registered. Please use a different number.");
-      }
-    }
-    
-    return false;
-  };
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setUserId(user.id);
+          const { data: vehiclesData } = await supabase
+            .from("vehicles")
+            .select("*")
+            .eq("user_id", user.id);
+          setUserVehicles(vehiclesData || []);
 
-  // --- PASSWORD STRENGTH CHECKER ---
-  const getPasswordStrength = (pwd: string) => {
-    if (!pwd) return "";
-    const hasLower = /[a-z]/.test(pwd);
-    const hasUpper = /[A-Z]/.test(pwd);
-    const hasNumber = /[0-9]/.test(pwd);
-    const hasSpecial = /[!@#$%^&*(),.?":{}|<>\-_\+=]/.test(pwd);
-    const hasMinLength = pwd.length >= 8;
-
-    if (hasMinLength && hasLower && hasUpper && hasNumber && hasSpecial) return "Very Strong";
-    if (hasMinLength && ((hasLower && hasUpper) || (hasLower && hasNumber) || (hasUpper && hasNumber))) return "Strong";
-    return "Weak Password";
-  };
-
-  const handleNextStep = async () => {
-    if (!fullName || !email || !phoneNumber || !password || !confirmPassword) {
-      toast.error("Please fill in all personal details.");
-      return;
-    }
-
-    const phoneRegex = /^[0-9]{11}$/;
-    if (!phoneRegex.test(phoneNumber)) {
-      toast.error("Contact number must be exactly 11 digits.");
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      toast.error("Please enter a valid email address.");
-      return;
-    }
-
-    // --- STRICT VERY STRONG PASSWORD VALIDATION ---
-    if (getPasswordStrength(password) !== "Very Strong") {
-      toast.error("Password must be Very Strong (at least 8 chars, uppercase, lowercase, number, and special character).");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      toast.error("Passwords do not match.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Check if email or phone already exists in database
-      await checkExistingUser();
-      setStep(2);
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSendOtp = async () => {
-    if (!plateNumber || !vehicleBrand || !vehicleModel || !vehicleColor) {
-      toast.error("Please fill in all vehicle details.");
-      return;
-    }
-
-    // Strict LTO Plate Validation
-    const plateRegex = /^[A-Z]{3}[\s-]?[0-9]{3,4}$/i;
-    if (!plateRegex.test(plateNumber.trim())) {
-      toast.error("Invalid Plate Number. Must be LTO standard (e.g., ABC 123 or ABC 1234).");
-      return;
-    }
-
-    if (!agreeTc) {
-      toast.error("Please agree to the Terms & Conditions and Privacy Policy.");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Double-check if user exists before sending OTP
-      await checkExistingUser();
-      
-      // Create User in Supabase Auth
-      const { error: authError } = await supabase.auth.signUp({
-        email: email,
-        password: password,
-        options: {
-          data: {
-            full_name: fullName,
-            phone_number: phoneNumber,
+          const { data: activeResData } = await supabase
+            .from("reservations")
+            .select("*")
+            .in("status", ["active", "booked", "reserved"])
+            .eq("user_id", user.id);
+            
+          if (activeResData && activeResData.length > 0) {
+            const platesInUse = activeResData.map(res => res.plate_number);
+            setActivePlates(platesInUse);
+            setUserActiveBooking(activeResData[0]); 
           }
         }
-      });
 
-      if (authError) {
-        if (authError.message.includes("already registered")) {
-          toast.info("Account already exists. Sending you to OTP verification.");
-          await handleResendOtp(true);
-          setStep(3);
-          return;
-        }
-        throw authError;
-      }
+      } catch (err) { console.error(err); }
+      finally { setLoading(false); }
+    };
+    fetchData();
+  }, [lotId, slotId]);
 
-      toast.success("Verification code sent to your email!");
-      setStep(3);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to register. Please try again.");
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (duration > maxDuration && maxDuration > 0) {
+      setDuration(maxDuration);
     }
+  }, [maxDuration, duration]);
+
+  const calculateEndTime24 = (start: string, dur: number) => {
+    if (!start) return "";
+    const [hours, minutes] = start.split(":").map(Number);
+    const endHours = (hours + dur) % 24;
+    return `${endHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   };
 
-  const handleResendOtp = async (isSilent = false) => {
-    if (countdown > 0 && !isSilent) {
-      toast.info(`Please wait before requesting a new code.`);
-      return;
-    }
+  const format12Hour = (time24: string) => {
+    if (!time24) return "--:--";
+    const [h, m] = time24.split(":").map(Number);
+    const ampm = h >= 12 ? "PM" : "AM";
+    const displayH = h % 12 || 12;
+    return `${displayH}:${m.toString().padStart(2, '0')} ${ampm}`;
+  };
+
+  const endTime24 = calculateEndTime24(startTime, duration);
+  const startTimeFormatted = format12Hour(startTime);
+  const endTimeFormatted = format12Hour(endTime24);
+
+  const calculateAdvanceFee = () => 0;
+  const advanceFee = calculateAdvanceFee();
+  const baseRate = 30; 
+  const extendedFee = duration > 3 ? (duration - 3) * 10 : 0; 
+  const totalCost = baseRate + extendedFee + advanceFee; 
+  
+  // Check if selected duration exceeds closing time (supports next-day)
+  const checkExceedsCloseTime = () => {
+    if (!lot?.open_hours || lot.open_hours.toLowerCase().includes("24 hours")) return false;
     
-    if (!isSilent) setResending(true);
-    try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: email,
-      });
-      if (error) throw error;
-      
-      if (!isSilent) {
-        setCountdown(120);
-        toast.success("New verification code sent!");
-      }
-    } catch (error: any) {
-      if (!isSilent) toast.error("Failed to resend code. Please wait a moment.");
-    } finally {
-      if (!isSilent) setResending(false);
-    }
+    const remaining = getRemainingMinutesUntilClose(lot.open_hours);
+    return remaining < duration * 60;
   };
 
-  const handleVerifyOtpAndSave = async () => {
-    // Check if user is locked out
-    if (lockoutTime && Date.now() < lockoutTime) {
-      const remainingMins = Math.ceil((lockoutTime - Date.now()) / 60000);
-      toast.error(`Too many attempts. Please try again in ${remainingMins} minutes.`);
+  const isExceedingCloseTime = checkExceedsCloseTime();
+  const availableVehicles = userVehicles.filter(v => !activePlates.includes(v.plate));
+  const isParkingClosed = remainingMins <= 0;
+  
+  // Check kung 1 hour or less na lang bago mag-close
+  const isBookingCutoff = remainingMins > 0 && remainingMins <= 60;
+
+  const isWalkInOnly = 
+    slot?.label === "C1" || 
+    slot?.is_reservable === false || 
+    String(slot?.is_reservable) === "false" ||
+    !isVerified;
+
+  // I-update ang isBlocked para isama ang isBookingCutoff
+  const isBlocked = 
+    activeReservation !== null || 
+    availableVehicles.length === 0 || 
+    isWalkInOnly ||
+    !isVerified ||
+    isParkingClosed ||
+    isBookingCutoff ||
+    isExceedingCloseTime;
+
+  const isMyBooking = activeReservation?.user_id === userId;
+
+  const handleProceed = () => {
+    if (!isVerified) {
+      navigate('/driver/verification');
       return;
     }
 
-    if (otpCode.length !== 6) {
-      toast.error("Please enter the 6-digit code.");
-      return;
+    if (isParkingClosed) {
+      return alert("Parking lot is currently closed. Please check operating hours.");
     }
 
-    setLoading(true);
-    try {
-      // 1. Verify OTP
-      const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
-        email,
-        token: otpCode,
-        type: 'signup'
-      });
-
-      if (verifyError) {
-        const newAttempts = attempts + 1;
-        setAttempts(newAttempts);
-        
-        if (newAttempts >= 5) {
-          setLockoutTime(Date.now() + 15 * 60 * 1000);
-          throw new Error("Maximum attempts reached. Locked for 15 minutes.");
-        }
-        
-        throw new Error(`Invalid code. ${5 - newAttempts} attempts remaining.`);
-      }
-
-      // Reset attempts upon success
-      setAttempts(0);
-
-      const userId = verifyData.user?.id;
-      if (!userId) throw new Error("Verification failed. User ID not found.");
-
-      // Final check: Ensure email/phone aren't already in profiles (race condition check)
-      const { data: existingCheck, error: checkError } = await supabase
-        .from("profiles")
-        .select("email, phone_number")
-        .or(`email.eq.${email},phone_number.eq.${phoneNumber}`);
-
-      if (existingCheck && existingCheck.length > 0) {
-        const emailExists = existingCheck.some(user => user.email === email);
-        const phoneExists = existingCheck.some(user => user.phone_number === phoneNumber);
-        
-        if (emailExists && phoneExists) {
-          throw new Error("Both email and phone number are already registered.");
-        } else if (emailExists) {
-          throw new Error("Email is already registered.");
-        } else if (phoneExists) {
-          throw new Error("Phone number is already registered.");
-        }
-      }
-
-      // Combine Brand and Model for database storage
-      const fullVehicleModel = `${vehicleBrand} ${vehicleModel}`;
-
-      // 2. Insert into profiles
-      const { error: profileError } = await supabase.from("profiles").insert([
-        {
-          id: userId,
-          email: email,
-          full_name: fullName,
-          phone_number: phoneNumber,
-          plate_number: plateNumber.toUpperCase(),
-          vehicle_model: fullVehicleModel,
-          vehicle_color: vehicleColor,
-          role: "driver",
-          verification_status: "unverified" 
-        }
-      ]);
-      
-      if (profileError) {
-        // Handle unique constraint violations
-        if (profileError.code === '23505') { // PostgreSQL unique violation code
-          if (profileError.message.includes("email")) {
-            throw new Error("Email is already registered.");
-          } else if (profileError.message.includes("phone_number")) {
-            throw new Error("Phone number is already registered.");
-          } else {
-            throw new Error("Account already exists with this email or phone number.");
-          }
-        }
-        throw new Error("Failed to save profile details.");
-      }
-
-      // 3. Insert into 'vehicles' table
-      const { error: vehicleError } = await supabase.from("vehicles").insert([
-        {
-          user_id: userId,
-          plate: plateNumber.toUpperCase(),
-          model: fullVehicleModel,
-          color: vehicleColor,
-          is_default: true
-        }
-      ]);
-
-      if (vehicleError) {
-        console.error("Vehicle insert error:", vehicleError);
-        // Don't throw here, user can add vehicle later
-        toast.warning("Profile created, but there was an issue saving vehicle details. You can add it later.");
-      }
-
-      setStep(4);
-
-    } catch (error: any) {
-      toast.error(error.message || "Invalid or expired code.");
-      setOtpCode("");
-    } finally {
-      setLoading(false);
+    // ADD THIS: Validation para sa cutoff
+    if (isBookingCutoff) {
+      return alert("Hindi na tumatanggap ng reservations 1 hour bago mag-close.");
     }
+
+    if (isWalkInOnly) {
+      const msg = (slot?.is_pwd === true || String(slot?.is_pwd) === "true")
+        ? "Ang PWD slot ay para sa walk-in lamang."
+        : "Ang slot na ito ay para sa mga walk-in customers lamang.";
+      return alert(msg);
+    }
+    if (isBlocked) return alert("Hindi ka pwedeng mag-proceed dahil may active booking ka pa.");
+    if (isExceedingCloseTime) return alert("Exceeds operating hours.");
+    if (!plateNumber) return;
+    
+    const initialSlotStatus = "active"; 
+    const [endH] = endTime24.split(":").map(Number);
+    const [selH] = startTime.split(":").map(Number);
+    const isNextDay = endH < selH ? "true" : "false";
+    const formattedDate = new Date().toISOString().split('T')[0];
+    
+    navigate(`/reserve/${slotId}/confirm?lot=${lotId}&date=${formattedDate}&start=${startTimeFormatted}&end=${endTimeFormatted}&dur=${duration}&plate=${plateNumber}&pay=${paymentMethod}&total=${totalCost}&advanceFee=${advanceFee}&extendedFee=${extendedFee}&status=${initialSlotStatus}&nextDay=${isNextDay}&start24=${startTime}&end24=${endTime24}`);
   };
 
-  // Check Lockout Status for Rendering
-  const isLocked = lockoutTime !== null && Date.now() < lockoutTime;
-  const lockoutRemaining = isLocked ? Math.ceil((lockoutTime - Date.now()) / 60000) : 0;
-
-  // --- TERMS & CONDITIONS FULL-SCREEN VIEW ---
-  if (showTerms) {
+  if (loading || verificationLoading) {
     return (
-      <div className="bg-slate-50 min-h-screen flex justify-center">
-        <div className="w-full max-w-md bg-white min-h-screen flex flex-col relative shadow-xl">
-          
-          {/* Sticky Header */}
-          <div className="sticky top-0 z-10 bg-white border-b border-slate-200 px-4 py-4 flex items-center gap-3">
-            <button 
-              onClick={() => setShowTerms(false)}
-              className="p-2 -ml-2 rounded-full hover:bg-slate-100 transition-colors"
-            >
-              <ArrowLeft size={24} className="text-slate-800" />
-            </button>
-            <h1 className="text-lg font-bold text-slate-900" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-              Terms & Privacy Policy
-            </h1>
-          </div>
-
-          {/* Scrollable Content */}
-          <div className="p-6 overflow-y-auto pb-20 text-slate-700 space-y-6">
-            <div className="mb-2">
-              <p className="text-xs text-slate-500 uppercase tracking-wider font-bold mb-1">Last Updated</p>
-              <p className="text-sm font-medium">April 2026</p>
-            </div>
-
-            <p className="text-sm leading-relaxed">
-              Welcome to Parkada! By using our application, you agree to comply with and be bound by the following terms and conditions. Please review them carefully.
-            </p>
-
-            <hr className="border-slate-100" />
-
-            <section>
-              <h2 className="text-base font-bold text-slate-900 mb-2" style={{ color: "oklch(0.22 0.07 255)" }}>1. Vehicle Eligibility</h2>
-              <p className="text-sm leading-relaxed">Our parking reservation services are <strong>strictly limited to four-wheeled vehicles only</strong> (e.g., Sedans, SUVs, Vans).</p>
-              <ul className="list-disc pl-5 mt-2 text-sm space-y-1">
-                <li>Motorcycles and tricycles are NOT allowed.</li>
-                <li>Large commercial trucks are NOT permitted unless explicitly stated by the operator.</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="text-base font-bold text-slate-900 mb-2" style={{ color: "oklch(0.22 0.07 255)" }}>2. Account Limitations</h2>
-              <p className="text-sm leading-relaxed">To ensure fairness and avoid hoarding of parking slots, users are <strong>strictly allowed one (1) account per email address and phone number</strong>. Newly registered accounts are placed in "Unverified" status.</p>
-            </section>
-
-            <section>
-              <h2 className="text-base font-bold text-slate-900 mb-2" style={{ color: "oklch(0.22 0.07 255)" }}>3. Strict No-Refund Policy</h2>
-              <p className="text-sm leading-relaxed">To ensure fairness to parking operators, <strong>all reservations made through the app are strictly non-refundable</strong>.</p>
-              <ul className="list-disc pl-5 mt-2 text-sm space-y-1">
-                <li>Late arrivals hold the slot only up to the grace period.</li>
-                <li>In the event of a no-show, the payment is forfeited entirely.</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="text-base font-bold text-slate-900 mb-2" style={{ color: "oklch(0.22 0.07 255)" }}>4. Data Privacy & Verification</h2>
-              <p className="text-sm leading-relaxed">In compliance with the Data Privacy Act of 2012, we collect your personal information strictly for identity verification and platform security.</p>
-            </section>
-
-            <section>
-              <h2 className="text-base font-bold text-slate-900 mb-2" style={{ color: "oklch(0.22 0.07 255)" }}>5. Liability & Termination</h2>
-              <p className="text-sm leading-relaxed mb-3">You agree to park at your own risk. The app developers and parking operators are not liable for theft or damage to your vehicle.</p>
-              <p className="text-sm leading-relaxed">We reserve the right to ban users who submit fake IDs or repeatedly abandon reservations.</p>
-            </section>
-
-            <div className="pt-8 pb-4 text-center">
-              <p className="text-xs text-slate-400">© 2026 Parkada. All rights reserved.</p>
-            </div>
-          </div>
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[oklch(0.22_0.07_255)] mx-auto mb-4"></div>
+          <p className="text-gray-500 font-medium">Loading reservation details...</p>
         </div>
       </div>
     );
   }
 
-  // --- STEP 4: SUCCESS SCREEN ---
-  if (step === 4) {
-    return (
-      <div className="bg-slate-100 min-h-screen flex items-center justify-center">
-        <div className="w-full max-w-md min-h-screen sm:min-h-0 sm:h-[850px] bg-white flex flex-col items-center justify-center p-6 text-center sm:rounded-[2.5rem] sm:shadow-2xl overflow-hidden">
-          <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6">
-            <CheckCircle2 size={40} className="text-green-600" />
-          </div>
-          <h2 className="text-2xl font-extrabold mb-2 text-slate-900" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Account Created!
-          </h2>
-          <p className="text-slate-500 text-sm mb-2 px-4 leading-relaxed">
-            Welcome to Parkada. Your account is currently under <strong className="text-amber-500">Unverified (Basic) Status</strong>.
-          </p>
-          <p className="text-slate-500 text-sm mb-8 px-4 leading-relaxed">
-            You can verify your account later in the app settings to unlock full features.
-          </p>
-          <Button
-            onClick={() => {
-              // Ipapalabas ang tamang welcome message para sa mga bagong user
-              toast.success("Welcome To Parkada!");
-              
-              // Didiretso na sa home page. 
-              // (Palitan ang "/home" ng "/dashboard" kung iyon ang ginagamit ninyong link)
-              navigate("/home"); 
-            }}
-            className="w-full h-14 text-base font-bold rounded-xl shadow-lg transition-transform active:scale-95 text-white"
-            style={{ background: "oklch(0.22 0.07 255)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-          >
-            Start Parking
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const durationOptions = [1, 2, 3, 4, 5, 6].filter(h => h <= maxDuration);
 
-  // --- STEPS 1, 2 & 3: FORM REGISTRATION ---
   return (
-    <div className="bg-slate-100 min-h-screen flex items-center justify-center sm:py-8">
-      <div className="w-full max-w-md min-h-screen sm:min-h-0 sm:h-[850px] bg-white flex flex-col sm:rounded-[2.5rem] sm:shadow-2xl overflow-hidden relative">
+    <MobileLayout title="Reservation" showBack onBack={() => navigate(`/parking/${lotId}`)}>
+      <div className="page-enter p-4 space-y-3 pb-24 bg-gray-50">
         
-        {/* Header Area */}
-        <div 
-          className="w-full text-white px-6 pt-12 pb-8 rounded-b-[2rem] shadow-lg relative shrink-0"
-          style={{ background: "oklch(0.22 0.07 255)" }}
-        >
-          <button 
-            onClick={() => {
-              if (step === 3) setStep(2);
-              else if (step === 2) setStep(1);
-              else navigate("/");
-            }}
-            className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center mb-6 transition-colors backdrop-blur-sm"
-          >
-            <ArrowLeft size={20} className="text-white" />
-          </button>
-          
-          <p className="text-white/80 text-xs font-bold uppercase tracking-widest mb-1">
-            Step {step} of 3 — {step === 1 ? "Personal Info" : step === 2 ? "Vehicle Details" : "Verify Email"}
-          </p>
-          <h1 className="text-3xl font-extrabold tracking-tight mb-4" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            {step === 1 ? "Create Account" : step === 2 ? "Add Your Vehicle" : "Enter OTP Code"}
-          </h1>
-          
-          <div className="w-full bg-white/20 h-1.5 rounded-full overflow-hidden">
-            <div 
-              className="bg-amber-400 h-full rounded-full transition-all duration-300 ease-in-out" 
-              style={{ width: step === 1 ? '33%' : step === 2 ? '66%' : '100%' }}
-            ></div>
+        {/* ========== UNVERIFIED USER NOTICE ========== */}
+        {!isVerified && (
+          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-4 shadow-md">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+                <Shield className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-black text-blue-900 text-base">Unverified Account</h3>
+                <p className="text-xs text-blue-700">Walk-in access only • Verify to unlock full features</p>
+              </div>
+            </div>
+            
+            <div className="bg-white/60 rounded-xl p-3 mb-4">
+              <p className="text-[10px] font-bold uppercase text-blue-800 mb-2">Available for you:</p>
+              <div className="space-y-2">
+                {["View availability", "Navigate to location", "Check rates & hours"].map((item) => (
+                  <div key={item} className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
+                      <Check className="w-3 h-3 text-white" />
+                    </div>
+                    <span className="text-sm text-gray-700">{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Button
+              onClick={() => navigate('/driver/verification')}
+              className="w-full h-12 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
+            >
+              <Shield className="w-4 h-4 mr-2" />
+              Verify Now (2 mins)
+            </Button>
+            
+            <p className="text-[9px] text-center text-blue-600 mt-3">
+              Verification unlocks: Online reservations • GCash/Maya • Multiple vehicles
+            </p>
+          </div>
+        )}
+
+        {/* ========== VERIFIED BADGE ========== */}
+        {isVerified && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-2.5 flex items-center gap-2">
+            <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+              <Check className="w-3.5 h-3.5 text-white" />
+            </div>
+            <span className="text-xs font-bold text-green-800">Verified Account • Full Access</span>
+          </div>
+        )}
+
+        {/* ========== PARKING CLOSED NOTICE ========== */}
+        {isParkingClosed && (
+          <div className="bg-red-500 text-white p-5 rounded-2xl shadow-lg border-2 border-red-400">
+            <p className="text-[10px] font-bold uppercase opacity-90 flex items-center gap-1 mb-1">
+              <AlertCircle size={12}/> Parking Closed
+            </p>
+            <h3 className="font-black text-lg leading-tight">Outside Operating Hours</h3>
+            <p className="text-xs opacity-90 mt-1">Operating hours: {lot?.open_hours}</p>
+            <Button 
+              onClick={() => window.history.back()}
+              className="bg-white text-red-600 hover:bg-red-50 font-black rounded-xl text-xs h-10 px-4 mt-3"
+            >
+              Go Back
+            </Button>
+          </div>
+        )}
+
+        {/* ========== BOOKING CUTOFF NOTICE ========== */}
+        {isBookingCutoff && !isParkingClosed && (
+          <div className="bg-orange-500 text-white p-5 rounded-2xl shadow-lg border-2 border-orange-400">
+            <p className="text-[10px] font-bold uppercase opacity-90 flex items-center gap-1 mb-1">
+              <AlertCircle size={12}/> Booking Cutoff
+            </p>
+            <h3 className="font-black text-lg leading-tight">Closing Soon</h3>
+            <p className="text-xs opacity-90 mt-1">
+              ZAM Parking no longer accept online reservations within one hour of closing time. Thank You!
+            </p>
+            <Button 
+              onClick={() => window.history.back()}
+              className="bg-white text-orange-600 hover:bg-orange-50 font-black rounded-xl text-xs h-10 px-4 mt-3"
+            >
+              Go Back
+            </Button>
+          </div>
+        )}
+
+        {/* ========== NO VEHICLES WARNING ========== */}
+        {availableVehicles.length === 0 && !activeReservation && !isWalkInOnly && isVerified && (
+          <div className="bg-red-500 text-white p-5 rounded-2xl shadow-lg border-2 border-red-400">
+            <p className="text-[10px] font-bold uppercase opacity-90 flex items-center gap-1 mb-1">
+              <AlertCircle size={12}/> Action Not Allowed
+            </p>
+            <h3 className="font-black text-lg leading-tight">
+              {userVehicles.length === 0 ? "No Registered Vehicles" : "All vehicles are currently booked"}
+            </h3>
+            <p className="text-xs opacity-90 mt-1 mb-2">
+              {userVehicles.length === 0 
+                ? "Please register a vehicle in your profile first." 
+                : "Wait for your current reservations to end before booking again."}
+            </p>
+            {userActiveBooking && (
+              <Button 
+                onClick={() => navigate(`/receipt/${userActiveBooking.id}?from=reservations`)}
+                className="bg-white text-red-600 hover:bg-red-50 font-black rounded-xl text-xs h-10 px-4"
+              >
+                View My Current Ticket
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* ========== ACTIVE RESERVATION ========== */}
+        {activeReservation && !isWalkInOnly && (
+          <div className={cn(
+            "text-white p-5 rounded-2xl shadow-lg border-2 flex justify-between items-center",
+            isMyBooking ? "bg-blue-500 border-blue-400" : "bg-emerald-500 border-emerald-400"
+          )}>
+            <div>
+              <p className="text-[10px] font-bold uppercase opacity-90 flex items-center gap-1">
+                <Ticket size={10}/> {isMyBooking ? "Your Active Booking" : "Slot Currently Taken"}
+              </p>
+              <h3 className="font-black text-lg leading-tight">Slot {slot?.label}</h3>
+              <p className="text-[10px] font-bold">Plate: {activeReservation.plate_number}</p>
+            </div>
+            
+            {isMyBooking ? (
+              <Button 
+                onClick={() => navigate(`/receipt/${activeReservation.id}?from=reservations`)}
+                className="bg-white text-blue-600 hover:bg-blue-50 font-black rounded-xl text-xs h-10 px-4"
+              >
+                View Ticket
+              </Button>
+            ) : (
+              <Button disabled className="bg-white/50 text-white font-black rounded-xl text-xs h-10 px-4 cursor-not-allowed">
+                Unavailable
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* ========== WALK-IN ONLY NOTICE ========== */}
+        {isWalkInOnly && (slot?.label === "C1" || slot?.is_reservable === false) && (
+          <div className={cn(
+            "text-white p-5 rounded-2xl shadow-lg border-2",
+            (slot?.is_pwd === true || String(slot?.is_pwd) === "true") ? "bg-blue-600 border-blue-400" : "bg-gray-500 border-gray-400"
+          )}>
+            <p className="text-[10px] font-bold uppercase opacity-90 flex items-center gap-1 mb-1">
+              {(slot?.is_pwd === true || String(slot?.is_pwd) === "true") ? <Accessibility size={12}/> : <AlertCircle size={12}/>} 
+              Walk-in Only
+            </p>
+            <h3 className="font-black text-lg leading-tight">
+              {(slot?.is_pwd === true || String(slot?.is_pwd) === "true") 
+                ? "PWD Reserved (Walk-in Only)" 
+                : "Hindi pwedeng i-reserve ang slot na ito."}
+            </h3>
+            <p className="text-xs opacity-90 mt-1">
+              {(slot?.is_pwd === true || String(slot?.is_pwd) === "true")
+                ? "Ang slot na ito ay nakalaan para sa mga PWD walk-in customers lamang."
+                : "Ang pwestong ito ay nakalaan lamang para sa mga walk-in customers."}
+            </p>
+            <Button 
+              onClick={() => window.history.back()}
+              className="bg-white text-gray-800 hover:bg-gray-100 font-black rounded-xl text-xs h-10 px-4 mt-3"
+            >
+              Pumili ng ibang Slot
+            </Button>
+          </div>
+        )}
+
+        {/* ========== SLOT INFO CARD ========== */}
+        <div className={cn(
+          "text-white rounded-2xl p-5 shadow-lg transition-colors",
+          isBlocked && isVerified ? "bg-gray-400" : "bg-gradient-to-br from-[oklch(0.22_0.07_255)] to-[oklch(0.28_0.07_255)]"
+        )}>
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="opacity-70 text-[10px] font-bold uppercase tracking-widest">{lot?.name}</p>
+              <div className="flex items-center gap-2">
+                <h2 className="text-2xl font-black mt-0.5">Slot {slot?.label}</h2>
+                {(slot?.is_pwd === true || String(slot?.is_pwd) === "true") && (
+                   <Accessibility size={20} className="opacity-80" />
+                )}
+              </div>
+              <p className="text-[10px] opacity-80 mt-1 flex items-center gap-1">
+                <Clock size={10}/> {lot?.open_hours}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-bold opacity-70 uppercase">Base (3h)</p>
+              <p className="text-sm font-bold">₱{baseRate}</p>
+              {extendedFee > 0 && (
+                <>
+                  <p className="text-[10px] font-bold text-orange-200 uppercase mt-1">Extra</p>
+                  <p className="text-sm font-bold text-orange-200">+₱{extendedFee}</p>
+                </>
+              )}
+              <div className="mt-2 border-t border-white/20 pt-2">
+                <p className="text-[10px] font-bold opacity-70 uppercase">Total</p>
+                <p className="text-xl font-black">₱{isParkingClosed || isWalkInOnly || isBookingCutoff ? "--" : totalCost}</p>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Form Content */}
-        <div className="px-6 py-6 flex-1 flex flex-col overflow-y-auto">
-          
-          {/* STEP 1: PERSONAL INFO */}
-          {step === 1 && (
-            <div className="space-y-4 flex-1">
-              <div>
-                <label className="text-sm font-bold text-slate-800 mb-1.5 block">Full Name</label>
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Juan dela Cruz"
-                  className="w-full h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:bg-white focus:ring-2 focus:ring-[oklch(0.22_0.07_255)] outline-none transition-all"
-                />
-              </div>
+        {/* ========== REMAINING TIME INFO ========== */}
+        {isVerified && !isParkingClosed && (
+          <div className="bg-blue-50 rounded-xl p-3 border border-blue-200 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Timer className="w-4 h-4 text-blue-600" />
+              <span className="text-xs font-bold text-blue-800">
+                Remaining: {formatMinutesToTime(remainingMins)}
+              </span>
+            </div>
+            <span className="text-[10px] text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+              Max {maxDuration}h
+            </span>
+          </div>
+        )}
 
-              <div>
-                <label className="text-sm font-bold text-slate-800 mb-1.5 block">Email Address</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="juan@example.com"
-                  className="w-full h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:bg-white focus:ring-2 focus:ring-[oklch(0.22_0.07_255)] outline-none transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-bold text-slate-800 mb-1.5 block">Contact Number</label>
-                <input
-                  type="tel"
-                  value={phoneNumber}
-                  onChange={(e) => {
-                    const onlyNumbers = e.target.value.replace(/[^0-9]/g, '');
-                    if (onlyNumbers.length <= 11) {
-                      setPhoneNumber(onlyNumbers);
-                    }
-                  }}
-                  placeholder="09XXXXXXXXX"
-                  className="w-full h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:bg-white focus:ring-2 focus:ring-[oklch(0.22_0.07_255)] outline-none transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-bold text-slate-800 mb-1.5 block">Password</label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Min. 8 characters"
-                    className="w-full h-12 pl-4 pr-12 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:bg-white focus:ring-2 focus:ring-[oklch(0.22_0.07_255)] outline-none transition-all"
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 p-1"
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                {/* --- PASSWORD STRENGTH INDICATOR UI --- */}
-                {password && (
-                  <div className="mt-1.5 text-xs font-semibold">
-                    <span className={
-                      getPasswordStrength(password) === "Very Strong" ? "text-green-600" :
-                      getPasswordStrength(password) === "Strong" ? "text-amber-500" :
-                      "text-red-500"
-                    }>
-                      {getPasswordStrength(password)}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="text-sm font-bold text-slate-800 mb-1.5 block">Confirm Password</label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? "text" : "password"}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-type your password"
-                    className="w-full h-12 pl-4 pr-12 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:bg-white focus:ring-2 focus:ring-[oklch(0.22_0.07_255)] outline-none transition-all"
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 p-1"
-                  >
-                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                {/* --- PASSWORD MATCH INDICATOR UI --- */}
-                {confirmPassword && password !== confirmPassword && (
-                  <div className="mt-1.5 text-xs font-semibold text-red-500">
-                    Password do not match
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-4 pb-2">
-                <Button
-                  onClick={handleNextStep}
-                  disabled={loading}
-                  className="w-full h-14 text-base font-bold rounded-xl shadow-lg transition-transform active:scale-95 text-white disabled:opacity-70"
-                  style={{ background: "oklch(0.22 0.07 255)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-                >
-                  {loading ? <Loader2 className="animate-spin" size={20} /> : "Continue"}
-                </Button>
+        {/* ========== VEHICLE & DURATION (Side by Side) ========== */}
+        <div className={cn(
+          "grid grid-cols-2 gap-3",
+          (isBlocked || !isVerified) ? "opacity-50 pointer-events-none" : ""
+        )}>
+          {/* Select Vehicle */}
+          <div className="bg-white rounded-xl p-3 border border-gray-200 shadow-sm">
+            <label className="text-[10px] font-black uppercase text-gray-500 mb-1.5 flex items-center gap-1">
+              <Car className="w-3 h-3" />
+              Vehicle
+            </label>
+            <div className="relative">
+              <select 
+                value={plateNumber}
+                onChange={(e) => setPlateNumber(e.target.value)}
+                disabled={isBlocked || !isVerified}
+                className="w-full bg-transparent text-sm font-bold outline-none cursor-pointer appearance-none pr-5 truncate"
+              >
+                <option value="" disabled>Select vehicle</option>
+                {availableVehicles.map((v) => (
+                  <option key={v.id} value={v.plate}>
+                    {v.plate}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none">
+                <ChevronRight size={14} className="text-gray-400 rotate-90" />
               </div>
             </div>
-          )}
+            {plateNumber && (
+              <p className="text-[9px] text-gray-400 mt-1 truncate">
+                {availableVehicles.find(v => v.plate === plateNumber)?.model || ""}
+              </p>
+            )}
+          </div>
 
-          {/* STEP 2: VEHICLE DETAILS */}
-          {step === 2 && (
-            <div className="space-y-4 flex-1">
-              <p className="text-sm text-slate-500 mb-4">Register your 4-wheel vehicle for verification. Strictly no motorcycles allowed.</p>
-              
-              <div>
-                <label className="text-sm font-bold text-slate-800 mb-1.5 block">Plate Number</label>
-                <input
-                  type="text"
-                  value={plateNumber}
-                  onChange={(e) => setPlateNumber(e.target.value.toUpperCase())}
-                  placeholder="ABC 1234"
-                  className="w-full h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm uppercase focus:bg-white focus:ring-2 focus:ring-[oklch(0.22_0.07_255)] outline-none transition-all"
-                />
-                <p className="text-xs text-slate-400 mt-1">Must match LTO standard (e.g. ABC 123 or ABC 1234).</p>
-              </div>
-
-              <div className="flex gap-3">
-                <div className="w-1/2">
-                  <label className="text-sm font-bold text-slate-800 mb-1.5 block">Car Brand</label>
-                  <select 
-                    value={vehicleBrand} 
-                    onChange={(e) => setVehicleBrand(e.target.value)}
-                    className="w-full h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:bg-white focus:ring-2 focus:ring-[oklch(0.22_0.07_255)] outline-none appearance-none"
-                  >
-                    <option value="" disabled>Select Brand</option>
-                    {ALLOWED_CAR_BRANDS.map(brand => (
-                      <option key={brand} value={brand}>{brand}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="w-1/2">
-                  <label className="text-sm font-bold text-slate-800 mb-1.5 block">Specific Model</label>
-                  <input
-                    type="text"
-                    value={vehicleModel}
-                    onChange={(e) => setVehicleModel(e.target.value)}
-                    placeholder="e.g. Vios"
-                    className="w-full h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:bg-white focus:ring-2 focus:ring-[oklch(0.22_0.07_255)] outline-none transition-all"
-                    disabled={!vehicleBrand}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-bold text-slate-800 mb-1.5 block">Vehicle Color</label>
-                <input
-                  type="text"
-                  value={vehicleColor}
-                  onChange={(e) => setVehicleColor(e.target.value)}
-                  placeholder="e.g. White"
-                  className="w-full h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:bg-white focus:ring-2 focus:ring-[oklch(0.22_0.07_255)] outline-none transition-all"
-                />
-              </div>
-
-              {/* T&C Checkbox Section */}
-              <div className="flex items-start gap-3 pt-2">
-                <input
-                  type="checkbox"
-                  id="terms"
-                  checked={agreeTc}
-                  onChange={(e) => setAgreeTc(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 shrink-0 rounded border-slate-300 focus:ring-2 focus:ring-[oklch(0.22_0.07_255)] accent-[oklch(0.22_0.07_255)]"
-                />
-                <label htmlFor="terms" className="text-xs text-slate-600 leading-snug">
-                  I agree to the{" "}
-                  <span 
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setShowTerms(true);
-                    }}
-                    className="font-bold cursor-pointer hover:underline" 
-                    style={{ color: "oklch(0.22 0.07 255)" }}
-                  >
-                    Terms & Conditions
-                  </span>{" "}
-                  and{" "}
-                  <span 
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setShowTerms(true); 
-                    }}
-                    className="font-bold cursor-pointer hover:underline" 
-                    style={{ color: "oklch(0.22 0.07 255)" }}
-                  >
-                    Privacy Policy
-                  </span>
-                  . I acknowledge that reservations are strictly <strong>non-refundable</strong> and only accept <strong>four-wheeled vehicles</strong>.
-                </label>
-              </div>
-
-              <div className="pt-4 pb-2">
-                <Button
-                  onClick={handleSendOtp}
-                  disabled={loading}
-                  className="w-full h-14 text-base font-bold rounded-xl shadow-lg transition-transform active:scale-95 text-white disabled:opacity-70"
-                  style={{ background: "oklch(0.22 0.07 255)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-                >
-                  {loading ? <Loader2 className="animate-spin" size={20} /> : "Send Code"}
-                </Button>
+          {/* Duration */}
+          <div className="bg-white rounded-xl p-3 border border-gray-200 shadow-sm">
+            <label className="text-[10px] font-black uppercase text-gray-500 mb-1.5 flex items-center gap-1">
+              <Timer className="w-3 h-3" />
+              Duration
+            </label>
+            <div className="relative">
+              <select 
+                value={duration} 
+                onChange={(e) => setDuration(Number(e.target.value))}
+                className="w-full bg-transparent text-sm font-bold outline-none cursor-pointer appearance-none pr-5"
+                disabled={isBlocked || !isVerified}
+              >
+                {durationOptions.map(h => (
+                  <option key={h} value={h}>{h} Hour{h>1?'s':''}</option>
+                ))}
+              </select>
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none">
+                <ChevronRight size={14} className="text-gray-400 rotate-90" />
               </div>
             </div>
-          )}
-
-          {/* STEP 3: OTP VERIFICATION */}
-          {step === 3 && (
-            <div className="space-y-6 flex-1 flex flex-col items-center justify-center text-center">
-              <div>
-                <h3 className="text-xl font-bold text-slate-900 mb-2">Check your email</h3>
-                <p className="text-sm text-slate-500">We've sent a 6-digit verification code to<br/><strong className="text-slate-800">{email}</strong></p>
-              </div>
-              
-              {/* OTP UI BOXES */}
-              <div className="relative w-full max-w-[280px] mx-auto">
-                <div className="flex justify-between gap-2">
-                  {[0, 1, 2, 3, 4, 5].map((index) => {
-                    const char = otpCode[index];
-                    return (
-                      <div 
-                        key={index} 
-                        className={`w-10 h-14 flex items-center justify-center text-2xl font-bold rounded-xl border-2 transition-all 
-                          ${otpCode.length === index && !isLocked ? 'border-[oklch(0.22_0.07_255)] shadow-sm' : 'border-slate-200'}
-                          ${char ? 'bg-white text-slate-900' : 'bg-slate-50 text-slate-400'}
-                          ${isLocked ? 'opacity-50' : ''}
-                        `}
-                      >
-                        {char ? char : "•"}
-                      </div>
-                    );
-                  })}
-                </div>
-                {/* Hidden Input field for mobile keyboard */}
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
-                  disabled={isLocked || loading}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-text z-10 disabled:cursor-not-allowed"
-                />
-              </div>
-
-              {/* Status/Error Text For Lockout */}
-              {isLocked && (
-                <div className="text-red-500 text-sm font-semibold">
-                  Locked out for {lockoutRemaining} minutes.
-                </div>
-              )}
-
-              <div className="pt-2 pb-2 w-full">
-                <Button
-                  onClick={handleVerifyOtpAndSave}
-                  disabled={loading || isLocked}
-                  className="w-full h-14 text-base font-bold rounded-xl shadow-lg transition-transform active:scale-95 text-white disabled:opacity-70"
-                  style={{ background: "oklch(0.22 0.07 255)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-                >
-                  {loading ? <Loader2 className="animate-spin" size={20} /> : "Verify & Continue"}
-                </Button>
-              </div>
-
-              <div className="pt-4 flex flex-col items-center gap-3">
-                <p className="text-sm text-slate-500">Didn't receive the code?</p>
-                <button
-                  onClick={() => handleResendOtp(false)}
-                  disabled={countdown > 0 || resending}
-                  className="flex items-center gap-2 text-sm font-bold disabled:opacity-50 transition-opacity"
-                  style={{ color: "oklch(0.22 0.07 255)" }}
-                >
-                  {resending ? <Loader2 size={16} className="animate-spin" /> : <RefreshCcw size={16} />}
-                  {countdown > 0 ? `Resend code in ${countdown}s` : "Resend Code"}
-                </button>
-              </div>
-            </div>
-          )}
+          </div>
         </div>
+
+        {/* ========== TIME RANGE (Single Row) ========== */}
+        <div className={cn(
+          "bg-white rounded-xl p-4 border border-gray-200 shadow-sm",
+          (isBlocked || !isVerified) ? "opacity-50 pointer-events-none" : ""
+        )}>
+          <label className="text-[10px] font-black uppercase text-gray-500 mb-2 flex items-center gap-1">
+            <Calendar className="w-3 h-3" />
+            Parking Time
+          </label>
+          
+          <div className="flex items-center justify-between bg-gray-50 rounded-xl p-3 border border-gray-100">
+            <div className="text-center flex-1">
+              <p className="text-[9px] font-bold uppercase text-gray-400 mb-0.5">Start</p>
+              <p className="text-lg font-black text-green-700">{startTimeFormatted}</p>
+              <p className="text-[8px] text-green-600 flex items-center justify-center gap-0.5 mt-0.5">
+                <Play className="w-2 h-2" /> Book Now
+              </p>
+            </div>
+            
+            <div className="px-4">
+              <div className="w-8 h-0.5 bg-gray-300 rounded-full"></div>
+            </div>
+            
+            <div className="text-center flex-1">
+              <p className="text-[9px] font-bold uppercase text-gray-400 mb-0.5">End</p>
+              <p className="text-lg font-black text-gray-800">{endTimeFormatted}</p>
+              <p className="text-[8px] text-gray-400 mt-0.5">Estimated</p>
+            </div>
+          </div>
+          
+          <p className="text-[9px] text-gray-400 text-center mt-2">
+            Reservation starts immediately after payment
+          </p>
+        </div>
+
+        {/* ========== EXCEEDS CLOSING TIME ERROR ========== */}
+        {isExceedingCloseTime && isVerified && (
+          <div className="bg-orange-50 text-orange-700 p-3 rounded-xl border border-orange-200 flex items-start gap-2">
+            <AlertCircle size={16} className="shrink-0 text-orange-500 mt-0.5" />
+            <div>
+              <p className="text-xs font-black uppercase">Exceeds Closing Time</p>
+              <p className="text-[10px] opacity-90">
+                This lot closes at <b>{format12Hour(getLotClosingTime24(lot?.open_hours))}</b>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ========== PAYMENT METHOD ========== */}
+        {isVerified && (
+          <div className={cn(
+            "bg-white rounded-xl p-4 border border-gray-200 shadow-sm",
+            isBlocked ? "opacity-50 pointer-events-none" : ""
+          )}>
+            <label className="text-[10px] font-black uppercase text-gray-500 mb-3 flex items-center gap-1">
+              <CreditCard className="w-3 h-3" />
+              Payment Method
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button 
+                onClick={() => setPaymentMethod("gcash")} 
+                className={cn(
+                  "h-14 rounded-xl border-2 flex items-center justify-center gap-2 transition-all",
+                  paymentMethod === "gcash" 
+                    ? "border-blue-500 bg-blue-50" 
+                    : "border-gray-200 bg-white"
+                )}
+              >
+                <div className="w-6 h-6 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-black text-xs">G</span>
+                </div>
+                <span className="font-bold text-blue-600">GCash</span>
+                {paymentMethod === "gcash" && <Check size={14} className="text-blue-600" />}
+              </button>
+              <button 
+                onClick={() => setPaymentMethod("maya")} 
+                className={cn(
+                  "h-14 rounded-xl border-2 flex items-center justify-center gap-2 transition-all",
+                  paymentMethod === "maya" 
+                    ? "border-emerald-500 bg-emerald-50" 
+                    : "border-gray-200 bg-white"
+                )}
+              >
+                <div className="w-6 h-6 bg-emerald-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-black text-xs">M</span>
+                </div>
+                <span className="font-bold text-emerald-600">Maya</span>
+                {paymentMethod === "maya" && <Check size={14} className="text-emerald-600" />}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ========== ACTION BUTTON ========== */}
+        <Button 
+          onClick={handleProceed} 
+          disabled={!isVerified || isBlocked || !plateNumber || isExceedingCloseTime || isParkingClosed || isBookingCutoff} 
+          className={cn(
+            "w-full h-14 rounded-xl text-base font-black shadow-lg transition-all",
+            !isVerified || isBlocked || !plateNumber || isExceedingCloseTime || isParkingClosed || isBookingCutoff
+              ? "bg-gray-300 text-gray-500 cursor-not-allowed" 
+              : "bg-[oklch(0.22_0.07_255)] text-white hover:bg-[oklch(0.25_0.07_255)] active:scale-[0.98]"
+          )}
+        >
+          {!isVerified ? (
+            "Verify Account to Park"
+          ) : isParkingClosed ? (
+            "Parking Currently Closed"
+          ) : isBookingCutoff ? (
+            "Booking Cutoff Reached"
+          ) : isWalkInOnly ? (
+            (slot?.is_pwd === true || String(slot?.is_pwd) === "true") ? "PWD Walk-in Only" : "Walk-in Only Slot"
+          ) : isBlocked ? 
+            "Action Not Allowed" : 
+            isExceedingCloseTime ?
+              "Exceeds Closing Time" :
+              !plateNumber ?
+                "Select a Vehicle" :
+                `Pay ₱${totalCost} to Reserve Now`
+          }
+        </Button>
+
+        {/* ========== CASH NOTE FOR UNVERIFIED ========== */}
+        {!isVerified && (
+          <p className="text-center text-[10px] text-gray-400">
+            💵 Unverified accounts can pay in cash at the parking location
+          </p>
+        )}
       </div>
-    </div>
+    </MobileLayout>
   );
 }
