@@ -88,18 +88,18 @@ export default function AdminLogin() {
 
   return (
     <div className="min-h-screen flex bg-background">
-      
+
 {/* Left Panel — TrueFocus + DarkVeil Background */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-black">
+      <div className="hidden lg:flex lg:w-[65%] relative overflow-hidden bg-black">
         
         {/* The WebGL Shader Background */}
         <div className="absolute inset-0 z-0">
           <DarkVeil
-            speed={0.2}              // Slow, moody movement
+            speed={2.0}              // Slow, moody movement
             noiseIntensity={0.06}    // Subtle retro film grain
             scanlineIntensity={0.3}  // Slight CRT scanlines
             scanlineFrequency={800}
-            hueShift={280}           // Shifts the shader colors towards a deep purple/blue to match your vibe
+            hueShift={0}           // Shifts the shader colors towards a deep purple/blue to match your vibe
             warpAmount={0.3}
             resolutionScale={1}
           />
