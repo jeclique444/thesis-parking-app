@@ -87,10 +87,10 @@ export default function AdminLogin() {
 
   return (
     <div className="min-h-screen flex bg-background">
-    {/* Left Panel — Radar Animation */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden>
+      {/* Left Panel — Radar Animation */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-black">
 
-        {/* 1. FIXED: Removed the invalid inline style */}
+        {/* Radar fills the entire panel */}
         <div className="absolute inset-0">
           <Radar
             speed={0.9}
@@ -102,8 +102,8 @@ export default function AdminLogin() {
             sweepSpeed={1.2}
             sweepWidth={6}
             sweepLobes={1}
-            color="#0df103"          {/* The React Bits Neon Green */}
-            backgroundColor="#100228" {/* The React Bits Deep Purple */}
+            color="#0df103"
+            backgroundColor="#100228"
             falloff={1}
             brightness={0.9}
             enableMouseInteraction={true}
@@ -111,10 +111,10 @@ export default function AdminLogin() {
           />
         </div>
 
-        {/* 2. FIXED: Added pointer-events-none so the mouse passes through the shadow */}
+        {/* Dark overlay to keep text readable over the animation */}
         <div className="absolute inset-0 bg-black/40 pointer-events-none" />
 
-        {/* 3. FIXED: Added pointer-events-none so the mouse passes through the text wrapper */}
+        {/* Branding content — sits on top */}
         <div className="absolute inset-0 flex flex-col justify-between p-12 z-10 pointer-events-none">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center">
@@ -158,7 +158,7 @@ export default function AdminLogin() {
         </div>
       </div>
 
-      {/* Right Panel — Login Form (unchanged) */}
+      {/* Right Panel — Login Form */}
       <div className="flex-1 flex items-center justify-center px-8 py-12">
         <div className="w-full max-w-sm">
           {/* Mobile logo */}
