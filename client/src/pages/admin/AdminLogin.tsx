@@ -86,6 +86,7 @@ export default function AdminLogin() {
   };
 
   return (
+    <div className="min-h-screen flex bg-background">
     {/* Left Panel — Radar Animation */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-black">
 
