@@ -61,24 +61,26 @@ export function Radar({
     const rgba = (alpha: number) => `rgba(${r}, ${g}, ${b}, ${Math.min(1, Math.max(0, alpha))})`;
 
     const resize = () => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
+      // Scale up the canvas resolution for retina/high-DPI screens
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = canvas.offsetWidth * dpr;
+      canvas.height = canvas.offsetHeight * dpr;
     };
     resize();
 
     const resizeObserver = new ResizeObserver(() => resize());
     resizeObserver.observe(canvas);
 
-    // ✅ Mouse tracking — using getBoundingClientRect for accurate position
     const handleMouseMove = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
       mouseRef.current = {
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
+        // Multiply mouse coordinates by dpr so the interaction lines up perfectly
+        x: (e.clientX - rect.left) * dpr,
+        y: (e.clientY - rect.top) * dpr,
         active: true,
       };
     };
-
     const handleMouseLeave = () => {
       mouseRef.current.active = false;
     };

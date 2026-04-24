@@ -88,7 +88,7 @@ export default function AdminLogin() {
   return (
     <div className="min-h-screen flex bg-background">
     {/* Left Panel — Radar Animation */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-black">
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden>
 
         {/* 1. FIXED: Removed the invalid inline style */}
         <div className="absolute inset-0">
@@ -102,8 +102,8 @@ export default function AdminLogin() {
             sweepSpeed={1.2}
             sweepWidth={6}
             sweepLobes={1}
-            color="#F59E0B" // Tip: Changed to your iParkBayan Amber to match your theme!
-            backgroundColor="#000000"
+            color="#0df103"          {/* The React Bits Neon Green */}
+            backgroundColor="#100228" {/* The React Bits Deep Purple */}
             falloff={1}
             brightness={0.9}
             enableMouseInteraction={true}
