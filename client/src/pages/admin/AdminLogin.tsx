@@ -91,7 +91,7 @@ export default function AdminLogin() {
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-black">
 
         {/* Radar fills the entire panel */}
-        <div className="absolute inset-0">
+        <div className="absolute inset-0" style={{ pointerEvents: enableMouseInteraction ? "auto" : "none" }}>
           <Radar
             speed={0.9}
             scale={1.3}
@@ -106,8 +106,8 @@ export default function AdminLogin() {
             backgroundColor="#000000"
             falloff={1}
             brightness={0.9}
-            enableMouseInteraction={false}
-            mouseInfluence={0.35}
+            enableMouseInteraction={true}
+            mouseInfluence={0.15}
           />
         </div>
 

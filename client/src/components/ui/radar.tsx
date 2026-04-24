@@ -37,6 +37,7 @@ export function Radar({
 }: RadarProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mouseRef = useRef({ x: 0, y: 0, active: false });
+  const angleRef = useRef(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -46,9 +47,7 @@ export function Radar({
     if (!ctx) return;
 
     let animationId: number;
-    let angle = 0;
 
-    // Parse hex color to RGB
     const hexToRgb = (hex: string) => {
       const clean = hex.replace("#", "");
       return {
@@ -59,18 +58,19 @@ export function Radar({
     };
 
     const { r, g, b } = hexToRgb(color);
-    const rgba = (alpha: number) => `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    const rgba = (alpha: number) => `rgba(${r}, ${g}, ${b}, ${Math.min(1, Math.max(0, alpha))})`;
 
     const resize = () => {
       canvas.width = canvas.offsetWidth;
       canvas.height = canvas.offsetHeight;
     };
     resize();
-    window.addEventListener("resize", resize);
 
-    // Mouse tracking
+    const resizeObserver = new ResizeObserver(() => resize());
+    resizeObserver.observe(canvas);
+
+    // ✅ Mouse tracking — using getBoundingClientRect for accurate position
     const handleMouseMove = (e: MouseEvent) => {
-      if (!enableMouseInteraction) return;
       const rect = canvas.getBoundingClientRect();
       mouseRef.current = {
         x: e.clientX - rect.left,
@@ -78,27 +78,39 @@ export function Radar({
         active: true,
       };
     };
+
     const handleMouseLeave = () => {
       mouseRef.current.active = false;
     };
 
-    canvas.addEventListener("mousemove", handleMouseMove);
+    // ✅ Attach to window so mouse is tracked even if cursor briefly leaves canvas
+    window.addEventListener("mousemove", handleMouseMove);
     canvas.addEventListener("mouseleave", handleMouseLeave);
 
     const draw = () => {
       const w = canvas.width;
       const h = canvas.height;
+
+      // ✅ Fix zoom: use 0.38 as base (fits comfortably), then apply scale as a mild multiplier capped at 1
+      const baseRadius = Math.min(w, h) * 0.38 * Math.min(scale, 1.0);
+
       const cx = w / 2;
       const cy = h / 2;
-      const baseRadius = Math.min(w, h) * 0.45 * scale;
 
-      // Mouse offset
+      // ✅ Smooth mouse offset with clamping so it never goes wild
       let offsetX = 0;
       let offsetY = 0;
       if (enableMouseInteraction && mouseRef.current.active) {
-        offsetX = (mouseRef.current.x - cx) * mouseInfluence * 0.1;
-        offsetY = (mouseRef.current.y - cy) * mouseInfluence * 0.1;
+        const rawX = (mouseRef.current.x - cx) * mouseInfluence;
+        const rawY = (mouseRef.current.y - cy) * mouseInfluence;
+        // Clamp so the center never moves more than 8% of the canvas
+        const maxOffset = Math.min(w, h) * 0.08;
+        offsetX = Math.max(-maxOffset, Math.min(maxOffset, rawX));
+        offsetY = Math.max(-maxOffset, Math.min(maxOffset, rawY));
       }
+
+      const ox = cx + offsetX;
+      const oy = cy + offsetY;
 
       // Background
       ctx.fillStyle = backgroundColor;
@@ -107,11 +119,11 @@ export function Radar({
       // Rings
       for (let i = 1; i <= ringCount; i++) {
         const ringRadius = (baseRadius / ringCount) * i;
-        const ringAlpha = brightness * 0.3 * (1 - (i / ringCount) * (1 - falloff * 0.5));
+        const depthFade = 1 - (i / ringCount) * (1 - falloff * 0.4);
         ctx.beginPath();
-        ctx.arc(cx + offsetX, cy + offsetY, ringRadius, 0, Math.PI * 2);
-        ctx.strokeStyle = rgba(ringAlpha);
-        ctx.lineWidth = Math.max(1, ringThickness * baseRadius * 0.3);
+        ctx.arc(ox, oy, ringRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = rgba(brightness * 0.3 * depthFade);
+        ctx.lineWidth = Math.max(0.5, ringThickness * baseRadius * 0.25);
         ctx.stroke();
       }
 
@@ -119,36 +131,34 @@ export function Radar({
       for (let i = 0; i < spokeCount; i++) {
         const spokeAngle = (Math.PI * 2 * i) / spokeCount;
         ctx.beginPath();
-        ctx.moveTo(cx + offsetX, cy + offsetY);
+        ctx.moveTo(ox, oy);
         ctx.lineTo(
-          cx + offsetX + Math.cos(spokeAngle) * baseRadius,
-          cy + offsetY + Math.sin(spokeAngle) * baseRadius
+          ox + Math.cos(spokeAngle) * baseRadius,
+          oy + Math.sin(spokeAngle) * baseRadius
         );
-        ctx.strokeStyle = rgba(brightness * 0.25);
-        ctx.lineWidth = Math.max(0.5, spokeThickness * baseRadius * 0.3);
+        ctx.strokeStyle = rgba(brightness * 0.2);
+        ctx.lineWidth = Math.max(0.5, spokeThickness * baseRadius * 0.25);
         ctx.stroke();
       }
 
-      // Sweep — supports multiple lobes
-      ctx.save();
-      ctx.translate(cx + offsetX, cy + offsetY);
-
+      // Sweep lobes
       for (let lobe = 0; lobe < sweepLobes; lobe++) {
         const lobeOffset = (Math.PI * 2 * lobe) / sweepLobes;
         const sweepAngleRad = (sweepWidth * Math.PI) / 180;
 
         ctx.save();
-        ctx.rotate(angle * speed + lobeOffset);
+        ctx.translate(ox, oy);
+        ctx.rotate(angleRef.current * speed + lobeOffset);
 
-        // Clip sweep to radar circle
+        // Clip to radar circle so sweep doesn't bleed outside
         ctx.beginPath();
         ctx.arc(0, 0, baseRadius, 0, Math.PI * 2);
         ctx.clip();
 
-        // Gradient sweep
+        // Main sweep beam
         const gradient = ctx.createLinearGradient(0, 0, baseRadius, 0);
-        gradient.addColorStop(0, rgba(brightness * 0.9));
-        gradient.addColorStop(0.6, rgba(brightness * 0.35));
+        gradient.addColorStop(0, rgba(brightness));
+        gradient.addColorStop(0.5, rgba(brightness * 0.4));
         gradient.addColorStop(1, rgba(0));
 
         ctx.beginPath();
@@ -158,18 +168,14 @@ export function Radar({
         ctx.fillStyle = gradient;
         ctx.fill();
 
-        // Trailing glow — fades behind the sweep
-        const trailGradient = ctx.createConicalGradientPolyfill
-          ? undefined
-          : null;
-
-        // Draw a soft trailing arc
-        for (let t = 1; t <= 8; t++) {
-          const trailAlpha = brightness * 0.12 * (1 - t / 8) * falloff;
-          const trailAngle = sweepAngleRad + (t * Math.PI) / 24;
+        // Trailing ghost fade behind sweep
+        const trailSteps = 10;
+        for (let t = 1; t <= trailSteps; t++) {
+          const trailAlpha = brightness * 0.1 * (1 - t / trailSteps) * falloff;
+          const trailSpread = sweepAngleRad + (t * Math.PI) / 20;
           ctx.beginPath();
           ctx.moveTo(0, 0);
-          ctx.arc(0, 0, baseRadius, -sweepAngleRad / 2, -sweepAngleRad / 2 + trailAngle);
+          ctx.arc(0, 0, baseRadius, -sweepAngleRad / 2, -sweepAngleRad / 2 + trailSpread);
           ctx.closePath();
           ctx.fillStyle = rgba(trailAlpha);
           ctx.fill();
@@ -178,22 +184,20 @@ export function Radar({
         ctx.restore();
       }
 
-      ctx.restore();
-
-      // Center dot
+      // Outer boundary ring
       ctx.beginPath();
-      ctx.arc(cx + offsetX, cy + offsetY, 4, 0, Math.PI * 2);
-      ctx.fillStyle = rgba(brightness);
-      ctx.fill();
-
-      // Outer boundary circle
-      ctx.beginPath();
-      ctx.arc(cx + offsetX, cy + offsetY, baseRadius, 0, Math.PI * 2);
-      ctx.strokeStyle = rgba(brightness * 0.5);
+      ctx.arc(ox, oy, baseRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = rgba(brightness * 0.55);
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      angle += (sweepSpeed * Math.PI) / 180;
+      // Center dot
+      ctx.beginPath();
+      ctx.arc(ox, oy, 4, 0, Math.PI * 2);
+      ctx.fillStyle = rgba(brightness);
+      ctx.fill();
+
+      angleRef.current += (sweepSpeed * Math.PI) / 180;
       animationId = requestAnimationFrame(draw);
     };
 
@@ -201,8 +205,8 @@ export function Radar({
 
     return () => {
       cancelAnimationFrame(animationId);
-      window.removeEventListener("resize", resize);
-      canvas.removeEventListener("mousemove", handleMouseMove);
+      resizeObserver.disconnect();
+      window.removeEventListener("mousemove", handleMouseMove);
       canvas.removeEventListener("mouseleave", handleMouseLeave);
     };
   }, [
@@ -215,7 +219,7 @@ export function Radar({
     <canvas
       ref={canvasRef}
       className="w-full h-full"
-      style={{ display: "block" }}
+      style={{ display: "block", cursor: enableMouseInteraction ? "crosshair" : "default" }}
     />
   );
 }
