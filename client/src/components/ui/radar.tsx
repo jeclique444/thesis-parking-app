@@ -1,8 +1,6 @@
-import { useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 
-interface RadarProps {
-  color?: string;
-  backgroundColor?: string;
+export interface RadarProps {
   speed?: number;
   scale?: number;
   ringCount?: number;
@@ -12,32 +10,38 @@ interface RadarProps {
   sweepSpeed?: number;
   sweepWidth?: number;
   sweepLobes?: number;
+  color?: string;
+  backgroundColor?: string;
   falloff?: number;
   brightness?: number;
   enableMouseInteraction?: boolean;
   mouseInfluence?: number;
 }
 
-export function Radar({
-  color = "#0df103",
-  backgroundColor = "#100228",
-  speed = 0.9,
-  scale = 1.3,
+export const Radar: React.FC<RadarProps> = ({
+  speed = 1,
+  scale = 1,
   ringCount = 10,
   spokeCount = 5,
   ringThickness = 0.05,
   spokeThickness = 0.01,
-  sweepSpeed = 1.2,
+  sweepSpeed = 1,
   sweepWidth = 6,
   sweepLobes = 1,
+  color = "#F59E0B",
+  backgroundColor = "transparent",
   falloff = 1,
-  brightness = 0.9,
-  enableMouseInteraction = false,
-  mouseInfluence = 0.15,
-}: RadarProps) {
+  brightness = 1,
+  enableMouseInteraction = true,
+  mouseInfluence = 0.2,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const mouseRef = useRef({ x: 0, y: 0, active: false });
-  const angleRef = useRef(0);
+  const timeRef = useRef<number>(0);
+  const mouseRef = useRef<{ x: number; y: number; active: boolean }>({
+    x: 0,
+    y: 0,
+    active: false,
+  });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -46,22 +50,10 @@ export function Radar({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    let animationId: number;
-
-    const hexToRgb = (hex: string) => {
-      const clean = hex.replace("#", "");
-      return {
-        r: parseInt(clean.slice(0, 2), 16),
-        g: parseInt(clean.slice(2, 4), 16),
-        b: parseInt(clean.slice(4, 6), 16),
-      };
-    };
-
-    const { r, g, b } = hexToRgb(color);
-    const rgba = (alpha: number) => `rgba(${r}, ${g}, ${b}, ${Math.min(1, Math.max(0, alpha))})`;
+    let animationFrameId: number;
+    let time = 0;
 
     const resize = () => {
-      // Scale up the canvas resolution for retina/high-DPI screens
       const dpr = window.devicePixelRatio || 1;
       canvas.width = canvas.offsetWidth * dpr;
       canvas.height = canvas.offsetHeight * dpr;
@@ -72,168 +64,148 @@ export function Radar({
     resizeObserver.observe(canvas);
 
     const handleMouseMove = (e: MouseEvent) => {
+      if (!enableMouseInteraction) return;
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       mouseRef.current = {
-        // Multiply mouse coordinates by dpr so the interaction lines up perfectly
         x: (e.clientX - rect.left) * dpr,
         y: (e.clientY - rect.top) * dpr,
         active: true,
       };
     };
+
     const handleMouseLeave = () => {
       mouseRef.current.active = false;
     };
 
-    // ✅ Attach to window so mouse is tracked even if cursor briefly leaves canvas
-    window.addEventListener("mousemove", handleMouseMove);
-    canvas.addEventListener("mouseleave", handleMouseLeave);
+    if (enableMouseInteraction) {
+      canvas.addEventListener("mousemove", handleMouseMove);
+      canvas.addEventListener("mouseleave", handleMouseLeave);
+    }
 
     const draw = () => {
       if (!ctx || !canvas) return;
 
       const w = canvas.width;
       const h = canvas.height;
-
-      // 👇 THESE ARE THE TWO LINES THAT GOT DELETED! 👇
       const cx = w / 2;
       const cy = h / 2;
-      // 👆 ----------------------------------------- 👆
+      
+      // Calculate the size of the radar based on the canvas size
+      const maxRadius = Math.min(w, h) / 2 * scale;
+      const baseRadius = maxRadius * 0.9;
 
-      // 1. FIXED FOR TRANSPARENCY:
+      // 1. Clear the canvas for transparency
       ctx.clearRect(0, 0, w, h);
 
-      // 2. Only draw a solid background color if one was provided AND it's not "transparent"
+      // 2. Draw background only if it is not transparent
       if (backgroundColor && backgroundColor !== "transparent") {
         ctx.fillStyle = backgroundColor;
         ctx.fillRect(0, 0, w, h);
       }
 
-      // ... the rest of the file continues below drawing the rings using cx and cy ...
+      time += 0.01 * speed;
+      const sweepAngle = (time * sweepSpeed) % (Math.PI * 2);
 
-      // ✅ Smooth mouse offset with clamping so it never goes wild
-      let offsetX = 0;
-      let offsetY = 0;
-      if (enableMouseInteraction && mouseRef.current.active) {
-        const rawX = (mouseRef.current.x - cx) * mouseInfluence;
-        const rawY = (mouseRef.current.y - cy) * mouseInfluence;
-        // Clamp so the center never moves more than 8% of the canvas
-        const maxOffset = Math.min(w, h) * 0.08;
-        offsetX = Math.max(-maxOffset, Math.min(maxOffset, rawX));
-        offsetY = Math.max(-maxOffset, Math.min(maxOffset, rawY));
+      // Setup drawing style
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.globalCompositeOperation = "lighter";
+
+      // Mouse influence
+      let targetX = cx;
+      let targetY = cy;
+      if (mouseRef.current.active && enableMouseInteraction) {
+        const dx = mouseRef.current.x - cx;
+        const dy = mouseRef.current.y - cy;
+        targetX = cx + dx * mouseInfluence;
+        targetY = cy + dy * mouseInfluence;
       }
 
-      const ox = cx + offsetX;
-      const oy = cy + offsetY;
-
-      // Background
-      ctx.fillStyle = backgroundColor;
-      ctx.fillRect(0, 0, w, h);
-
-      // Rings
+      // Draw Rings
       for (let i = 1; i <= ringCount; i++) {
-        const ringRadius = (baseRadius / ringCount) * i;
-        const depthFade = 1 - (i / ringCount) * (1 - falloff * 0.4);
+        const r = (baseRadius / ringCount) * i;
         ctx.beginPath();
-        ctx.arc(ox, oy, ringRadius, 0, Math.PI * 2);
-        ctx.strokeStyle = rgba(brightness * 0.3 * depthFade);
-        ctx.lineWidth = Math.max(0.5, ringThickness * baseRadius * 0.25);
+        ctx.arc(targetX, targetY, r, 0, Math.PI * 2);
+        ctx.lineWidth = maxRadius * ringThickness * (i / ringCount);
+        ctx.globalAlpha = (0.1 + (i / ringCount) * 0.2) * brightness;
         ctx.stroke();
       }
 
-      // Spokes
+      // Draw Spokes
       for (let i = 0; i < spokeCount; i++) {
-        const spokeAngle = (Math.PI * 2 * i) / spokeCount;
+        const angle = (Math.PI * 2 * i) / spokeCount;
         ctx.beginPath();
-        ctx.moveTo(ox, oy);
+        ctx.moveTo(targetX, targetY);
         ctx.lineTo(
-          ox + Math.cos(spokeAngle) * baseRadius,
-          oy + Math.sin(spokeAngle) * baseRadius
+          targetX + Math.cos(angle) * baseRadius,
+          targetY + Math.sin(angle) * baseRadius
         );
-        ctx.strokeStyle = rgba(brightness * 0.2);
-        ctx.lineWidth = Math.max(0.5, spokeThickness * baseRadius * 0.25);
+        ctx.lineWidth = maxRadius * spokeThickness;
+        ctx.globalAlpha = 0.2 * brightness;
         ctx.stroke();
       }
 
-      // Sweep lobes
-      for (let lobe = 0; lobe < sweepLobes; lobe++) {
-        const lobeOffset = (Math.PI * 2 * lobe) / sweepLobes;
-        const sweepAngleRad = (sweepWidth * Math.PI) / 180;
+      // Draw Sweep
+      for (let l = 0; l < sweepLobes; l++) {
+        const offset = (Math.PI * 2 * l) / sweepLobes;
+        const lobeAngle = (sweepAngle + offset) % (Math.PI * 2);
 
-        ctx.save();
-        ctx.translate(ox, oy);
-        ctx.rotate(angleRef.current * speed + lobeOffset);
+        // We use a gradient to create the sweeping tail
+        for (let a = 0; a < sweepWidth; a++) {
+          const tailAngle = lobeAngle - (a * 0.05);
+          const alpha = Math.pow(1 - a / sweepWidth, falloff) * 0.5 * brightness;
+          
+          if (alpha <= 0) continue;
 
-        // Clip to radar circle so sweep doesn't bleed outside
-        ctx.beginPath();
-        ctx.arc(0, 0, baseRadius, 0, Math.PI * 2);
-        ctx.clip();
-
-        // Main sweep beam
-        const gradient = ctx.createLinearGradient(0, 0, baseRadius, 0);
-        gradient.addColorStop(0, rgba(brightness));
-        gradient.addColorStop(0.5, rgba(brightness * 0.4));
-        gradient.addColorStop(1, rgba(0));
-
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.arc(0, 0, baseRadius, -sweepAngleRad / 2, sweepAngleRad / 2);
-        ctx.closePath();
-        ctx.fillStyle = gradient;
-        ctx.fill();
-
-        // Trailing ghost fade behind sweep
-        const trailSteps = 10;
-        for (let t = 1; t <= trailSteps; t++) {
-          const trailAlpha = brightness * 0.1 * (1 - t / trailSteps) * falloff;
-          const trailSpread = sweepAngleRad + (t * Math.PI) / 20;
           ctx.beginPath();
-          ctx.moveTo(0, 0);
-          ctx.arc(0, 0, baseRadius, -sweepAngleRad / 2, -sweepAngleRad / 2 + trailSpread);
-          ctx.closePath();
-          ctx.fillStyle = rgba(trailAlpha);
-          ctx.fill();
+          ctx.moveTo(targetX, targetY);
+          ctx.lineTo(
+            targetX + Math.cos(tailAngle) * baseRadius,
+            targetY + Math.sin(tailAngle) * baseRadius
+          );
+          ctx.lineWidth = 2; // Thin lines to build up the gradient
+          ctx.globalAlpha = alpha;
+          ctx.stroke();
         }
-
-        ctx.restore();
       }
 
-      // Outer boundary ring
-      ctx.beginPath();
-      ctx.arc(ox, oy, baseRadius, 0, Math.PI * 2);
-      ctx.strokeStyle = rgba(brightness * 0.55);
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-
-      // Center dot
-      ctx.beginPath();
-      ctx.arc(ox, oy, 4, 0, Math.PI * 2);
-      ctx.fillStyle = rgba(brightness);
-      ctx.fill();
-
-      angleRef.current += (sweepSpeed * Math.PI) / 180;
-      animationId = requestAnimationFrame(draw);
+      animationFrameId = requestAnimationFrame(draw);
     };
 
     draw();
 
     return () => {
-      cancelAnimationFrame(animationId);
+      cancelAnimationFrame(animationFrameId);
       resizeObserver.disconnect();
-      window.removeEventListener("mousemove", handleMouseMove);
-      canvas.removeEventListener("mouseleave", handleMouseLeave);
+      if (enableMouseInteraction) {
+        canvas.removeEventListener("mousemove", handleMouseMove);
+        canvas.removeEventListener("mouseleave", handleMouseLeave);
+      }
     };
   }, [
-    color, backgroundColor, speed, scale, ringCount, spokeCount,
-    ringThickness, spokeThickness, sweepSpeed, sweepWidth, sweepLobes,
-    falloff, brightness, enableMouseInteraction, mouseInfluence,
+    speed,
+    scale,
+    ringCount,
+    spokeCount,
+    ringThickness,
+    spokeThickness,
+    sweepSpeed,
+    sweepWidth,
+    sweepLobes,
+    color,
+    backgroundColor,
+    falloff,
+    brightness,
+    enableMouseInteraction,
+    mouseInfluence,
   ]);
 
   return (
     <canvas
       ref={canvasRef}
-      className="w-full h-full"
-      style={{ display: "block", cursor: enableMouseInteraction ? "crosshair" : "default" }}
+      className="w-full h-full block"
+      style={{ pointerEvents: enableMouseInteraction ? "auto" : "none" }}
     />
   );
-}
+};
