@@ -86,12 +86,11 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen flex bg-background">
-      {/* Left Panel — Radar Animation */}
+    {/* Left Panel — Radar Animation */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-black">
 
-        {/* Radar fills the entire panel */}
-        <div className="absolute inset-0" style={{ pointerEvents: enableMouseInteraction ? "auto" : "none" }}>
+        {/* 1. FIXED: Removed the invalid inline style */}
+        <div className="absolute inset-0">
           <Radar
             speed={0.9}
             scale={1.3}
@@ -102,7 +101,7 @@ export default function AdminLogin() {
             sweepSpeed={1.2}
             sweepWidth={6}
             sweepLobes={1}
-            color="#0df103"
+            color="#F59E0B" // Tip: Changed to your iParkBayan Amber to match your theme!
             backgroundColor="#000000"
             falloff={1}
             brightness={0.9}
@@ -111,11 +110,11 @@ export default function AdminLogin() {
           />
         </div>
 
-        {/* Dark overlay to keep text readable over the animation */}
-        <div className="absolute inset-0 bg-black/40" />
+        {/* 2. FIXED: Added pointer-events-none so the mouse passes through the shadow */}
+        <div className="absolute inset-0 bg-black/40 pointer-events-none" />
 
-        {/* Branding content — sits on top */}
-        <div className="absolute inset-0 flex flex-col justify-between p-12 z-10">
+        {/* 3. FIXED: Added pointer-events-none so the mouse passes through the text wrapper */}
+        <div className="absolute inset-0 flex flex-col justify-between p-12 z-10 pointer-events-none">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="oklch(0.18 0.06 255)">
@@ -135,7 +134,7 @@ export default function AdminLogin() {
               className="text-4xl font-extrabold text-white leading-tight"
               style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
             >
-              Smart Parking<br />Management
+              Smart Parking<br/>Management
             </h1>
             <p className="text-white/70 mt-3 text-base">
               Monitor real-time parking availability, manage reservations, and generate reports for Lipa City Downtown.
