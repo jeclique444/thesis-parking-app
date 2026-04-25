@@ -10,7 +10,7 @@ import { MapPin, Shield, Clock, ChevronRight, Loader2 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-hero-abdCRj5qo4byPYNgtsGwCp.webp";
-const LOGO_IMG = "/ParKadav2.png";
+const LOGO_IMG = "/ParKadaBG.png";
 
 const features = [
   { icon: MapPin, title: "Real-Time Availability", desc: "See open slots instantly as they update" },
@@ -79,7 +79,7 @@ export default function SplashScreen() {
           }
           .trail-amber {
             box-shadow: 0 0 15px 3px rgba(75, 251, 36, 0.9);
-            background: #fbbf24;
+            background: #24fb2b;
           }
         `}
       </style>
@@ -119,8 +119,8 @@ export default function SplashScreen() {
 
         {/* Logo & Title */}
         <div className={`absolute inset-0 flex flex-col items-center justify-end pb-10 px-6 transition-all duration-1000 z-10 ${loaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-          <img src={LOGO_IMG} alt="iParkBayan" className="w-20 h-20 rounded-[2rem] shadow-2xl mb-6 border-4 border-white/10 relative z-10" />
-          <h1 className="text-4xl font-black text-white text-center tracking-tighter" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <img src={LOGO_IMG} alt="ParKada" className="w-35 h-35 rounded-[2rem] shadow-2xl mb-6 border-4 border-white/10 relative z-10" />
+          <h1 className="text-4xl font-black text-white text-center tracking-tighter" style={{ fontFamily: "'DM Sans', sans-serif" }}>
             Par<span className="text-amber-400">Kada</span>
           </h1>
           <p className="text-white/70 text-xs text-center mt-2 font-bold uppercase tracking-[0.2em]">
