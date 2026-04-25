@@ -168,7 +168,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             noiseIntensity={0.05}
             scanlineIntensity={0.3}
             scanlineFrequency={800}
-            hueShift={345}
+            hueShift={300}
             warpAmount={0.3}
             resolutionScale={1}
           />
