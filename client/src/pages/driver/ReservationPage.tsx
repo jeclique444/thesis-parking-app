@@ -5,6 +5,9 @@
  * "Park Now" system: Start time is always current time when booking
  * Duration limit: Based on remaining operating hours (max 6 hrs)
  * UI: Clean, modern card-based layout
+ * 
+ * UPDATED: "Verify Now" button now shows "Coming Soon" toast instead of navigating.
+ * FIXED: Vehicle dropdown only shows active vehicles (is_active = true).
  */
 import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
@@ -14,6 +17,7 @@ import { ChevronRight, Check, Clock, Ticket, AlertCircle, Accessibility, Shield,
 import { cn } from "@/lib/utils";
 import { supabase } from "../../supabaseClient";
 import { useVerification } from "@/hooks/useVerification";
+import { toast } from "sonner";
 
 // Helper function para makuha ang Closing Time (24h format)
 const getLotClosingTime24 = (openHours: string) => {
@@ -185,10 +189,13 @@ export default function ReservationPage() {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           setUserId(user.id);
+          // 🔥 FIX: Only fetch active vehicles (is_active = true)
           const { data: vehiclesData } = await supabase
             .from("vehicles")
             .select("*")
-            .eq("user_id", user.id);
+            .eq("user_id", user.id)
+            .eq("is_active", true);  // ✅ Added filter for active vehicles only
+
           setUserVehicles(vehiclesData || []);
 
           const { data: activeResData } = await supabase
@@ -275,9 +282,14 @@ export default function ReservationPage() {
 
   const isMyBooking = activeReservation?.user_id === userId;
 
+  // ========== UPDATED: Show "Coming Soon" toast instead of navigation ==========
+  const handleComingSoon = () => {
+    toast.info("Coming Soon! Verification feature will be available soon.");
+  };
+
   const handleProceed = () => {
     if (!isVerified) {
-      navigate('/driver/verification');
+      handleComingSoon();
       return;
     }
 
@@ -353,12 +365,13 @@ export default function ReservationPage() {
               </div>
             </div>
 
+            {/* UPDATED: Show Coming Soon toast instead of navigation */}
             <Button
-              onClick={() => navigate('/driver/verification')}
+              onClick={handleComingSoon}
               className="w-full h-12 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl"
             >
               <Shield className="w-4 h-4 mr-2" />
-              Verify Now (2 mins)
+              Verify Now (Coming Soon)
             </Button>
             
             <p className="text-[9px] text-center text-blue-600 mt-3">

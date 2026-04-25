@@ -1,14 +1,14 @@
 /*
  * iParkBayan — UpdatePasswordPage
- * Design: Civic Tech / Filipino Urban Identity
+ * Back arrow appears only when accessed from Profile page (?from=profile)
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, ArrowLeft } from "lucide-react";
 
 import { supabase } from "../../supabaseClient";
 
@@ -16,13 +16,26 @@ const BG_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdN
 
 export default function UpdatePasswordPage() {
   const [, navigate] = useLocation();
+  const [showBackArrow, setShowBackArrow] = useState(false);
+
+  useEffect(() => {
+    // Use window.location.search to get query parameters reliably
+    const params = new URLSearchParams(window.location.search);
+    const fromProfile = params.get('from') === 'profile';
+    setShowBackArrow(fromProfile);
+    
+    // Debug: log to console to verify
+    console.log("UpdatePasswordPage - fromProfile:", fromProfile);
+    console.log("window.location.search:", window.location.search);
+  }, []);
+
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // --- LOGIC PARA SA PASSWORD STRENGTH ---
+  // --- PASSWORD STRENGTH ---
   const getPasswordStrength = (pass: string) => {
     if (!pass) return "";
     if (pass.length < 8) return "Weak Password";
@@ -46,7 +59,7 @@ export default function UpdatePasswordPage() {
     strength === "Strong Password" ? "text-yellow-600" :
     strength === "Very Strong Password" ? "text-green-600" : "text-transparent";
 
-  // --- LOGIC PARA SA PASSWORD MATCH ---
+  // --- PASSWORD MATCH ---
   const showMatchError = confirmPassword.length > 0 && newPassword !== confirmPassword;
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -69,7 +82,6 @@ export default function UpdatePasswordPage() {
 
     setLoading(true);
     try {
-      // Supabase Update Password function
       const { error } = await supabase.auth.updateUser({
         password: newPassword
       });
@@ -77,8 +89,7 @@ export default function UpdatePasswordPage() {
       if (error) throw error;
 
       toast.success("Password updated successfully! You can now log in.");
-      // I-redirect ang user sa login screen (usually sa "/" kung nandoon ang login mo)
-      navigate("/"); 
+      navigate("/home"); 
       
     } catch (error: any) {
       console.error("UPDATE PASSWORD ERROR:", error);
@@ -88,6 +99,10 @@ export default function UpdatePasswordPage() {
     }
   };
 
+  const goBack = () => {
+    navigate("/profile");
+  };
+
   return (
     <div className="mobile-shell flex flex-col h-screen">
       {/* Header Area */}
@@ -95,6 +110,17 @@ export default function UpdatePasswordPage() {
         <img src={BG_IMG} alt="" className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-[oklch(0.18_0.06_255/0.8)] to-[oklch(0.18_0.06_255/0.95)]" />
         
+        {/* Back Button - conditional */}
+        {showBackArrow && (
+          <button
+            onClick={goBack}
+            className="absolute top-12 left-4 z-20 w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/30 transition-all active:scale-95"
+            aria-label="Go back"
+          >
+            <ArrowLeft size={22} />
+          </button>
+        )}
+
         <div className="absolute bottom-8 left-6 right-6">
           <p className="text-white/70 text-sm font-medium mb-1">
             Secure your account
@@ -105,7 +131,7 @@ export default function UpdatePasswordPage() {
         </div>
       </div>
 
-      {/* Form Area */}
+      {/* Form Area (unchanged) */}
       <div className="flex-1 bg-white rounded-t-3xl -mt-6 px-6 pt-8 pb-8 overflow-y-auto">
         <form onSubmit={handleUpdate} className="space-y-5">
           <p className="text-sm text-muted-foreground leading-relaxed mb-4">
@@ -134,7 +160,6 @@ export default function UpdatePasswordPage() {
                 {showPass ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
-            {/* STRENGTH INDICATOR */}
             {newPassword.length > 0 && (
               <p className={`text-xs font-semibold mt-1 ${strengthColor}`}>
                 {strength}
@@ -166,7 +191,6 @@ export default function UpdatePasswordPage() {
                 {showConfirm ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
-            {/* MATCH INDICATOR */}
             {showMatchError && (
               <p className="text-xs font-semibold text-red-500 mt-1">
                 Passwords do not match

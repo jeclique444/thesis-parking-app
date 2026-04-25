@@ -1,10 +1,12 @@
 /*
  * iParkBayan — VehiclesPage (Supabase Connected & Real-time Alerts)
+ * Updated: Added car brand dropdown (same as registration) and LTO plate validation.
+ * Removed back arrow button.
  */
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import MobileLayout from "@/components/MobileLayout";
-import { Car, Plus, Star, Trash2, Loader2, Info } from "lucide-react";
+import { Car, Plus, Trash2, Loader2, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,13 +14,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { supabase } from "../../supabaseClient";
 import { toast } from "sonner";
 
+// Allowed 4-Wheel Car Brands (same as RegisterPage)
+const ALLOWED_CAR_BRANDS = [
+  "Audi", "BMW", "BYD", "Changan", "Chery", "Chevrolet", "Dodge", "Dongfeng", "Ford", "Foton", "GAC Motor", "Geely", "GWM", 
+  "Honda", "Hyundai", "Isuzu", "Jaecoo", "Jaguar", "Jeep", "Jetour", "Kia", "Land Rover", "Lexus", "Mahindra", "Mazda", "Mercedes-Benz", 
+  "MG", "Mini", "Mitsubishi", "Nissan", "Omoda", "Peugeot", "Porsche", "Subaru", "Suzuki", "Tata", "Toyota", "Volkswagen", "Volvo", "Wuling"
+];
+
 export default function VehiclesPage() {
   const [, navigate] = useLocation();
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ plate: "", model: "", color: "" });
+  const [form, setForm] = useState({ plate: "", brand: "", model: "", color: "" });
 
   const MAX_VEHICLES = 3; 
   const isMaxReached = vehicles.length >= MAX_VEHICLES;
@@ -27,17 +36,15 @@ export default function VehiclesPage() {
     fetchVehicles();
   }, []);
 
-  // 1. Fetch from Database (KUKUNIN LANG ANG MGA ACTIVE)
+  // Fetch only active vehicles
   const fetchVehicles = async () => {
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
       if (authError || !user) {
         setLoading(false);
         return; 
       }
 
-      // 🔥 Kukunin lang natin yung mga is_active = true
       const { data, error } = await supabase
         .from("vehicles")
         .select("*")
@@ -46,9 +53,7 @@ export default function VehiclesPage() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-
       setVehicles(data || []);
-      
     } catch (err: any) {
       console.error(err);
       toast.error("Failed to load vehicles");
@@ -57,10 +62,21 @@ export default function VehiclesPage() {
     }
   };
 
-  // 2. Add Vehicle
+  // LTO Plate Number Validation (strict)
+  const validateLTOPlate = (plate: string): boolean => {
+    const plateRegex = /^[A-Z]{3}[\s-]?[0-9]{3,4}$/i;
+    return plateRegex.test(plate.trim());
+  };
+
+  // Add Vehicle
   const addVehicle = async () => {
-    if (!form.plate || !form.model || !form.color) {
+    if (!form.plate || !form.brand || !form.model || !form.color) {
       toast.error("Please fill all fields");
+      return;
+    }
+
+    if (!validateLTOPlate(form.plate)) {
+      toast.error("Invalid Plate Number. Must be LTO standard (e.g., ABC 123 or ABC 1234).");
       return;
     }
 
@@ -72,11 +88,10 @@ export default function VehiclesPage() {
         return;
       }
 
-      // 🔥 STRICT PLATE SANITIZATION 🔥
-      // Tatanggalin lahat ng letters/numbers na HINDI A-Z at 0-9 (spaces, dashes, etc.)
+      // Sanitize plate: remove spaces/dashes, keep only A-Z0-9
       const sanitizedPlate = form.plate.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
-      // Check for exact duplicate sa system natin (kahit dinelete na dati, bawal pa rin magkapareho)
+      // Check duplicate plate (even inactive is considered duplicate)
       const { data: existingVehicle, error: checkError } = await supabase
         .from("vehicles")
         .select("id")
@@ -84,14 +99,13 @@ export default function VehiclesPage() {
         .maybeSingle(); 
 
       if (checkError) throw checkError;
-
       if (existingVehicle) {
         toast.error(`Plate number ${sanitizedPlate} is already registered!`);
         setAdding(false);
         return; 
       }
 
-      // Bilangin lang ang ACTIVE na sasakyan para sa Limit (is_active = true)
+      // Count active vehicles for limit check
       const { count, error: countError } = await supabase
         .from("vehicles")
         .select("*", { count: 'exact', head: true })
@@ -99,24 +113,26 @@ export default function VehiclesPage() {
         .eq("is_active", true);
 
       if (countError) throw countError;
-
       if ((count || 0) >= MAX_VEHICLES) {
-        toast.error("You've reached the maximum limit of 3 registered vehicles. Please delete an existing one first.");
+        toast.error(`You can only register up to ${MAX_VEHICLES} vehicles. Please delete an existing one first.`);
         setOpen(false); 
-        setForm({ plate: "", model: "", color: "" }); 
+        setForm({ plate: "", brand: "", model: "", color: "" }); 
         setAdding(false); 
         return; 
       }
 
-      // Save to database
+      // Combine brand and model as full model name (e.g., "Toyota Vios")
+      const fullModel = `${form.brand} ${form.model.trim()}`;
+
+      // Insert new vehicle
       const { error: insertError } = await supabase
         .from("vehicles")
         .insert([{
           user_id: user.id,
-          plate: sanitizedPlate, // Naka-sanitize na na plate ang isesave
-          model: form.model.trim(),
+          plate: sanitizedPlate,
+          model: fullModel,
           color: form.color.trim(),
-          is_active: true // Default na active
+          is_active: true
         }]);
 
       if (insertError?.code === '23505') { 
@@ -127,16 +143,17 @@ export default function VehiclesPage() {
         throw insertError;
       }
 
+      // Create notification
       await supabase.from("notifications").insert([{
         user_id: user.id,
         title: "Vehicle Registered 🚗",
-        message: `Your ${form.model} (${sanitizedPlate}) has been added to your garage.`,
+        message: `Your ${fullModel} (${sanitizedPlate}) has been added to your garage.`,
         type: "system",
         read: false
       }]);
 
       toast.success("Vehicle added!");
-      setForm({ plate: "", model: "", color: "" });
+      setForm({ plate: "", brand: "", model: "", color: "" });
       setOpen(false);
       fetchVehicles(); 
     } catch (err: any) {
@@ -146,21 +163,18 @@ export default function VehiclesPage() {
     }
   };
 
-  // 3. Remove Vehicle from DB (SOFT DELETE)
+  // Soft delete vehicle
   const removeVehicle = async (id: string, plate: string) => {
     const confirm = window.confirm(`Are you sure you want to remove ${plate}?`);
     if (!confirm) return;
 
     try {
-      // 🔥 Imbes na .delete(), inupdate lang natin yung is_active para maging false
       const { error } = await supabase
         .from("vehicles")
         .update({ is_active: false })
         .eq("id", id);
-        
       if (error) throw error;
 
-      // Tanggalin sa UI yung sasakyan
       setVehicles((v) => v.filter((x) => x.id !== id));
       toast.success("Vehicle removed");
     } catch (err: any) {
@@ -169,7 +183,7 @@ export default function VehiclesPage() {
   };
 
   return (
-    <MobileLayout title="My Vehicles" showBack onBack={() => navigate("/profile")}>
+    <MobileLayout title="My Vehicles">
       <div className="page-enter px-4 py-4 space-y-4 pb-24">
         
         {/* Vehicles List */}
@@ -188,14 +202,14 @@ export default function VehiclesPage() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                 <p className="text-sm font-black font-mono text-slate-800 uppercase tracking-tighter">{v.plate}</p>
+                  <p className="text-sm font-black font-mono text-slate-800 uppercase tracking-tighter">{v.plate}</p>
                 </div>
                 <p className="text-[11px] font-bold text-slate-400 uppercase">{v.model} • {v.color}</p>
               </div>
               <button 
                 onClick={() => removeVehicle(v.id, v.plate)} 
                 className="w-10 h-10 flex items-center justify-center text-slate-300 hover:text-rose-500 transition-colors"
-                  >
+              >
                 <Trash2 size={18} />
               </button>
             </div>
@@ -226,24 +240,46 @@ export default function VehiclesPage() {
               <DialogTitle className="text-xl font-black uppercase tracking-tight">Add Vehicle</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
+              {/* Plate Number */}
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Plate Number</Label>
                 <Input 
                   value={form.plate} 
-                  onChange={(e) => setForm((f) => ({ ...f, plate: e.target.value }))} 
+                  onChange={(e) => setForm((f) => ({ ...f, plate: e.target.value.toUpperCase() }))} 
                   placeholder="ABC 1234" 
                   className="h-12 rounded-xl font-mono font-black uppercase bg-slate-50 border-none" 
                 />
+                <p className="text-[9px] text-slate-400 ml-1">LTO format: 3 letters + 3-4 numbers (e.g., ABC 123)</p>
               </div>
+
+              {/* Car Brand Dropdown */}
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Vehicle Model</Label>
+                <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Car Brand</Label>
+                <select
+                  value={form.brand}
+                  onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))}
+                  className="w-full h-12 rounded-xl bg-slate-50 border-none px-4 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="">Select brand</option>
+                  {ALLOWED_CAR_BRANDS.map(brand => (
+                    <option key={brand} value={brand}>{brand}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Model */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Model</Label>
                 <Input 
                   value={form.model} 
                   onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))} 
-                  placeholder="Toyota Vios" 
+                  placeholder="e.g., Vios" 
                   className="h-12 rounded-xl font-bold bg-slate-50 border-none" 
+                  disabled={!form.brand}
                 />
               </div>
+
+              {/* Color */}
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Color</Label>
                 <Input 
@@ -253,9 +289,10 @@ export default function VehiclesPage() {
                   className="h-12 rounded-xl font-bold bg-slate-50 border-none" 
                 />
               </div>
+
               <Button 
                 onClick={addVehicle} 
-                disabled={adding}
+                disabled={adding || !form.brand || !form.model || !form.color || !validateLTOPlate(form.plate)}
                 className="w-full h-14 rounded-2xl font-black text-white shadow-xl mt-2" 
                 style={{ background: "oklch(0.22 0.07 255)" }}
               >

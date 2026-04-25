@@ -1,7 +1,8 @@
 /*
  * ParKada — NotificationPage
  * Fixed: 30-min expiry notice, reservation completed, long press selection, pull-to-refresh
- * Fixed: TypeScript errors (parking_lots array access, async cleanup)
+ * Added: Reliable delete notifications (batch delete with selection mode)
+ * Strict pull-to-refresh: Only works at top, standard refresh indicator.
  */
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
@@ -71,18 +72,20 @@ export default function NotificationPage() {
   const [, navigate] = useLocation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pulling, setPulling] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [limit, setLimit] = useState(50);
-  const refreshing = useRef(false);
-  const isProcessing = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const touchStartY = useRef(0);
   
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
-  const isAtTop = useRef(true);
+
+  // Pull-to-refresh state
+  const [pullDistance, setPullDistance] = useState(0);
+  const touchStartY = useRef(0);
+  const isPulling = useRef(false);
+  const refreshingFlag = useRef(false);
 
   // Helper: send notification with deduplication using flag field
   const sendNotifIfNeeded = async (
@@ -136,9 +139,10 @@ export default function NotificationPage() {
   useEffect(() => {
     if (!user) return;
 
+    let isProcessing = false;
     const runCheck = async () => {
-      if (isProcessing.current) return;
-      isProcessing.current = true;
+      if (isProcessing) return;
+      isProcessing = true;
       try {
         // Get all active or booked reservations for this user
         const { data: reservations } = await supabase
@@ -235,7 +239,7 @@ export default function NotificationPage() {
       } catch (err) {
         console.error("Background check error:", err);
       } finally {
-        isProcessing.current = false;
+        isProcessing = false;
       }
     };
 
@@ -244,8 +248,9 @@ export default function NotificationPage() {
     return () => clearInterval(interval);
   }, [user]);
 
-  // Fetch notifications (unchanged)
-  const fetchNotifications = useCallback(async (userId: string) => {
+  // Fetch notifications
+  const fetchNotifications = useCallback(async (userId: string, isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
     const { data } = await supabase
       .from("notifications")
       .select("*")
@@ -255,8 +260,7 @@ export default function NotificationPage() {
       .limit(limit);
     setNotifications(data || []);
     setLoading(false);
-    setPulling(false);
-    refreshing.current = false;
+    setRefreshing(false);
   }, [limit]);
 
   const loadMore = async () => {
@@ -318,11 +322,11 @@ export default function NotificationPage() {
     } else toast.error("Failed to mark as read");
   };
 
-  // Long press handlers (7 seconds)
+  // Long press handlers (1 second)
   const handleTouchStartNotification = (e: React.TouchEvent, id: string) => {
     if (selectionMode) return;
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    longPressTimer.current = setTimeout(() => enterSelectionMode(id), 7000);
+    longPressTimer.current = setTimeout(() => enterSelectionMode(id), 3000);
   };
 
   const handleTouchEndNotification = () => {
@@ -342,41 +346,53 @@ export default function NotificationPage() {
     if (!error) setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
 
-  // Strict pull-to-refresh
+  // --- STRICT PULL-TO-REFRESH ---
   const handleTouchStart = (e: React.TouchEvent) => {
     const container = containerRef.current;
     if (!container) return;
-    if (container.scrollTop === 0) {
+    // Only allow pull-to-refresh when scrolled to top
+    if (container.scrollTop === 0 && !refreshingFlag.current && !selectionMode) {
       touchStartY.current = e.touches[0].clientY;
-      isAtTop.current = true;
+      isPulling.current = true;
     } else {
-      isAtTop.current = false;
+      isPulling.current = false;
       touchStartY.current = 0;
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isAtTop.current) return;
-    if (touchStartY.current === 0) return;
+    if (!isPulling.current) return;
     const deltaY = e.touches[0].clientY - touchStartY.current;
-    if (deltaY > 30 && !refreshing.current && !selectionMode) {
-      setPulling(true);
-      e.preventDefault();
+    if (deltaY > 0) {
+      e.preventDefault(); // prevent scroll while pulling
+      const newDistance = Math.min(deltaY * 0.5, 80); // max pull distance 80px
+      setPullDistance(newDistance);
+      if (newDistance > 50 && !refreshingFlag.current) {
+        // threshold reached, but we'll trigger on touch end
+      }
     }
   };
 
   const handleTouchEnd = async () => {
-    if (pulling && !refreshing.current && user && !selectionMode) {
-      refreshing.current = true;
-      setPulling(false);
-      await fetchNotifications(user.id);
+    if (!isPulling.current) {
+      setPullDistance(0);
+      return;
+    }
+    isPulling.current = false;
+    if (pullDistance > 50 && !refreshingFlag.current && user && !selectionMode) {
+      // Trigger refresh
+      refreshingFlag.current = true;
+      setPullDistance(80); // lock at max to show indicator
+      await fetchNotifications(user.id, true);
+      refreshingFlag.current = false;
       toast.success("Refreshed");
     }
+    setPullDistance(0);
     touchStartY.current = 0;
-    isAtTop.current = false;
   };
+  // --- END PULL-TO-REFRESH ---
 
-  // Initial load & real-time subscription (fixed cleanup)
+  // Initial load
   useEffect(() => {
     const init = async () => {
       const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -388,7 +404,7 @@ export default function NotificationPage() {
     init();
   }, [fetchNotifications]);
 
-  // Real-time subscription – fixed async cleanup
+  // Real-time subscription – fixed cleanup
   useEffect(() => {
     if (!user?.id) return;
     const channel = supabase.channel('notif-realtime-user')
@@ -399,7 +415,7 @@ export default function NotificationPage() {
         filter: `user_id=eq.${user.id}`
       }, () => fetchNotifications(user.id))
       .subscribe();
-    return () => { supabase.removeChannel(channel); }; // no return of promise
+    return () => { supabase.removeChannel(channel); };
   }, [user?.id, fetchNotifications]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -453,13 +469,14 @@ export default function NotificationPage() {
           onTouchEnd={handleTouchEnd}
           className="flex-1 overflow-y-auto"
         >
-          <div className="p-4 space-y-3 pb-24">
-            {pulling && (
-              <div className="flex justify-center py-2">
-                <Loader2 className="animate-spin text-slate-400" size={20} />
-              </div>
-            )}
+          {/* Pull indicator */}
+          {pullDistance > 0 && (
+            <div className="flex justify-center pt-2 pb-1 transition-all duration-100" style={{ opacity: Math.min(pullDistance / 80, 1) }}>
+              <Loader2 className="animate-spin text-slate-400" size={20} />
+            </div>
+          )}
 
+          <div className="p-4 space-y-3 pb-24">
             {loading ? (
               <div className="space-y-4">
                 {[1,2,3].map(i => (

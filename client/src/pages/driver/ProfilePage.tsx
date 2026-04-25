@@ -1,14 +1,17 @@
 /*
  * iParkBayan — ProfilePage (GCash-style Verification Logic)
  * Updated: Verification is now "Coming Soon" (disabled)
+ * Vehicle management requires verified status.
+ * Removed redundant menu items; added Payment Methods & Favorite Slots (both Coming Soon).
+ * Help & Support now opens Gmail compose (works on laptops without email client).
  */
 import { cn } from "@/lib/utils"; 
 import { useEffect, useState } from "react";
 import MobileLayout from "@/components/MobileLayout";
 import { 
   Car, 
-  BookOpen, 
-  Bell, 
+  CreditCard,
+  Star,
   ShieldCheck, 
   HelpCircle, 
   LogOut, 
@@ -108,6 +111,35 @@ export default function ProfilePage() {
   const isUnverified = userProfile?.verification_status === 'unverified';
   const isPending = userProfile?.verification_status === 'pending';
 
+  // Vehicle menu click handler
+  const handleManageVehicles = () => {
+    if (!isVerified) {
+      toast.info("Verification required to add or manage vehicles. This feature will be available soon.");
+      return;
+    }
+    navigate("/vehicles");
+  };
+
+  // Determine label for My Vehicles
+  const getVehicleLabel = () => {
+    if (!isVerified) return "Verification required to add vehicles";
+    if (stats.totalVehicles >= MAX_VEHICLES) return `Max limit reached (${MAX_VEHICLES}/${MAX_VEHICLES})`;
+    return "Manage registered vehicles";
+  };
+
+  // Coming soon handlers
+  const handleComingSoon = () => {
+    toast.info("Coming Soon! This feature will be available in a future update.");
+  };
+
+  // Help & Support handler - opens Gmail compose (works on laptops)
+  const handleHelpSupport = () => {
+    const email = "yourparkada@gmail.com";
+    const gmailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}`;
+    // Open in same tab (redirect)
+    window.location.href = gmailComposeUrl;
+  };
+
   return (
     <MobileLayout title="Profile">
       <div className="bg-[#F8F9FB] min-h-screen px-4 py-6 space-y-4 pb-28">
@@ -135,7 +167,7 @@ export default function ProfilePage() {
                       Fully Verified
                     </span>
                     <button 
-                      onClick={() => toast.info("Your Benefits: 20% Discount for Senior/PWD slots and priority customer support.")}
+                      onClick={() => toast.info("Your Benefits: COMING VERY SOONEST!")}
                       className="text-[10px] text-slate-400 underline underline-offset-2 mt-0.5"
                     >
                       View Benefits
@@ -171,7 +203,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* 🔥 Updated: "Get Verified Now" Banner - Coming Soon (disabled) */}
+        {/* "Get Verified Now" Banner - Coming Soon (disabled) */}
         {isUnverified && (
           <div 
             onClick={() => toast.info("Coming Soon! Verification feature will be available soon.")}
@@ -192,37 +224,37 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* Action Menu List */}
+        {/* Action Menu List - Updated */}
         <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100">
           <ProfileMenuItem 
             icon={<Car size={20} />} 
             title="My Vehicles" 
-            label={stats.totalVehicles >= MAX_VEHICLES ? "Max limit reached (3/3)" : "Manage registered vehicles"}
-            onClick={() => navigate("/vehicles")} 
+            label={getVehicleLabel()}
+            onClick={handleManageVehicles}
           />
           <ProfileMenuItem 
-            icon={<BookOpen size={20} />} 
-            title="Reservation History" 
-            label="View all bookings"
-            onClick={() => navigate("/reservations")} 
+            icon={<CreditCard size={20} />} 
+            title="Payment Methods" 
+            label="Add or manage payment options"
+            onClick={handleComingSoon}
           />
           <ProfileMenuItem 
-            icon={<Bell size={20} />} 
-            title="Notifications" 
-            label="Manage alerts"
-            onClick={() => navigate("/notifications")} 
+            icon={<Star size={20} />} 
+            title="Favorite Slots" 
+            label="Save your go-to parking spots"
+            onClick={handleComingSoon}
           />
           <ProfileMenuItem 
             icon={<ShieldCheck size={20} />} 
             title="Privacy & Security" 
             label="Password and data settings"
-            onClick={() => navigate("/update-password")}
+            onClick={() => navigate("/update-password?from=profile")}
           />
           <ProfileMenuItem 
             icon={<HelpCircle size={20} />} 
             title="Help & Support" 
             label="FAQs and contact"
-            onClick={() => window.location.href = "mailto:yourparkada@gmail.com"}
+            onClick={handleHelpSupport}
             isLast
           />
         </div>
@@ -263,7 +295,7 @@ function ProfileMenuItem({ icon, title, label, onClick, isLast }: any) {
           <h4 className="text-[15px] font-bold text-slate-800 leading-tight mb-0.5">{title}</h4>
           <p className={cn(
             "text-[12px] font-medium",
-            label.includes("Max limit") || label.includes("Upload ID") ? "text-amber-500" : "text-slate-400"
+            (label.includes("Verification required") || label.includes("Max limit")) ? "text-amber-500" : "text-slate-400"
           )}>
             {label}
           </p>
