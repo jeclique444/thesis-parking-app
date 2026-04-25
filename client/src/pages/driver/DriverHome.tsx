@@ -1,12 +1,12 @@
 /*
  * iParkBayan — DriverHome (With Nearby Suggestion, Live Countdown, Auto-Cleanup & Overnight Fix)
- * UPDATED: Primary suggestions max 5 (accredited priority + one non-accredited filler)
- * Removed "Other Parking" section – all info is in primary list, rest via map
+ * UPDATED: Dropdown shows vehicle name (Toyota Vios). Blue themed select.
+ * Automatically selects the one with the least remaining time (soonest to expire)
  */
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
 import MobileLayout from "@/components/MobileLayout";
-import { MapPin, Clock, ChevronRight, Bell, Search, RefreshCcw, Navigation, AlertCircle, WifiOff, Star } from "lucide-react";
+import { MapPin, Clock, ChevronRight, Bell, Search, RefreshCcw, Navigation, AlertCircle, WifiOff, Star, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "../../supabaseClient";
@@ -119,12 +119,23 @@ const renderStars = (rating: number) => {
   );
 };
 
+// Helper to get display string for dropdown (vehicle model, add plate if duplicate)
+function getVehicleDisplay(reservation: any, allReservations: any[]) {
+  const model = reservation.vehicleModel || reservation.vehiclePlate;
+  const duplicates = allReservations.filter(r => r.vehicleModel === reservation.vehicleModel && r.vehiclePlate !== reservation.vehiclePlate);
+  if (duplicates.length > 0) {
+    return `${model} - ${reservation.vehiclePlate}`;
+  }
+  return model;
+}
+
 export default function DriverHome() {
   const [, navigate] = useLocation();
   const [userName, setUserName] = useState<string>("Driver");
   const [dbParkingLots, setDbParkingLots] = useState<any[]>([]);
   const [dbSlots, setDbSlots] = useState<any[]>([]);
-  const [activeReservation, setActiveReservation] = useState<any>(null);
+  const [activeReservations, setActiveReservations] = useState<any[]>([]);
+  const [selectedReservationId, setSelectedReservationId] = useState<string | null>(null);
   const [hasUnreadNotifs, setHasUnreadNotifs] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -213,7 +224,7 @@ export default function DriverHome() {
           .limit(1);
         setHasUnreadNotifs(!!(unreadNotif && unreadNotif.length > 0));
 
-        // Explicit columns para sa parking_lots (kasama ang accreditation at rating)
+        // Fetch parking lots and slots
         const [lotsRes, slotsRes] = await Promise.all([
           supabase.from("parking_lots").select(`
             id, name, address, latitude, longitude, open_hours, rate_per_hour,
@@ -227,6 +238,7 @@ export default function DriverHome() {
         if (slotsRes.data) setDbSlots(slotsRes.data);
         if (!isSilent && navigator.vibrate) navigator.vibrate(50);
 
+        // Fetch all active reservations
         const { data: resData } = await supabase
           .from("reservations")
           .select(`
@@ -238,43 +250,69 @@ export default function DriverHome() {
           `)
           .eq("user_id", user.id)
           .in("status", activeStatuses)
-          .order("created_at", { ascending: false })
-          .limit(1);
+          .order("created_at", { ascending: false });
+
+        // Fetch vehicle models for the plates involved
+        let vehicleMap = new Map<string, string>();
+        if (resData && resData.length > 0) {
+          const plates = [...new Set(resData.map(r => r.plate_number).filter(Boolean))];
+          if (plates.length > 0) {
+            const { data: vehicles } = await supabase
+              .from("vehicles")
+              .select("plate, model")
+              .in("plate", plates);
+            if (vehicles) {
+              vehicles.forEach(v => vehicleMap.set(v.plate, v.model));
+            }
+          }
+        }
 
         if (resData && resData.length > 0) {
-          const rawRes = resData[0];
-          const lotData = Array.isArray(rawRes.parking_lots) ? rawRes.parking_lots[0] : rawRes.parking_lots;
-          const slotData = Array.isArray(rawRes.parking_slots) ? rawRes.parking_slots[0] : rawRes.parking_slots;
-          setActiveReservation({
-            id: rawRes.id,
-            user_id: rawRes.user_id,
-            total_amount: rawRes.total_amount,
-            lotName: lotData?.name || "Parking Lot",
-            lot_id: rawRes.lot_id,
-            hourly_rate: lotData?.rate_per_hour || 30,
-            slotLabel: slotData?.label || "-",
-            vehiclePlate: rawRes.plate_number || "N/A",
-            start_time: rawRes.start_time,
-            end_time: rawRes.end_time,
-            duration: rawRes.duration || 0,
-            extension_count: rawRes.extension_count || 0,
-            extension_fee: rawRes.extension_fee || 0,
-            fine_amount: rawRes.fine_amount || 0,
-            fine_paid: rawRes.fine_paid || false,
-            status: rawRes.status || "PENDING",
-            extension_fee_setting: lotData?.extension_fee || 10,
-            fine_penalty: lotData?.fine_penalty || 50,
-            overtime_rate: lotData?.overtime_rate || 30,
-            grace_period_minutes: lotData?.grace_period_minutes || 15,
-            allow_extensions: lotData?.allow_extensions ?? true,
-            extension_rate_per_hour: lotData?.extension_rate_per_hour ?? lotData?.rate_per_hour ?? 30,
-            is_accredited: lotData?.is_accredited || false,
-            average_rating: lotData?.average_rating || 0,
-            total_reviews: lotData?.total_reviews || 0,
-            createdAt: rawRes.created_at,
+          // Format each reservation, add vehicleModel
+          const formatted = resData.map((rawRes: any) => {
+            const lotData = Array.isArray(rawRes.parking_lots) ? rawRes.parking_lots[0] : rawRes.parking_lots;
+            const slotData = Array.isArray(rawRes.parking_slots) ? rawRes.parking_slots[0] : rawRes.parking_slots;
+            const vehicleModel = vehicleMap.get(rawRes.plate_number) || rawRes.plate_number;
+            return {
+              id: rawRes.id,
+              user_id: rawRes.user_id,
+              total_amount: rawRes.total_amount,
+              lotName: lotData?.name || "Parking Lot",
+              lot_id: rawRes.lot_id,
+              hourly_rate: lotData?.rate_per_hour || 30,
+              slotLabel: slotData?.label || "-",
+              vehiclePlate: rawRes.plate_number || "N/A",
+              vehicleModel: vehicleModel,
+              start_time: rawRes.start_time,
+              end_time: rawRes.end_time,
+              duration: rawRes.duration || 0,
+              extension_count: rawRes.extension_count || 0,
+              extension_fee: rawRes.extension_fee || 0,
+              fine_amount: rawRes.fine_amount || 0,
+              fine_paid: rawRes.fine_paid || false,
+              status: rawRes.status || "PENDING",
+              extension_fee_setting: lotData?.extension_fee || 10,
+              fine_penalty: lotData?.fine_penalty || 50,
+              overtime_rate: lotData?.overtime_rate || 30,
+              grace_period_minutes: lotData?.grace_period_minutes || 15,
+              allow_extensions: lotData?.allow_extensions ?? true,
+              extension_rate_per_hour: lotData?.extension_rate_per_hour ?? lotData?.rate_per_hour ?? 30,
+              is_accredited: lotData?.is_accredited || false,
+              average_rating: lotData?.average_rating || 0,
+              total_reviews: lotData?.total_reviews || 0,
+              createdAt: rawRes.created_at,
+            };
           });
+          // Sort by end_time (soonest first)
+          formatted.sort((a, b) => new Date(a.end_time).getTime() - new Date(b.end_time).getTime());
+          setActiveReservations(formatted);
+          // Auto‑select the soonest (first) if none selected, or if selected reservation is no longer in list
+          if (!selectedReservationId || !formatted.some(r => r.id === selectedReservationId)) {
+            setSelectedReservationId(formatted[0]?.id || null);
+          }
         } else {
-          setActiveReservation(null);
+          setActiveReservations([]);
+          setSelectedReservationId(null);
         }
       } catch (error) {
         console.error("Dashboard Fetch Error:", error);
@@ -283,28 +321,16 @@ export default function DriverHome() {
         setIsRefreshing(false);
       }
     },
-    [runCleanup]
+    [runCleanup, selectedReservationId]
   );
 
   useEffect(() => {
     fetchAllData();
     const channel = supabase
       .channel("db-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "parking_slots" },
-        () => fetchAllData(true)
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "reservations" },
-        () => fetchAllData(true)
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "notifications" },
-        () => fetchAllData(true)
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "parking_slots" }, () => fetchAllData(true))
+      .on("postgres_changes", { event: "*", schema: "public", table: "reservations" }, () => fetchAllData(true))
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => fetchAllData(true))
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -329,7 +355,6 @@ export default function DriverHome() {
 
   // 🎯 Primary suggestions: up to 5 lots (accredited priority + non-accredited filler)
   const primaryLots = useMemo(() => {
-    // Compute distance and filter open & available
     let lotsWithDistance = dbParkingLots.map((lot) => {
       const lotSlots = dbSlots.filter((s) => s.lot_id === lot.id);
       const availableCount = lotSlots.filter((s) => s.status === "available").length;
@@ -346,37 +371,28 @@ export default function DriverHome() {
       return { ...lot, lotSlots, availableCount, distance, isOpen };
     }).filter((lot) => lot.isOpen && lot.availableCount > 0);
 
-    // Separate accredited vs non-accredited
     const accredited = lotsWithDistance.filter((lot) => lot.is_accredited === true);
     const nonAccredited = lotsWithDistance.filter((lot) => !lot.is_accredited);
 
-    // Find public market (type === 'public' or name includes 'market')
     const publicMarket = accredited.find(
       (lot) => lot.type === "public" || lot.name.toLowerCase().includes("market")
     );
     const privateAccredited = accredited.filter((lot) => lot.id !== publicMarket?.id);
-
-    // Sort private accredited by distance
     privateAccredited.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
     const top3Private = privateAccredited.slice(0, 3);
 
-    // Build primary list: top3 private + public market (if exists)
     let primary = [...top3Private];
     if (publicMarket && !primary.some((l) => l.id === publicMarket.id)) {
       primary.push(publicMarket);
     }
-
-    // Fill remaining slots up to 5 with the nearest non-accredited lots
     if (primary.length < 5 && nonAccredited.length > 0) {
       const needed = 5 - primary.length;
       const nearestNonAccredited = nonAccredited.slice(0, needed);
       primary.push(...nearestNonAccredited);
     }
-
     return primary.slice(0, 5);
   }, [dbParkingLots, dbSlots, userLocation]);
 
-  // Stats based on primary lots only (accredited + maybe one non-accredited, we still count slots from primary lots)
   const primaryLotIds = primaryLots.map((lot) => lot.id);
   const primarySlots = dbSlots.filter((slot) => primaryLotIds.includes(slot.lot_id));
   const totalAvailable = primarySlots.filter((s) => s.status === "available").length;
@@ -385,6 +401,8 @@ export default function DriverHome() {
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+
+  const selectedReservation = activeReservations.find(r => r.id === selectedReservationId);
 
   if (!isOnline) {
     return (
@@ -396,7 +414,6 @@ export default function DriverHome() {
           <button
             onClick={() => window.location.reload()}
             className="mt-4 bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium"
-            aria-label="Retry connecting"
           >
             Retry
           </button>
@@ -419,14 +436,10 @@ export default function DriverHome() {
         <button
           onClick={() => navigate("/notifications")}
           className="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-muted"
-          aria-label="View notifications"
         >
-          <Bell size={20} aria-hidden="true" />
+          <Bell size={20} />
           {hasUnreadNotifs && (
-            <span
-              className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full"
-              aria-label="Unread notifications"
-            />
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full" />
           )}
         </button>
       }
@@ -447,14 +460,13 @@ export default function DriverHome() {
             <button
               onClick={() => navigate("/map")}
               className="flex items-center gap-2 bg-amber-400 text-amber-950 text-xs font-bold px-4 py-2 rounded-xl self-start active:scale-95 transition-transform"
-              aria-label="Search all parking lots"
             >
-              <Search size={14} aria-hidden="true" /> Search Now
+              <Search size={14} /> Search Now
             </button>
           </div>
         </div>
 
-        {/* Active Reservation Card */}
+        {/* Active Reservation Card with Dropdown */}
         <div className="mx-4 mt-6">
           <div className="flex justify-between items-end mb-2">
             <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
@@ -463,68 +475,84 @@ export default function DriverHome() {
             <button
               onClick={() => fetchAllData(false)}
               className="flex items-center gap-1 text-[10px] font-bold text-blue-600 active:opacity-50"
-              aria-label="Refresh data"
             >
-              <RefreshCcw size={10} className={cn(isRefreshing && "animate-spin")} aria-hidden="true" />
+              <RefreshCcw size={10} className={cn(isRefreshing && "animate-spin")} />
               {isRefreshing ? "Updating..." : "Refresh"}
             </button>
           </div>
 
-          {activeReservation ? (
-            <div
-              className="bg-slate-900 text-white rounded-2xl p-4 shadow-xl border border-white/5"
-              role="button"
-              tabIndex={0}
-              aria-label={`View reservation details for ${activeReservation.lotName}`}
-            >
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="font-extrabold text-base tracking-tight">{activeReservation.lotName}</p>
-                  <p className="text-white/60 text-xs mt-0.5">
-                    Slot {activeReservation.slotLabel} •{" "}
-                    <span className="uppercase font-mono text-amber-400">
-                      {activeReservation.vehiclePlate}
-                    </span>
-                  </p>
+          {activeReservations.length > 0 ? (
+            <>
+              {/* 🔽 Blue dropdown with vehicle names */}
+              {activeReservations.length > 1 && (
+                <div className="relative mb-3">
+                  <select
+                    value={selectedReservationId || ""}
+                    onChange={(e) => setSelectedReservationId(e.target.value)}
+                    className="w-full appearance-none bg-blue-50 border border-blue-200 text-blue-800 text-sm font-medium rounded-xl px-4 py-2.5 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 cursor-pointer"
+                  >
+                    {activeReservations.map((res) => (
+                      <option key={res.id} value={res.id}>
+                        {getVehicleDisplay(res, activeReservations)}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 pointer-events-none" size={18} />
                 </div>
-                <Badge className="bg-emerald-400 text-emerald-950">ACTIVE</Badge>
-              </div>
+              )}
 
-              <ActiveReservationTimer
-                reservation={{
-                  id: activeReservation.id,
-                  user_id: activeReservation.user_id,
-                  total_amount: activeReservation.total_amount,
-                  lot_id: activeReservation.lot_id,
-                  end_time: activeReservation.end_time,
-                  start_time: activeReservation.start_time,
-                  duration: activeReservation.duration,
-                  extension_count: activeReservation.extension_count,
-                  extension_fee: activeReservation.extension_fee,
-                  fine_amount: activeReservation.fine_amount,
-                  fine_paid: activeReservation.fine_paid,
-                  hourly_rate: activeReservation.hourly_rate,
-                  extension_fee_setting: activeReservation.extension_fee_setting,
-                  fine_penalty: activeReservation.fine_penalty,
-                  overtime_rate: activeReservation.overtime_rate,
-                  grace_period_minutes: activeReservation.grace_period_minutes,
-                  extension_rate_per_hour: activeReservation.extension_rate_per_hour,
-                  allow_extensions: activeReservation.allow_extensions,
-                }}
-                onUpdate={() => fetchAllData()}
-              />
+              {selectedReservation && (
+                <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-xl border border-white/5">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-extrabold text-base tracking-tight">{selectedReservation.lotName}</p>
+                      <p className="text-white/60 text-xs mt-0.5">
+                        Slot {selectedReservation.slotLabel} •{" "}
+                        <span className="uppercase font-mono text-amber-400">
+                          {selectedReservation.vehiclePlate}
+                        </span>
+                      </p>
+                    </div>
+                    <Badge className="bg-emerald-400 text-emerald-950">ACTIVE</Badge>
+                  </div>
 
-              <div className="mt-3 text-right">
-                <p className="text-[8px] text-white/40 font-bold">
-                  Ends at:{" "}
-                  {new Date(activeReservation.end_time).toLocaleTimeString([], {
-                    hour: "numeric",
-                    minute: "2-digit",
-                    hour12: true,
-                  })}
-                </p>
-              </div>
-            </div>
+                  <ActiveReservationTimer
+                    reservation={{
+                      id: selectedReservation.id,
+                      user_id: selectedReservation.user_id,
+                      total_amount: selectedReservation.total_amount,
+                      lot_id: selectedReservation.lot_id,
+                      end_time: selectedReservation.end_time,
+                      start_time: selectedReservation.start_time,
+                      duration: selectedReservation.duration,
+                      extension_count: selectedReservation.extension_count,
+                      extension_fee: selectedReservation.extension_fee,
+                      fine_amount: selectedReservation.fine_amount,
+                      fine_paid: selectedReservation.fine_paid,
+                      hourly_rate: selectedReservation.hourly_rate,
+                      extension_fee_setting: selectedReservation.extension_fee_setting,
+                      fine_penalty: selectedReservation.fine_penalty,
+                      overtime_rate: selectedReservation.overtime_rate,
+                      grace_period_minutes: selectedReservation.grace_period_minutes,
+                      extension_rate_per_hour: selectedReservation.extension_rate_per_hour,
+                      allow_extensions: selectedReservation.allow_extensions,
+                    }}
+                    onUpdate={() => fetchAllData()}
+                  />
+
+                  <div className="mt-3 text-right">
+                    <p className="text-[8px] text-white/40 font-bold">
+                      Ends at:{" "}
+                      {new Date(selectedReservation.end_time).toLocaleTimeString([], {
+                        hour: "numeric",
+                        minute: "2-digit",
+                        hour12: true,
+                      })}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
             <div className="bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-6 text-center">
               <p className="text-xs text-muted-foreground font-medium">
@@ -554,7 +582,7 @@ export default function DriverHome() {
             <h3 className="text-sm font-extrabold flex items-center gap-1.5">
               Nearby Suggestions
               {userLocation && (
-                <span className="relative flex h-2 w-2" aria-label="Live location active">
+                <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                 </span>
@@ -563,9 +591,8 @@ export default function DriverHome() {
             <button
               onClick={() => navigate("/map")}
               className="text-xs font-bold text-blue-600 flex items-center gap-1"
-              aria-label="View all parking lots on map"
             >
-              View Map <ChevronRight size={14} aria-hidden="true" />
+              View Map <ChevronRight size={14} />
             </button>
           </div>
 
@@ -578,7 +605,6 @@ export default function DriverHome() {
                 if (available >= 30) slotsColorClass = "text-emerald-600";
                 else if (available > 10) slotsColorClass = "text-amber-500";
 
-                // Non-accredited lot: different style, not clickable
                 const isClickable = isAccredited;
 
                 return (
@@ -599,16 +625,15 @@ export default function DriverHome() {
                             {lot.name}
                             {lot.distance !== null && (
                               <span className="bg-blue-50 text-blue-700 text-[9px] font-bold px-1.5 py-0.5 rounded-sm flex items-center gap-0.5">
-                                <Navigation size={8} aria-hidden="true" /> {lot.distance.toFixed(1)} km
+                                <Navigation size={8} /> {lot.distance.toFixed(1)} km
                               </span>
                             )}
                           </p>
                         </div>
-                        {/* Rating stars only for accredited lots */}
                         {isAccredited && lot.average_rating > 0 && renderStars(lot.average_rating)}
                         <div className="flex items-center gap-2 mt-1">
                           <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                            <MapPin size={10} aria-hidden="true" /> {lot.address}
+                            <MapPin size={10} /> {lot.address}
                           </p>
                         </div>
                         <p className="text-[9px] font-medium text-amber-600 mt-1">🕒 {lot.open_hours}</p>

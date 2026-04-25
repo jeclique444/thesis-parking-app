@@ -443,8 +443,8 @@ export default function ParkingMapPage() {
   const listSorted = [...filteredAndSorted];
 
   return (
-    <MobileLayout title="Find Parking" showBack onBack={() => navigate("/home")} noPadding>
-      <div className="flex flex-col h-[calc(100dvh-56px)] bg-slate-50">
+<MobileLayout title="Find Parking" showBack={view !== "list"} onBack={() => navigate("/home")} noPadding>
+        <div className="flex flex-col h-[calc(100dvh-56px)] bg-slate-50">
         
         {/* HEADER */}
         <div className="px-4 py-3 bg-white border-b border-border space-y-2 z-20 shadow-sm">

@@ -1,6 +1,5 @@
 /*
  * iParkBayan — ProfilePage (GCash-style Verification Logic)
- * Updated: Verification is now "Coming Soon" (disabled)
  */
 import { cn } from "@/lib/utils"; 
 import { useEffect, useState } from "react";
@@ -123,11 +122,14 @@ export default function ProfilePage() {
                 <h2 className="text-[17px] font-bold tracking-tight leading-tight">
                   {userProfile?.full_name}
                 </h2>
+                {/* GCash-style Verification Check */}
                 {isVerified && <CheckCircle2 size={16} className="text-blue-400 fill-blue-400/20" />}
               </div>
+              {/* Phone number and Email details */}
               <p className="text-xs text-slate-300 opacity-90 mt-0.5">{userProfile?.phone_number}</p>
               <p className="text-[11px] text-slate-400 opacity-80">{userProfile?.email}</p>
               
+              {/* Fully Verified & Benefits Logic */}
               <div className="mt-2">
                 {isVerified ? (
                   <div className="flex flex-col items-start">
@@ -171,10 +173,10 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* 🔥 Updated: "Get Verified Now" Banner - Coming Soon (disabled) */}
+        {/* GCash-style "Get Verified Now" Banner Logic */}
         {isUnverified && (
           <div 
-            onClick={() => toast.info("Coming Soon! Verification feature will be available soon.")}
+            onClick={() => navigate("/driver/verification")}
             className="bg-blue-600 rounded-2xl p-4 flex items-center justify-between shadow-md active:scale-[0.98] transition-all cursor-pointer border border-blue-500"
           >
             <div className="flex items-center gap-3">
@@ -187,7 +189,7 @@ export default function ProfilePage() {
               </div>
             </div>
             <div className="bg-white text-blue-600 text-[10px] font-black px-3 py-1.5 rounded-full shadow-sm">
-              COMING SOON
+              GO
             </div>
           </div>
         )}
