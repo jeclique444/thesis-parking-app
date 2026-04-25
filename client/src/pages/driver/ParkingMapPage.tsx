@@ -211,7 +211,7 @@ const createAccreditedIcon = (availableSlots: number, isClosed: boolean, isFavor
           </svg>
         </div>
       </div>`,
-    className: 'bg-transparent',
+    className: 'bg-transparent', 
     iconSize: [0, 0], 
   });
 };

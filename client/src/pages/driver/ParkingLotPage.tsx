@@ -245,4 +245,4 @@ export default function ParkingLotPage() {
       </div>
     </MobileLayout>
   );
-}
+} 

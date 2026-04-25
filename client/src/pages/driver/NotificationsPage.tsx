@@ -538,7 +538,7 @@ export default function NotificationPage() {
                 )}
               </>
             )}
-          </div>
+          </div> 
         </div>
       </div>
     </MobileLayout>

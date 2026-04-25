@@ -9,7 +9,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff, CheckCircle2, ArrowLeft, Loader2 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
-import { toast } from "sonner";
+import { toast } from "sonner"; 
 
 // Allowed 4-Wheel Car Brands in the Philippines
 const ALLOWED_CAR_BRANDS = [

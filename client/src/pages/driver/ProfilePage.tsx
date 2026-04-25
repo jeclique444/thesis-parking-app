@@ -267,7 +267,7 @@ function ProfileMenuItem({ icon, title, label, onClick, isLast }: any) {
           )}>
             {label}
           </p>
-        </div>
+        </div> 
       </div>
       <ChevronRight size={18} className="text-slate-300" />
     </button>
