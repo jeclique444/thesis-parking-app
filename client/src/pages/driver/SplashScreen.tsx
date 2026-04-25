@@ -10,7 +10,7 @@ import { MapPin, Shield, Clock, ChevronRight, Loader2 } from "lucide-react";
 import { supabase } from "../../supabaseClient";
 
 const HERO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-hero-abdCRj5qo4byPYNgtsGwCp.webp";
-const LOGO_IMG = "https://d2xsxph8kpxj0f.cloudfront.net/310519663457633559/7LbcgdNcQ8vnZSarPg7jeB/iparkbayan-logo-bg-6aFnZw8pmN7ddSm5j3w2s6.webp";
+const LOGO_IMG = "/ParKadav2.png";
 
 const features = [
   { icon: MapPin, title: "Real-Time Availability", desc: "See open slots instantly as they update" },
@@ -78,7 +78,7 @@ export default function SplashScreen() {
             background: #ef4444;
           }
           .trail-amber {
-            box-shadow: 0 0 15px 3px rgba(251, 191, 36, 0.9);
+            box-shadow: 0 0 15px 3px rgba(75, 251, 36, 0.9);
             background: #fbbf24;
           }
         `}
