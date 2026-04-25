@@ -22,7 +22,7 @@ if not VITE_SUPABASE_URL or not VITE_SUPABASE_SERVICE_KEY:
 supabase: Client = create_client(VITE_SUPABASE_URL, VITE_SUPABASE_SERVICE_KEY)
 
 # ⚠️ IMPORTANT: Paste your specific parking lot's UUID here!
-TARGET_LOT_ID = "54e3b733-51d9-405c-90d6-196179271053"
+TARGET_LOT_ID = "54e3b733-51d9-405c-90d6-196179271053" # Make a new Parking just for the Demo
 
 def update_supabase_bg(db_id, db_status):
     """Runs the database status update in the background so the camera feed doesn't lag."""
@@ -141,7 +141,7 @@ model = YOLO("best.pt")
 
 # Tapo Camera RTSP Stream (Don't forget to update the IP/Port if testing on hotspot)
 video_path = "rtsp://admincam:admin123@10.0.1.69:554/stream2"
-cap = RTSPStream(video_path)
+cap = RTSPStream(0)
 
 print("⏳ Waiting for stream to stabilize...")
 time.sleep(2)
