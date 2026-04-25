@@ -169,7 +169,7 @@ export default function SplashScreen() {
             className="w-full h-15 py-7 text-sm font-black rounded-[1.25rem] border-2 border-slate-100 text-slate-600 hover:bg-slate-50 transition-all active:scale-95"
             style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "0.05em" }}
           >
-            SIGN IN
+            Log In
           </Button>
 
           <button
