@@ -100,7 +100,7 @@ export default function AdminLogin() {
             noiseIntensity={0.05}    // Subtle retro film grain
             scanlineIntensity={0.3}  // Slight CRT scanlines
             scanlineFrequency={800}
-            hueShift={300}           // Shifts the shader colors towards a deep purple/blue to match your vibe
+            hueShift={270}           // Shifts the shader colors towards a deep purple/blue to match your vibe
             warpAmount={0.3}
             resolutionScale={1}
           />
