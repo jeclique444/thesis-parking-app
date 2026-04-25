@@ -97,10 +97,10 @@ export default function AdminLogin() {
         <div className="absolute inset-0 z-0">
           <DarkVeil
             speed={2.0}              // Slow, moody movement
-            noiseIntensity={0.06}    // Subtle retro film grain
+            noiseIntensity={0.05}    // Subtle retro film grain
             scanlineIntensity={0.3}  // Slight CRT scanlines
             scanlineFrequency={800}
-            hueShift={0}           // Shifts the shader colors towards a deep purple/blue to match your vibe
+            hueShift={10}           // Shifts the shader colors towards a deep purple/blue to match your vibe
             warpAmount={0.3}
             resolutionScale={1}
           />

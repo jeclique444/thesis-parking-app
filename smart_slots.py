@@ -1,6 +1,5 @@
 import cv2
 import numpy as np
-import json
 import os
 import time
 import threading
@@ -22,24 +21,89 @@ if not VITE_SUPABASE_URL or not VITE_SUPABASE_SERVICE_KEY:
 
 supabase: Client = create_client(VITE_SUPABASE_URL, VITE_SUPABASE_SERVICE_KEY)
 
-def update_supabase_bg(slot_label, db_status):
-    """Runs the database update in the background so the camera feed doesn't lag."""
+# ⚠️ IMPORTANT: Paste your specific parking lot's UUID here!
+TARGET_LOT_ID = "54e3b733-51d9-405c-90d6-196179271053" # Make a new Parking just for the Demo
+
+def update_supabase_bg(db_id, db_status):
+    """Runs the database status update in the background so the camera feed doesn't lag."""
     def run_update():
         try:
             supabase.table('parking_slots') \
                 .update({'status': db_status}) \
-                .eq('label', slot_label) \
+                .eq('id', db_id) \
                 .execute()
-            print(f"☁️ [SUPABASE] {slot_label} successfully marked as {db_status}")
+            print(f"☁️ [SUPABASE] Slot updated to {db_status}")
         except Exception as e:
-            print(f"❌ [CLOUD ERROR] Failed to update {slot_label}: {e}")
+            print(f"❌ [CLOUD ERROR] Failed to update slot status: {e}")
 
     threading.Thread(target=run_update).start()
 
 # ---------------------------------------------------------
-# 2. LOW-LATENCY RTSP STREAM READER
-#    Continuously drains the camera buffer in a background
-#    thread so your main loop always gets the latest frame.
+# 2. CLOUD SYNC LOGIC (Save/Load/Delete Coordinates)
+# ---------------------------------------------------------
+slot_ids = []  # Tracks the database UUID for each slot
+all_slots = [] # Tracks the numpy arrays for OpenCV drawing
+slot_data = [] # Tracks the current FREE/FULL status and timers
+current_points = [] # Tracks the points you are currently drawing
+
+def save_new_slot_to_db(points_list, label):
+    """Inserts a newly drawn slot directly into Supabase."""
+    try:
+        # Convert tuples to standard lists so JSON handles it perfectly
+        json_ready_points = [list(pt) for pt in points_list] 
+        
+        data, count = supabase.table('parking_slots').insert({
+            'lot_id': TARGET_LOT_ID,
+            'label': label,
+            'status': 'available',
+            'coordinates': json_ready_points
+        }).execute()
+        
+        if data and len(data[1]) > 0:
+            return data[1][0]['id'] 
+    except Exception as e:
+        print(f"❌ [DB ERROR] Failed to save slot: {e}")
+    return None
+
+def delete_slot_from_db(db_id):
+    """Deletes a slot from Supabase."""
+    try:
+        supabase.table('parking_slots').delete().eq('id', db_id).execute()
+        print(f"🗑️ [SUPABASE] Slot deleted successfully!")
+    except Exception as e:
+        print(f"❌ [DB ERROR] Failed to delete slot: {e}")
+
+def load_slots():
+    """Fetches existing slots from Supabase on startup."""
+    global all_slots, slot_data, slot_ids
+    all_slots.clear()
+    slot_data.clear()
+    slot_ids.clear()
+    
+    try:
+        response = supabase.table('parking_slots').select('*').eq('lot_id', TARGET_LOT_ID).execute()
+        
+        for row in response.data:
+            if row.get('coordinates'):
+                coords = np.array(row['coordinates'], np.int32)
+                all_slots.append(coords)
+                
+                current_status = row.get('status', 'available').upper()
+                if current_status not in ["FREE", "FULL"]:
+                    current_status = "FREE" if current_status == "AVAILABLE" else "FULL"
+                    
+                slot_data.append({"status": current_status, "time_in": 0})
+                slot_ids.append(row['id'])
+                
+        print(f"☁️ [SUPABASE] Successfully loaded {len(all_slots)} slots from the cloud!")
+    except Exception as e:
+        print(f"❌ [DB ERROR] Failed to load slots from Supabase: {e}")
+
+# Call it immediately to load data on boot
+load_slots()
+
+# ---------------------------------------------------------
+# 3. LOW-LATENCY RTSP STREAM READER
 # ---------------------------------------------------------
 class RTSPStream:
     def __init__(self, src):
@@ -53,7 +117,6 @@ class RTSPStream:
         print("📡 RTSP stream reader started...")
 
     def _reader(self):
-        """Continuously reads and discards frames, keeping only the latest."""
         while self.running:
             ret, frame = self.cap.read()
             with self.lock:
@@ -71,18 +134,15 @@ class RTSPStream:
         self.cap.release()
 
 # ---------------------------------------------------------
-# 3. AI & CAMERA SETUP
+# 4. AI & CAMERA SETUP
 # ---------------------------------------------------------
 print("🧠 Loading custom AI brain (best.pt)...")
 model = YOLO("best.pt")
 
-# Use stream2 for lower latency (substream). Switch to stream1 if you need higher resolution.
+# Tapo Camera RTSP Stream (Don't forget to update the IP/Port if testing on hotspot)
 video_path = "rtsp://admincam:admin123@10.0.1.69:554/stream2"
+cap = RTSPStream(0)
 
-# For webcam testing, replace RTSPStream(video_path) with cv2.VideoCapture(0)
-cap = RTSPStream(video_path)
-
-# Wait briefly for the stream reader to grab the first frame
 print("⏳ Waiting for stream to stabilize...")
 time.sleep(2)
 
@@ -91,53 +151,36 @@ if not ret or original_frame is None:
     print("❌ Error reading video feed. Check your Tapo connection!")
     exit()
 
-all_slots = []
-slot_data = []
-current_points = []
-slots_file = "slots.json"
-
-def save_slots():
-    slots_list = [slot.tolist() for slot in all_slots]
-    with open(slots_file, 'w') as f:
-        json.dump(slots_list, f)
-    print("💾 Parking slots saved successfully!")
-
-def load_slots():
-    global all_slots, slot_data
-    if os.path.exists(slots_file):
-        try:
-            with open(slots_file, 'r') as f:
-                slots_list = json.load(f)
-                all_slots = [np.array(slot, np.int32) for slot in slots_list]
-                slot_data = [{"status": "FREE", "time_in": 0} for _ in range(len(all_slots))]
-            print(f"📂 Loaded {len(all_slots)} saved slots from memory!")
-        except json.JSONDecodeError:
-            print("⚠️ slots.json is empty or corrupted. Starting fresh!")
-            all_slots = []
-            slot_data = []
-
-load_slots()
-
 # ---------------------------------------------------------
-# 4. MOUSE CONTROLS (Draw/Delete Slots)
+# 5. MOUSE CONTROLS (Draw/Delete Cloud Slots)
 # ---------------------------------------------------------
 def handle_mouse(event, x, y, flags, param):
-    global current_points, all_slots, slot_data
+    global current_points, all_slots, slot_data, slot_ids
 
     if event == cv2.EVENT_LBUTTONDOWN:
         current_points.append((x, y))
         if len(current_points) == 4:
-            all_slots.append(np.array(current_points, np.int32))
-            slot_data.append({"status": "FREE", "time_in": 0})
+            new_label = f"S{len(all_slots) + 1}"
+            new_slot_array = np.array(current_points, np.int32)
+            
+            # Save to Supabase first
+            new_db_id = save_new_slot_to_db(current_points, new_label)
+            
+            if new_db_id:
+                all_slots.append(new_slot_array)
+                slot_data.append({"status": "FREE", "time_in": 0})
+                slot_ids.append(new_db_id)
+                print(f"✅ Slot {new_label} saved and synced to cloud!")
+            
             current_points = []
-            save_slots()
 
     elif event == cv2.EVENT_RBUTTONDOWN:
         for i in range(len(all_slots)):
             if cv2.pointPolygonTest(all_slots[i], (x, y), False) >= 0:
+                delete_slot_from_db(slot_ids[i])
                 all_slots.pop(i)
                 slot_data.pop(i)
-                save_slots()
+                slot_ids.pop(i)
                 break
 
 cv2.namedWindow("Smart Traffic Agent")
@@ -147,7 +190,7 @@ print("🚀 Starting Smart Detection...")
 paused = False
 
 # ---------------------------------------------------------
-# 5. MAIN AI LOOP
+# 6. MAIN AI LOOP
 # ---------------------------------------------------------
 while True:
     if not paused:
@@ -159,9 +202,6 @@ while True:
     display_frame = frame.copy()
 
     # Run YOLO detection
-    # - imgsz=640: good balance of speed vs accuracy. Drop to 416 if still slow on CPU.
-    # - conf=0.4: slightly more sensitive than 0.5; tune up if you get false positives.
-    # - device=0: uses GPU (CUDA). Remove or set device='cpu' if you don't have a GPU.
     results = model.predict(display_frame, verbose=False, conf=0.4, imgsz=416, device="mps")
 
     vehicle_centers = []
@@ -169,27 +209,19 @@ while True:
         for box in r.boxes:
             x1, y1, x2, y2 = box.xyxy[0]
 
-            # Use bottom-center instead of true center.
-            # For angled/top-down cameras this lands closer to where
-            # the vehicle actually sits in the parking slot.
             cx = int((x1 + x2) / 2)
             cy = int(y2)  # bottom edge of bounding box
 
             vehicle_centers.append((cx, cy))
 
-            # Draw the centroid point and bounding box for debugging
             cv2.circle(display_frame, (cx, cy), 5, (255, 0, 0), -1)
             cv2.rectangle(display_frame, (int(x1), int(y1)), (int(x2), int(y2)), (255, 165, 0), 2)
-
-            # Optional: print detected class names to verify your model's output
-            # class_name = model.names[int(box.cls[0])]
-            # print(f"Detected: {class_name}")
 
     free_count = 0
     full_count = 0
 
 # ---------------------------------------------------------
-# 6. SLOT LOGIC & SUPABASE SYNC
+# 7. SLOT LOGIC & SUPABASE SYNC
 # ---------------------------------------------------------
     for i, slot in enumerate(all_slots):
         is_occupied = False
@@ -198,13 +230,14 @@ while True:
                 is_occupied = True
                 break
 
-        slot_label = f"S{i+1}"  # Maps to S1, S2, S3... in your Supabase DB
+        slot_label = f"S{i+1}"
 
         if is_occupied:
             if slot_data[i]["status"] == "FREE":
                 slot_data[i]["status"] = "FULL"
                 slot_data[i]["time_in"] = time.time()
-                update_supabase_bg(slot_label, "occupied")
+                # Use slot_ids[i] instead of the label to ensure exact DB matches!
+                update_supabase_bg(slot_ids[i], "occupied")
 
             elapsed = int(time.time() - slot_data[i]["time_in"])
             mins, secs = divmod(elapsed, 60)
@@ -217,7 +250,7 @@ while True:
             if slot_data[i]["status"] == "FULL":
                 slot_data[i]["status"] = "FREE"
                 slot_data[i]["time_in"] = 0
-                update_supabase_bg(slot_label, "available")
+                update_supabase_bg(slot_ids[i], "available")
 
             color = (0, 255, 0)  # Green
             text = f"{slot_label}: FREE"
@@ -228,15 +261,13 @@ while True:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
 # ---------------------------------------------------------
-# 7. UI RENDERING
+# 8. UI RENDERING
 # ---------------------------------------------------------
-    # Draw in-progress slot points
     for point in current_points:
         cv2.circle(display_frame, point, 5, (0, 0, 255), -1)
     if len(current_points) > 1:
         cv2.polylines(display_frame, [np.array(current_points, np.int32)], False, (0, 0, 255), 2)
 
-    # Stats overlay
     cv2.rectangle(display_frame, (10, 10), (300, 100), (0, 0, 0), -1)
     cv2.putText(display_frame, f"FREE SPACES: {free_count}", (20, 45),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
@@ -256,7 +287,7 @@ while True:
         paused = not paused
 
 # ---------------------------------------------------------
-# 8. CLEANUP
+# 9. CLEANUP
 # ---------------------------------------------------------
 cap.release()
 cv2.destroyAllWindows()
