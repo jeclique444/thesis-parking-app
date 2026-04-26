@@ -116,7 +116,7 @@ def delete_slot_from_db(db_id):
     """Deletes a slot from Supabase."""
     try:
         supabase.table('parking_slots').delete().eq('id', db_id).execute()
-        print(f"🗑️ [SUPABASE] Slot deleted successfully!")
+        print(f"[SUPABASE] Slot deleted successfully!")
     except Exception as e:
         print(f"[DB ERROR] Failed to delete slot: {e}")
 
@@ -132,7 +132,7 @@ class RTSPStream:
         self.lock = threading.Lock()
         self.running = True
         threading.Thread(target=self._reader, daemon=True).start()
-        print("📡 RTSP stream reader started...")
+        print("RTSP stream reader started...")
 
     def _reader(self):
         while self.running:
@@ -266,13 +266,13 @@ while True:
     if not paused:
         ret, frame = cap.read()
         if not ret or frame is None:
-            print("⚠️ Camera feed ended or disconnected.")
+            print("Camera feed ended or disconnected.")
             break
 
     display_frame = frame.copy()
 
     # Run YOLO detection
-    results = model.predict(display_frame, verbose=False, conf=0.4, imgsz=416, device="mps")
+    results = model.predict(display_frame, verbose=False, conf=0.4, imgsz=416, device="cpu")
 
     vehicle_centers = []
     for r in results:
