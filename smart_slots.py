@@ -148,7 +148,7 @@ time.sleep(2)
 
 ret, original_frame = cap.read()
 if not ret or original_frame is None:
-    print("❌ Error reading video feed. Check your Tapo connection!")
+    print("Error reading video feed. Check your Tapo connection!")
     exit()
 
 # ---------------------------------------------------------
@@ -186,7 +186,7 @@ def handle_mouse(event, x, y, flags, param):
 cv2.namedWindow("Smart Traffic Agent")
 cv2.setMouseCallback("Smart Traffic Agent", handle_mouse)
 
-print("🚀 Starting Smart Detection...")
+print("Starting Smart Detection...")
 paused = False
 
 # ---------------------------------------------------------

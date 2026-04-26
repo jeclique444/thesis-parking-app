@@ -49,18 +49,22 @@ export default function MobileLayout({
               </svg>
             </button>
           )}
+          
+          {/* LOGO REPLACEMENT HAPPENS HERE */}
           {!showBack && (
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-navy flex items-center justify-center">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
-                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-                </svg>
-              </div>
+              {/* Replace the src path with wherever your logo is stored in your public/assets folder */}
+              <img 
+                src="/ParKadav2.png" 
+                alt="ParKada Logo" 
+                className="w-8 h-8 object-contain" 
+              />
               <span className="font-bold text-base text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 {title}
               </span>
             </div>
           )}
+
           {showBack && (
             <span className="font-bold text-base text-foreground flex-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               {title}
