@@ -95,7 +95,7 @@ export default function SplashScreen() {
         />
         
         {/* Gradient Overlay para umangat ang text at ilaw */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0A1D37]/60 via-[#0A1D37]/30 to-[#0A1D37]" />
+        <div className="absolute inset-0 bg-linear-to-b from-[#0A1D37]/60 via-[#0A1D37]/30 to-[#0A1D37]" />
 
         {/* SMART CITY TRAFFIC OVERLAY (Dito nagaganap ang magic) */}
         <div 
@@ -119,8 +119,8 @@ export default function SplashScreen() {
 
         {/* Logo & Title */}
         <div className={`absolute inset-0 flex flex-col items-center justify-end pb-10 px-6 transition-all duration-1000 z-10 ${loaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-          <img src={LOGO_IMG} alt="ParKada" className="w-30 h-30 rounded-[2rem] shadow-2xl mb-6 border-4 border-white/10 relative z-10" />
-          <h1 className="text-4xl font-black text-white text-center tracking-tighter" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+          <img src={LOGO_IMG} alt="ParKada" className="w-30 h-30 rounded-4xl shadow-2xl mb-6 border-4 border-white/10 relative z-10" />
+          <h1 className="text-4xl font-black text-white text-center tracking-tighter" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             Par<span className="text-amber-400">Kada</span>
           </h1>
           <p className="text-white/70 text-xs text-center mt-2 font-bold uppercase tracking-[0.2em]">
@@ -140,7 +140,7 @@ export default function SplashScreen() {
                 <Icon size={20} className="text-[#0A1D37]" />
               </div>
               <div>
-                <p className="text-sm font-black text-slate-800 tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{title}</p>
+                <p className="text-sm font-black text-slate-800 tracking-tight" style={{ fontFamily: "'Montserrat', sans-serif" }}>{title}</p>
                 <p className="text-[11px] text-slate-400 font-bold mt-0.5 leading-tight">{desc}</p>
               </div>
             </div>
@@ -155,7 +155,7 @@ export default function SplashScreen() {
             style={{ 
               background: "#0A1D37", 
               color: "white",
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontFamily: "'Montserrat', sans-serif",
               letterSpacing: "0.05em"
             }}
           >
@@ -167,7 +167,7 @@ export default function SplashScreen() {
             onClick={() => navigate("/login")}
             variant="outline"
             className="w-full h-15 py-7 text-sm font-black rounded-[1.25rem] border-2 border-slate-100 text-slate-600 hover:bg-slate-50 transition-all active:scale-95"
-            style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: "0.05em" }}
+            style={{ fontFamily: "'Montserrat', sans-serif", letterSpacing: "0.05em" }}
           >
             Log In
           </Button>

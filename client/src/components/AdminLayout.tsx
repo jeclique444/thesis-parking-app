@@ -188,7 +188,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
               className="w-10 h-10 object-contain drop-shadow-md" 
             />
             <div>
-              <p className="font-extrabold text-lg text-white" style={{ fontFamily: "'Manrope', sans-serif" }}>
+              <p className="font-extrabold text-lg text-white" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                 ParKada
               </p>
               <p className="text-xs text-white/70 capitalize">
@@ -252,7 +252,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
         <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-border shrink-0 relative z-40">
-          <h1 className="text-xl font-bold text-foreground" style={{ fontFamily: "'Manrope', sans-serif" }}>
+          <h1 className="text-xl font-bold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             {title}
           </h1>
           
@@ -278,7 +278,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
                     <h4 className="text-sm font-bold text-slate-800">Notifications</h4>
                     {unreadCount > 0 && <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">{unreadCount} New</span>}
                   </div>
-                  <div className="max-h-[350px] overflow-y-auto">
+                  <div className="max-h-87.5 overflow-y-auto">
                     {notifications.length > 0 ? (
                       notifications.map((n) => (
                         <div key={n.id} className={cn("w-full text-left px-4 py-3 border-b border-border flex gap-3 transition-colors", n.read === false ? "bg-primary/5" : "hover:bg-slate-50 opacity-70")}>

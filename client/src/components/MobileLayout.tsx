@@ -78,7 +78,7 @@ export default function MobileLayout({
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-white border-t border-border z-30">
+      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-107.5 bg-white border-t border-border z-30">
         <div className="flex items-center justify-around px-2 py-1.5">
           {navItems.map(({ path, icon: Icon, label }) => {
             const isActive = location === path || (path !== "/home" && location.startsWith(path));
