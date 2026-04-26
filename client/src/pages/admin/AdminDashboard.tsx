@@ -303,14 +303,15 @@ export default function AdminDashboard() {
             {/* Using z-0 to ensure it doesn't overlap with admin dropdowns */}
             <div className="flex-1 w-full min-h-[220px] rounded-xl overflow-hidden relative z-0 border border-border bg-slate-50">
               <MapContainer 
-                center={[14.4140, 120.9830]} // Centered initially to Bacoor
-                zoom={12} 
+                center={[13.9419, 121.1644]} // Centered initially to Lipa City, Batangas
+                zoom={14} // Slightly closer zoom to see the city layout clearly
                 style={{ height: "100%", width: "100%" }}
                 zoomControl={false} // Cleaner minimal look
               >
+                {/* Changed to Google Satellite Hybrid view to match the Driver App */}
                 <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  className="map-tiles-minimalist"
+                  url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+                  attribution="&copy; Google Maps"
                 />
                 {lotsOverview.filter(lot => lot.lat && lot.lng).map((lot) => (
                   <Marker 
