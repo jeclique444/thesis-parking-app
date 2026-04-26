@@ -235,33 +235,42 @@ export default function AdminParkingSlots() {
 
   return (
     <AdminLayout title="Parking Slots">
-      <div className="space-y-5">
+      <div className="space-y-6">
         
-        {/* Lot Selector */}
-        <div className="flex gap-3 flex-wrap">
-          {lots.map((l) => (
-            <button
-              key={l.id}
-              onClick={() => setSelectedLotId(l.id)}
-              className={cn(
-                "px-4 py-2 rounded-xl text-sm font-semibold border transition-all",
-                selectedLotId === l.id
-                  ? "bg-primary text-primary-foreground border-primary shadow-md"
-                  : "bg-white text-foreground border-border hover:border-primary/50"
-              )}
+        {/* 🔥 NEW UI: Lot Selector Dropdown */}
+        <div className="flex flex-col space-y-1.5 w-full md:max-w-md">
+          <label htmlFor="lot-dropdown" className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+            Select Establishment
+          </label>
+          <div className="relative">
+            <select
+              id="lot-dropdown"
+              value={selectedLotId}
+              onChange={(e) => setSelectedLotId(e.target.value)}
+              className="w-full appearance-none bg-white border border-border text-foreground text-sm font-semibold rounded-xl px-4 py-3 pr-10 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all cursor-pointer"
             >
-              {l.name}
-            </button>
-          ))}
+              {lots.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+            {/* Custom Dropdown Arrow */}
+            <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-muted-foreground">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </div>
+          </div>
         </div>
 
-          {/* 🔥 NEW: Live Camera Feed (Thesis Demo) */}
-        <div className="bg-slate-900 rounded-2xl shadow-sm border border-slate-800 overflow-hidden relative aspect-video flex items-center justify-center max-h-100">
-          {/* This points to the local Flask server running from your terminal */}
+        {/* 🔥 NEW UI: Centered Live Camera Feed (Thesis Demo) */}
+        <div className="w-full max-w-5xl mx-auto bg-slate-900 rounded-2xl shadow-sm border border-slate-800 overflow-hidden relative aspect-video flex items-center justify-center">
+          {/* MAKE SURE TO REPLACE THIS SRC WITH YOUR NGROK LINK FOR PRODUCTION */}
           <img 
             src="http://127.0.0.1:5000/video_feed" 
             alt="Live Parking Stream" 
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
             onError={(e) => {
                // Fallback: If the python script isn't running, hide the broken image and show the offline message
                e.currentTarget.style.display = 'none';
