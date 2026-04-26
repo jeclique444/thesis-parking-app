@@ -5,9 +5,14 @@
 import AdminLayout from "@/components/AdminLayout";
 import { supabase } from "@/supabaseClient"; 
 import { useEffect, useState } from "react";
-import { ParkingSquare, Users, BookOpen, TrendingUp, Activity, Loader2 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { ParkingSquare, Users, BookOpen, TrendingUp, Activity, Loader2, Map as MapIcon } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { cn } from "@/lib/utils";
+
+// Leaflet Imports for Map Integration
+import { MapContainer, TileLayer, Marker, Tooltip as LeafletTooltip } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
 // Static mock for weekly chart
 const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -52,7 +57,6 @@ export default function AdminDashboard() {
       let managerLotId = null;
 
       if (user) {
-        // TAMA NA ANG COLUMN NAME: 'lot_id' base sa database mo
         const { data: profileData, error: profileError } = await supabase
           .from("admin_profiles")
           .select("role, lot_id") 
@@ -67,15 +71,10 @@ export default function AdminDashboard() {
           currentRole = profileData.role.toLowerCase();
           managerLotId = profileData.lot_id;
           setUserRole(currentRole);
-          console.log("ROLE:", currentRole, "| ASSIGNED LOT_ID:", managerLotId);
         }
       }
 
-      // ==========================================
-      // START NG PAG-FETCH NA MAY FILTERING
-      // ==========================================
-
-      // 1. Fetch Parking Slots (May filter kung Manager)
+      // 1. Fetch Parking Slots
       let slotsQuery = supabase.from("parking_slots").select("status, lot_id");
       if (currentRole === "manager" && managerLotId) {
         slotsQuery = slotsQuery.eq("lot_id", managerLotId);
@@ -100,21 +99,23 @@ export default function AdminDashboard() {
         });
       }
 
-      // 2. Fetch Parking Lots (May filter kung Manager)
-      let lotsQuery = supabase.from("parking_lots").select("id, name");
+      // 2. Fetch Parking Lots with Latitude & Longitude
+      let lotsQuery = supabase.from("parking_lots").select("id, name, latitude, longitude");
       if (currentRole === "manager" && managerLotId) {
-        lotsQuery = lotsQuery.eq("id", managerLotId); // Dito id pinapantay natin sa lot_id ng manager
+        lotsQuery = lotsQuery.eq("id", managerLotId); 
       }
       const { data: lotsData } = await lotsQuery;
       
       const formattedLots = (lotsData || []).map(lot => ({
         id: lot.id,
         name: lot.name,
+        lat: lot.latitude,
+        lng: lot.longitude,
         totalSlots: lotSlotCounts[lot.id]?.total || 0,
         availableSlots: lotSlotCounts[lot.id]?.available || 0,
       }));
 
-      // 3. Fetch Today's Reservations (May filter kung Manager)
+      // 3. Fetch Today's Reservations
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
@@ -124,12 +125,11 @@ export default function AdminDashboard() {
         .gte("start_time", today.toISOString());
         
       if (currentRole === "manager" && managerLotId) {
-        // Tandaan: Assuming na 'lot_id' ang foreign key mo rin sa reservations table.
         todayResQuery = todayResQuery.eq("lot_id", managerLotId); 
       }
       const { count: todayCount } = await todayResQuery;
 
-      // 4. Fetch Recent Reservations (May filter kung Manager)
+      // 4. Fetch Recent Reservations
       let recentResQuery = supabase
         .from("reservations")
         .select("id, start_time, end_time, created_at, total_amount, status, parking_lots(name), parking_slots(label)") 
@@ -199,6 +199,14 @@ export default function AdminDashboard() {
     statCards.push({ label: "Active Users", value: stats.activeUsers, icon: Users, color: "bg-blue-100 text-blue-700", change: null });
   }
 
+  // Create a minimal map icon
+  const customMapIcon = L.divIcon({
+    className: "bg-transparent",
+    html: `<div style="background-color: oklch(0.22 0.07 255); width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 6px rgba(0,0,0,0.3);"></div>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7]
+  });
+
   if (isLoading) {
     return (
       <AdminLayout title="Dashboard">
@@ -215,7 +223,7 @@ export default function AdminDashboard() {
         
         {/* Stat Cards */}
         <div className={cn("grid gap-4", isSuperAdmin ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-1 lg:grid-cols-3")}>
-          {statCards.map(({ label, value, icon: Icon, color, change }) => (
+          {statCards.map(({ label, value, icon: Icon, color }) => (
             <div key={label} className="bg-white rounded-2xl p-4 card-elevated">
               <div className="flex items-start justify-between mb-3">
                 <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", color)}>
@@ -241,7 +249,7 @@ export default function AdminDashboard() {
                 <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.92 0.004 286.32)" />
                 <XAxis dataKey="day" tick={{ fontSize: 11, fill: "oklch(0.52 0.03 255)" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "oklch(0.52 0.03 255)" }} axisLine={false} tickLine={false} domain={[0, 100]} />
-                <Tooltip
+                <RechartsTooltip
                   contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.1)", fontSize: "12px" }}
                   formatter={(v) => [`${v}%`, "Occupancy"]}
                 />
@@ -263,7 +271,7 @@ export default function AdminDashboard() {
                       <Cell key={i} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ borderRadius: "12px", border: "none", fontSize: "12px" }} />
+                  <RechartsTooltip contentStyle={{ borderRadius: "12px", border: "none", fontSize: "12px" }} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="space-y-1.5 mt-2">
@@ -281,38 +289,77 @@ export default function AdminDashboard() {
           )}
         </div>
 
-        {/* Parking Lots Overview */}
-        <div className="bg-white rounded-2xl p-5 card-elevated">
-          <h3 className="text-sm font-bold text-foreground mb-4" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-            Parking Lots Overview
-          </h3>
-          <div className="space-y-3">
-            {lotsOverview.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-4">No parking lots found.</p>
-            ) : (
-              lotsOverview.map((lot) => {
-                const pct = lot.totalSlots === 0 ? 0 : Math.round((lot.availableSlots / lot.totalSlots) * 100);
-                return (
-                  <div key={lot.id} className="flex items-center gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-sm font-semibold text-foreground truncate">{lot.name}</p>
-                        <span className="text-xs text-muted-foreground shrink-0 ml-2">{lot.availableSlots}/{lot.totalSlots}</span>
+        {/* Maps and Overview Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          
+          {/* Map Feature (View Only) */}
+          <div className="bg-white rounded-2xl p-5 card-elevated flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                Parking Network Map
+              </h3>
+              <MapIcon size={16} className="text-muted-foreground" />
+            </div>
+            {/* Using z-0 to ensure it doesn't overlap with admin dropdowns */}
+            <div className="flex-1 w-full min-h-[220px] rounded-xl overflow-hidden relative z-0 border border-border bg-slate-50">
+              <MapContainer 
+                center={[14.4140, 120.9830]} // Centered initially to Bacoor
+                zoom={12} 
+                style={{ height: "100%", width: "100%" }}
+                zoomControl={false} // Cleaner minimal look
+              >
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  className="map-tiles-minimalist"
+                />
+                {lotsOverview.filter(lot => lot.lat && lot.lng).map((lot) => (
+                  <Marker 
+                    key={lot.id} 
+                    position={[lot.lat, lot.lng]}
+                    icon={customMapIcon}
+                  >
+                    <LeafletTooltip direction="top" offset={[0, -5]} opacity={1}>
+                      <span className="font-bold text-[11px] font-sans">{lot.name}</span>
+                    </LeafletTooltip>
+                  </Marker>
+                ))}
+              </MapContainer>
+            </div>
+          </div>
+
+          {/* Parking Lots Overview */}
+          <div className="bg-white rounded-2xl p-5 card-elevated h-full flex flex-col">
+            <h3 className="text-sm font-bold text-foreground mb-4" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              Parking Lots Overview
+            </h3>
+            <div className="space-y-4 flex-1 overflow-y-auto">
+              {lotsOverview.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-8">No parking lots found.</p>
+              ) : (
+                lotsOverview.map((lot) => {
+                  const pct = lot.totalSlots === 0 ? 0 : Math.round((lot.availableSlots / lot.totalSlots) * 100);
+                  return (
+                    <div key={lot.id} className="flex items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <p className="text-sm font-semibold text-foreground truncate">{lot.name}</p>
+                          <span className="text-xs text-muted-foreground shrink-0 ml-2">{lot.availableSlots}/{lot.totalSlots}</span>
+                        </div>
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className={cn("h-full rounded-full transition-all", pct > 50 ? "bg-emerald-500" : pct > 20 ? "bg-amber-500" : "bg-rose-500")}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
                       </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className={cn("h-full rounded-full transition-all", pct > 50 ? "bg-emerald-500" : pct > 20 ? "bg-amber-500" : "bg-rose-500")}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
+                      <span className={cn("text-xs font-bold shrink-0 w-10 text-right", pct > 50 ? "text-emerald-600" : pct > 20 ? "text-amber-600" : "text-rose-600")}>
+                        {pct}%
+                      </span>
                     </div>
-                    <span className={cn("text-xs font-bold shrink-0", pct > 50 ? "text-emerald-600" : pct > 20 ? "text-amber-600" : "text-rose-600")}>
-                      {pct}%
-                    </span>
-                  </div>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </div>
           </div>
         </div>
 
