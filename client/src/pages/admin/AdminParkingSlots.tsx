@@ -255,6 +255,35 @@ export default function AdminParkingSlots() {
           ))}
         </div>
 
+          {/* 🔥 NEW: Live Camera Feed (Thesis Demo) */}
+        <div className="bg-slate-900 rounded-2xl shadow-sm border border-slate-800 overflow-hidden relative aspect-video flex items-center justify-center max-h-100">
+          {/* This points to the local Flask server running from your terminal */}
+          <img 
+            src="http://127.0.0.1:5000/video_feed" 
+            alt="Live Parking Stream" 
+            className="w-full h-full object-cover"
+            onError={(e) => {
+               // Fallback: If the python script isn't running, hide the broken image and show the offline message
+               e.currentTarget.style.display = 'none';
+               const fallbackMsg = document.getElementById('stream-fallback');
+               if(fallbackMsg) fallbackMsg.style.display = 'flex';
+            }}
+          />
+          
+          {/* Offline Fallback UI */}
+          <div id="stream-fallback" className="absolute inset-0 flex-col items-center justify-center text-slate-400 hidden bg-slate-900">
+             <Eye size={32} className="mb-3 opacity-50" />
+             <p className="text-base font-bold text-slate-300">Camera Feed Offline</p>
+             <p className="text-xs opacity-70 mt-1">Run <code className="bg-slate-800 px-1 py-0.5 rounded text-primary">python smart_slots.py</code> in terminal to start stream</p>
+          </div>
+
+          {/* Live Indicator Badge */}
+          <div className="absolute top-4 left-4 bg-red-600/90 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-md flex items-center gap-1.5 shadow-lg backdrop-blur-sm">
+            <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE
+          </div>
+        </div>
+
+
         {/* Real-time Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[

@@ -7,6 +7,10 @@ from ultralytics import YOLO
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
+# 🔥 NEW IMPORTS FOR WEB STREAMING
+from flask import Flask, Response
+from flask_cors import CORS
+
 # ---------------------------------------------------------
 # 1. SECURE DATABASE SETUP
 # ---------------------------------------------------------
@@ -134,12 +138,54 @@ class RTSPStream:
         self.cap.release()
 
 # ---------------------------------------------------------
-# 4. AI & CAMERA SETUP
+# 4. FLASK WEB STREAMING SETUP
+# ---------------------------------------------------------
+app = Flask(__name__)
+CORS(app) # Allows React to pull the stream without security blocks
+
+# Shared variables between OpenCV and Flask
+shared_frame = None
+frame_lock = threading.Lock()
+
+def generate_frames():
+    """Generator that yields the latest frame for the web stream."""
+    global shared_frame
+    while True:
+        with frame_lock:
+            if shared_frame is None:
+                continue
+            # Encode the frame as JPEG
+            ret, buffer = cv2.imencode('.jpg', shared_frame)
+            frame_bytes = buffer.tobytes()
+
+        # Yield the frame in MJPEG format
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        
+        # Small sleep to prevent maxing out the CPU
+        time.sleep(0.03) 
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+def run_flask():
+    """Runs Flask in a background thread"""
+    print("🌐 Starting Flask web server on http://127.0.0.1:5000/video_feed")
+    # use_reloader=False is REQUIRED when running Flask in a thread
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+
+# Start Flask immediately in the background
+flask_thread = threading.Thread(target=run_flask, daemon=True)
+flask_thread.start()
+
+# ---------------------------------------------------------
+# 5. AI & CAMERA SETUP
 # ---------------------------------------------------------
 print("🧠 Loading custom AI brain (best.pt)...")
 model = YOLO("best.pt")
 
-# Tapo Camera RTSP Stream (Don't forget to update the IP/Port if testing on hotspot)
+# Tapo Camera RTSP Stream (Or use 0 for webcam)
 video_path = "rtsp://admincam:admin123@10.0.1.69:554/stream2"
 cap = RTSPStream(0)
 
@@ -152,7 +198,7 @@ if not ret or original_frame is None:
     exit()
 
 # ---------------------------------------------------------
-# 5. MOUSE CONTROLS (Draw/Delete Cloud Slots)
+# 6. MOUSE CONTROLS (Draw/Delete Cloud Slots)
 # ---------------------------------------------------------
 def handle_mouse(event, x, y, flags, param):
     global current_points, all_slots, slot_data, slot_ids
@@ -190,7 +236,7 @@ print("Starting Smart Detection...")
 paused = False
 
 # ---------------------------------------------------------
-# 6. MAIN AI LOOP
+# 7. MAIN AI LOOP
 # ---------------------------------------------------------
 while True:
     if not paused:
@@ -221,7 +267,7 @@ while True:
     full_count = 0
 
 # ---------------------------------------------------------
-# 7. SLOT LOGIC & SUPABASE SYNC
+# 8. SLOT LOGIC & SUPABASE SYNC
 # ---------------------------------------------------------
     for i, slot in enumerate(all_slots):
         is_occupied = False
@@ -261,7 +307,7 @@ while True:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
 # ---------------------------------------------------------
-# 8. UI RENDERING
+# 9. UI RENDERING & FLASK SYNC
 # ---------------------------------------------------------
     for point in current_points:
         cv2.circle(display_frame, point, 5, (0, 0, 255), -1)
@@ -278,6 +324,11 @@ while True:
         cv2.putText(display_frame, "PAUSED", (10, 140),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 3)
 
+    # 🔥 Update the shared frame for Flask web server!
+    with frame_lock:
+        shared_frame = display_frame.copy()
+
+    # Show the standard OpenCV window for local drawing
     cv2.imshow("Smart Traffic Agent", display_frame)
 
     key = cv2.waitKey(30) & 0xFF
@@ -287,7 +338,7 @@ while True:
         paused = not paused
 
 # ---------------------------------------------------------
-# 9. CLEANUP
+# 10. CLEANUP
 # ---------------------------------------------------------
 cap.release()
 cv2.destroyAllWindows()
