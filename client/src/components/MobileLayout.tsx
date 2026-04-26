@@ -50,23 +50,21 @@ export default function MobileLayout({
             </button>
           )}
           
-          {/* LOGO REPLACEMENT HAPPENS HERE */}
           {!showBack && (
             <div className="flex items-center gap-2">
-              {/* Replace the src path with wherever your logo is stored in your public/assets folder */}
               <img 
-                src="/ParKadav2.png" 
-                alt="ParKada Logo" 
+                src="/your-logo-file.png" 
+                alt="iParkBayan Logo" 
                 className="w-8 h-8 object-contain" 
               />
-              <span className="font-bold text-base text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              <span className="font-bold text-base text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                 {title}
               </span>
             </div>
           )}
 
           {showBack && (
-            <span className="font-bold text-base text-foreground flex-1" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            <span className="font-bold text-base text-foreground flex-1" style={{ fontFamily: "'Montserrat', sans-serif" }}>
               {title}
             </span>
           )}
@@ -99,7 +97,7 @@ export default function MobileLayout({
                 )}>
                   <Icon size={20} strokeWidth={isActive ? 2.5 : 1.8} />
                 </div>
-                <span className={cn("text-[10px] font-medium", isActive && "font-semibold")}>
+                <span className={cn("text-[10px] font-medium", isActive && "font-semibold")} style={{ fontFamily: "'Montserrat', sans-serif" }}>
                   {label}
                 </span>
               </button>

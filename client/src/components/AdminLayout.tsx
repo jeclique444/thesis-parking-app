@@ -188,7 +188,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
               className="w-10 h-10 object-contain drop-shadow-md" 
             />
             <div>
-              <p className="font-extrabold text-lg text-white" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+              <p className="font-extrabold text-lg text-white" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                 ParKada
               </p>
               <p className="text-xs text-white/70 capitalize">
@@ -252,7 +252,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
         <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-border shrink-0 relative z-40">
-          <h1 className="text-xl font-bold text-foreground" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <h1 className="text-xl font-bold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             {title}
           </h1>
           
