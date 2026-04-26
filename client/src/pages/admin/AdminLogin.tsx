@@ -124,8 +124,7 @@ export default function AdminLogin() {
           </div>
 
           {/* Middle: The TrueFocus Hero Section */}
-          {/* Changed justify-left to justify-center to vertically center the content */}
-          <div className="flex-1 flex flex-col justify-center items-start w-full">
+          <div className="flex-1 flex flex-col justify-left items-start w-full">
             
             {/* The TrueFocus Component */}
             {/* Added explicit text sizing and whitespace-nowrap to fit on one line */}
