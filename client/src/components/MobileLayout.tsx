@@ -53,9 +53,9 @@ export default function MobileLayout({
           {!showBack && (
             <div className="flex items-center gap-2">
               <img 
-                src="/your-logo-file.png" 
-                alt="iParkBayan Logo" 
-                className="w-8 h-8 object-contain" 
+                src="/ParKadav2.png" 
+                alt="ParKada Logo" 
+                className="w-12 h-12 object-contain" 
               />
               <span className="font-bold text-base text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                 {title}
