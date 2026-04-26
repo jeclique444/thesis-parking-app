@@ -1,5 +1,6 @@
 /*
  * iParkBayan — App.tsx (Fixed Route Priority & Background Auto Updater)
+ * Added hash detection for invitation links.
  */
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,7 +9,7 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 
-// 🔥 1. IDINAGDAG: Import natin yung Auto Updater (Make sure tama yung path kung saan mo sinave!)
+// Auto Updater
 import AutoStatusUpdater from "./components/AutoStatusUpdater"; 
 
 // Driver App Pages
@@ -27,23 +28,25 @@ import BookingPage from "./pages/driver/BookingPage";
 import ProfilePage from "./pages/driver/ProfilePage";
 import VehiclesPage from "./pages/driver/VehiclesPage";
 import NotificationsPage from "./pages/driver/NotificationsPage";
-import VerificationPage from "./pages/driver/VerificationPage"; // Siguraduhin na tama ang path
+import VerificationPage from "./pages/driver/VerificationPage";
 import TermsPage from "./pages/driver/TermsPage";
 import ExtensionPaymentPage from "./pages/driver/ExtendPaymentPage";
 
 // Admin Pages
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminParkingLots from "./pages/admin/AdminParkingLots"; // I-adjust kung iba ang folder mo
+import AdminParkingLots from "./pages/admin/AdminParkingLots";
 import AdminParkingSlots from "./pages/admin/AdminParkingSlots";
 import AdminReservations from "./pages/admin/AdminReservations";
 import AdminReports from "./pages/admin/AdminReports";
 import AdminPersonnel from "./pages/admin/AdminPersonnel";
-import AdminScanner from "./pages/admin/AdminScanner"; // Ayusin mo ang path kung saan mo man isinave
+import AdminScanner from "./pages/admin/AdminScanner";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminVerifications from "./pages/admin/AdminVerificationsPage";
 import AdminStaffManagement from "./pages/admin/AdminStaffManagement";
-
+import AdminTermsPage from "./pages/admin/AdminTermsPage";
+import SetPasswordPage from "./pages/admin/SetPasswordPage";
+import AuthCallback from "./pages/auth/authCallback";
 
 function Router() {
   return (
@@ -51,12 +54,15 @@ function Router() {
       {/* 1. Splash Screen (Ang entry point ng app) */}
       <Route path="/" component={SplashScreen} />
 
-      {/* 2. AUTH PAGES (Dapat laging nasa itaas ito ng dynamic routes) */}
-      {/* Dito natin sinisiguro na lalabas ang Register Page */}
+      {/* 2. AUTH PAGES */}
       <Route path="/login" component={LoginPage} />
       <Route path="/register" component={RegisterPage} />
       <Route path="/terms" component={TermsPage} />
       <Route path="/update-password" component={UpdatePasswordPage} />
+      <Route path="/admin/terms" component={AdminTermsPage} />
+      <Route path="/auth/callback" component={AuthCallback} />
+
+
 
       {/* 3. STATIC DRIVER PAGES */}
       <Route path="/home" component={DriverHome} />
@@ -80,12 +86,12 @@ function Router() {
       <Route path="/admin/settings" component={AdminSettings} />
       <Route path="/admin/verifications" component={AdminVerifications} />
       <Route path="/admin/staffmanagement" component={AdminStaffManagement} />
+      <Route path="/set-password" component={SetPasswordPage} />
 
-      {/* 5. DYNAMIC ROUTES (Dapat laging nasa huli) */}
-      {/* Nilalagay natin ito sa dulo para hindi nito ma-block ang /register */}
+      {/* 5. DYNAMIC ROUTES */}
       <Route path="/parking/:id" component={ParkingLotPage} />
       <Route path="/slotselection/:lotId"> 
-      {(params) => <SlotSelectionPage lotId={params.lotId} />} 
+        {(params) => <SlotSelectionPage lotId={params.lotId} />} 
       </Route>
       <Route path="/reserve/:slotId" component={ReservationPage} />
       <Route path="/reserve/:slotId/confirm" component={ReservationConfirmPage} />
@@ -99,20 +105,38 @@ function Router() {
 }
 
 function App() {
+  // Get the full current URL
+  const url = window.location.href;
+  const hash = window.location.hash;
+  const searchParams = new URLSearchParams(window.location.search);
+  const hasTokenInHash = hash && hash.includes("access_token");
+  const hasTokenInQuery = searchParams.has("token") || searchParams.has("access_token");
+
+  if (hasTokenInHash || hasTokenInQuery) {
+    // Immediately render AuthCallback to handle the token
+    return (
+      <ErrorBoundary>
+        <ThemeProvider defaultTheme="light">
+          <TooltipProvider>
+            <Toaster position="top-center" richColors />
+            <AuthCallback />
+          </TooltipProvider>
+        </ThemeProvider>
+      </ErrorBoundary>
+    );
+  }
+
+  // Normal app rendering
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster position="top-center" richColors />
-          
-          {/* 🔥 2. IDINAGDAG: Dito natin isiningit para tahimik siyang tumatakbo sa buong app */}
           <AutoStatusUpdater />
-          
           <Router />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );
 }
-
 export default App;
