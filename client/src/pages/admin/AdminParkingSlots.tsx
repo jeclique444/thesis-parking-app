@@ -1,6 +1,6 @@
 /*
- * iParkBayan — AdminParkingSlots (Real Database Version with CRUD & Walk-in Toggle)
- * Updated: Role-Based View, Live Stream Dropdown, and SUPABASE REALTIME SYNC
+ * iParkBayan — AdminParkingSlots
+ * Complete Version: Bi-directional Sync, Pending/Unmapped Slots (Gray State), and Full UI
  */
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/AdminLayout";
@@ -34,7 +34,7 @@ export default function AdminParkingSlots() {
     fetchLots();
   }, []);
 
-  // 🔥 2. REAL-TIME SUBSCRIPTION: Auto-update slots kapag gumuhit sa Python
+  // 2. REAL-TIME SUBSCRIPTION
   useEffect(() => {
     if (!selectedLotId) return;
 
@@ -53,21 +53,19 @@ export default function AdminParkingSlots() {
           filter: `lot_id=eq.${selectedLotId}`, // Only listen to the active establishment
         },
         (payload) => {
-          console.log("Live DB Update Received:", payload);
-
           if (payload.eventType === 'INSERT') {
-            // Add the new slot drawn from Python
+            // Add the new slot
             setSlots((prev) => {
               if (prev.find((s) => s.id === payload.new.id)) return prev;
               return [...prev, payload.new].sort((a, b) => a.label.localeCompare(b.label));
             });
           } else if (payload.eventType === 'UPDATE') {
-            // Update status (e.g. from FREE to FULL triggered by AI)
+            // Update status
             setSlots((prev) =>
               prev.map((slot) => (slot.id === payload.new.id ? payload.new : slot))
             );
           } else if (payload.eventType === 'DELETE') {
-            // Remove slot if right-clicked and deleted in Python
+            // Remove slot
             setSlots((prev) => prev.filter((slot) => slot.id !== payload.old.id));
           }
         }
@@ -150,13 +148,14 @@ export default function AdminParkingSlots() {
     }
 
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('parking_slots')
         .insert([
           { 
             lot_id: selectedLotId, 
             label: newSlotLabel.trim().toUpperCase(),
-            status: 'available',
+            status: 'unmapped', // 🔥 SET TO UNMAPPED FOR PYTHON TO CATCH
+            coordinates: null,  // 🔥 NULL UNTIL DRAWN IN PYTHON
             is_pwd: newSlotIsPwd,
             is_reservable: true 
           }
@@ -172,12 +171,10 @@ export default function AdminParkingSlots() {
         return;
       }
 
-      toast.success(`Slot ${newSlotLabel} added successfully!`);
+      toast.success(`Slot ${newSlotLabel} added! Draw it on the camera feed to link it.`);
       setNewSlotLabel("");
       setNewSlotIsPwd(false);
       setIsAdding(false);
-      
-      // Note: No need to call fetchSlots here anymore because Realtime will auto-add it!
     } catch (error: any) {
       console.error("Supabase Error adding slot:", error.message);
       toast.error("Failed to add new slot.");
@@ -202,7 +199,6 @@ export default function AdminParkingSlots() {
 
       if (error) throw error;
       toast.success(`Slot ${slotLabel} is now set to ${newStatus ? 'Reservable' : 'Walk-in Only'}.`);
-      // No need to fetchSlots; Realtime handles the UI update!
     } catch (error: any) {
       console.error("Error updating slot status:", error.message);
       toast.error("Failed to update booking mode.");
@@ -212,8 +208,8 @@ export default function AdminParkingSlots() {
   const handleDeleteSlot = async (slotId: string, slotLabel: string, slotStatus: string) => {
     if (userRole !== 'superadmin') return; 
 
-    if (slotStatus !== 'available') {
-      toast.error(`Bawal i-delete ang Slot ${slotLabel} dahil ito ay ${slotStatus}!`);
+    if (slotStatus === 'occupied') {
+      toast.error(`Bawal i-delete ang Slot ${slotLabel} dahil ito ay occupied!`);
       return;
     }
 
@@ -230,7 +226,6 @@ export default function AdminParkingSlots() {
         throw error;
       }
       toast.success(`Slot ${slotLabel} deleted.`);
-      // No need to fetchSlots; Realtime handles the removal!
     } catch (error: any) {
       console.error("Error deleting slot:", error.message);
       toast.error(error.message || "Failed to delete slot.");
@@ -286,7 +281,7 @@ export default function AdminParkingSlots() {
           </div>
         </div>
 
-        {/* DYNAMIC UI: Live Camera Feed */}
+        {/* Live Camera Feed */}
         <div className="w-full max-w-5xl mx-auto bg-slate-900 rounded-2xl shadow-sm border border-slate-800 overflow-hidden relative aspect-video flex items-center justify-center">
           {activeLot.name.includes("Thesis Demo") ? (
             <>
@@ -458,12 +453,14 @@ export default function AdminParkingSlots() {
                             </Badge>
                           </td>
                           <td className="py-3">
+                            {/* 🔥 GRAY BADGE FOR UNMAPPED SLOTS */}
                             <span className={cn(
                               "text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider",
                               slot.status === "available" ? "bg-emerald-100 text-emerald-700" :
-                              slot.status === "occupied" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"
+                              slot.status === "occupied" ? "bg-rose-100 text-rose-700" : 
+                              slot.status === "unmapped" ? "bg-slate-200 text-slate-500" : "bg-amber-100 text-amber-700"
                             )}>
-                              {slot.status}
+                              {slot.status === "unmapped" ? "Null / Not Drawn" : slot.status}
                             </span>
                           </td>
                           <td className="py-3 text-right">
@@ -479,14 +476,13 @@ export default function AdminParkingSlots() {
                               {userRole === 'superadmin' && (
                                 <button
                                   onClick={() => handleDeleteSlot(slot.id, slot.label, slot.status)}
-                                  disabled={slot.status !== 'available'}
                                   className={cn(
                                     "p-2 rounded-lg transition-colors inline-flex items-center",
-                                    slot.status === 'available' 
+                                    slot.status !== 'occupied' 
                                       ? "text-rose-500 hover:text-rose-700 hover:bg-rose-50"
                                       : "text-slate-300 cursor-not-allowed"
                                   )}
-                                  title={slot.status === 'available' ? "Delete Slot" : "Cannot delete occupied/reserved slot"}
+                                  title={slot.status !== 'occupied' ? "Delete Slot" : "Cannot delete occupied slot"}
                                 >
                                   <Trash2 size={16} />
                                 </button>
