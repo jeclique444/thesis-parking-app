@@ -20,7 +20,7 @@ VITE_SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
 VITE_SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
 
 if not VITE_SUPABASE_URL or not VITE_SUPABASE_SERVICE_KEY:
-    print("❌ ERROR: Could not find Supabase keys. Make sure your .env file is set up correctly!")
+    print("ERROR: Could not find Supabase keys. Make sure your .env file is set up correctly!")
     exit()
 
 supabase: Client = create_client(VITE_SUPABASE_URL, VITE_SUPABASE_SERVICE_KEY)
@@ -36,9 +36,9 @@ def update_supabase_bg(db_id, db_status):
                 .update({'status': db_status}) \
                 .eq('id', db_id) \
                 .execute()
-            print(f"☁️ [SUPABASE] Slot updated to {db_status}")
+            print(f"[SUPABASE] Slot updated to {db_status}")
         except Exception as e:
-            print(f"❌ [CLOUD ERROR] Failed to update slot status: {e}")
+            print(f"[CLOUD ERROR] Failed to update slot status: {e}")
 
     threading.Thread(target=run_update).start()
 
@@ -66,7 +66,7 @@ def save_new_slot_to_db(points_list, label):
         if data and len(data[1]) > 0:
             return data[1][0]['id'] 
     except Exception as e:
-        print(f"❌ [DB ERROR] Failed to save slot: {e}")
+        print(f"[DB ERROR] Failed to save slot: {e}")
     return None
 
 def delete_slot_from_db(db_id):
@@ -75,7 +75,7 @@ def delete_slot_from_db(db_id):
         supabase.table('parking_slots').delete().eq('id', db_id).execute()
         print(f"🗑️ [SUPABASE] Slot deleted successfully!")
     except Exception as e:
-        print(f"❌ [DB ERROR] Failed to delete slot: {e}")
+        print(f"[DB ERROR] Failed to delete slot: {e}")
 
 def load_slots():
     """Fetches existing slots from Supabase on startup."""
@@ -99,9 +99,9 @@ def load_slots():
                 slot_data.append({"status": current_status, "time_in": 0})
                 slot_ids.append(row['id'])
                 
-        print(f"☁️ [SUPABASE] Successfully loaded {len(all_slots)} slots from the cloud!")
+        print(f"[SUPABASE] Successfully loaded {len(all_slots)} slots from the cloud!")
     except Exception as e:
-        print(f"❌ [DB ERROR] Failed to load slots from Supabase: {e}")
+        print(f"[DB ERROR] Failed to load slots from Supabase: {e}")
 
 # Call it immediately to load data on boot
 load_slots()
@@ -171,7 +171,7 @@ def video_feed():
 
 def run_flask():
     """Runs Flask in a background thread"""
-    print("🌐 Starting Flask web server on http://127.0.0.1:5000/video_feed")
+    print("Starting Flask web server on http://127.0.0.1:5000/video_feed")
     # use_reloader=False is REQUIRED when running Flask in a thread
     app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
 
@@ -182,14 +182,14 @@ flask_thread.start()
 # ---------------------------------------------------------
 # 5. AI & CAMERA SETUP
 # ---------------------------------------------------------
-print("🧠 Loading custom AI brain (best.pt)...")
+print("Loading custom AI brain (best.pt)...")
 model = YOLO("best.pt")
 
 # Tapo Camera RTSP Stream (Or use 0 for webcam)
 video_path = "rtsp://admincam:admin123@10.0.1.69:554/stream2"
 cap = RTSPStream(0)
 
-print("⏳ Waiting for stream to stabilize...")
+print("Waiting for stream to stabilize...")
 time.sleep(2)
 
 ret, original_frame = cap.read()
@@ -216,7 +216,7 @@ def handle_mouse(event, x, y, flags, param):
                 all_slots.append(new_slot_array)
                 slot_data.append({"status": "FREE", "time_in": 0})
                 slot_ids.append(new_db_id)
-                print(f"✅ Slot {new_label} saved and synced to cloud!")
+                print(f"Slot {new_label} saved and synced to cloud!")
             
             current_points = []
 
@@ -324,7 +324,7 @@ while True:
         cv2.putText(display_frame, "PAUSED", (10, 140),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 3)
 
-    # 🔥 Update the shared frame for Flask web server!
+    #Update the shared frame for Flask web server!
     with frame_lock:
         shared_frame = display_frame.copy()
 
@@ -342,4 +342,4 @@ while True:
 # ---------------------------------------------------------
 cap.release()
 cv2.destroyAllWindows()
-print("👋 Stream closed. Goodbye!")
+print("Stream closed. Goodbye!")

@@ -1,6 +1,6 @@
 /*
  * iParkBayan — AdminParkingSlots (Real Database Version with CRUD & Walk-in Toggle)
- * Updated: Role-Based View (Guard = View Only | Manager/Admin = Full Access)
+ * Updated: Role-Based View, Live Stream Dropdown, and SUPABASE REALTIME SYNC
  */
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/AdminLayout";
@@ -26,7 +26,7 @@ export default function AdminParkingSlots() {
   const [newSlotIsPwd, setNewSlotIsPwd] = useState(false);
 
   // Kunin ang credentials mula sa LocalStorage
-  const userRole = localStorage.getItem("admin_role") || "guard"; // Default fallback para iwas error
+  const userRole = localStorage.getItem("admin_role") || "guard"; 
   const userLotId = localStorage.getItem("admin_lot_id");
 
   // 1. Unang Load: Kunin ang mga Parking Lots
@@ -34,11 +34,50 @@ export default function AdminParkingSlots() {
     fetchLots();
   }, []);
 
-  // 2. Kapag nag-iba ang napiling Lot, kunin ang mga Slots nito
+  // 🔥 2. REAL-TIME SUBSCRIPTION: Auto-update slots kapag gumuhit sa Python
   useEffect(() => {
-    if (selectedLotId) {
-      fetchSlots(selectedLotId);
-    }
+    if (!selectedLotId) return;
+
+    // Fetch initial slots first
+    fetchSlots(selectedLotId);
+
+    // Setup the Supabase Realtime Listener
+    const channel = supabase
+      .channel('realtime-parking-slots')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to INSERT, UPDATE, and DELETE
+          schema: 'public',
+          table: 'parking_slots',
+          filter: `lot_id=eq.${selectedLotId}`, // Only listen to the active establishment
+        },
+        (payload) => {
+          console.log("Live DB Update Received:", payload);
+
+          if (payload.eventType === 'INSERT') {
+            // Add the new slot drawn from Python
+            setSlots((prev) => {
+              if (prev.find((s) => s.id === payload.new.id)) return prev;
+              return [...prev, payload.new].sort((a, b) => a.label.localeCompare(b.label));
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            // Update status (e.g. from FREE to FULL triggered by AI)
+            setSlots((prev) =>
+              prev.map((slot) => (slot.id === payload.new.id ? payload.new : slot))
+            );
+          } else if (payload.eventType === 'DELETE') {
+            // Remove slot if right-clicked and deleted in Python
+            setSlots((prev) => prev.filter((slot) => slot.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    // Cleanup listener when component unmounts or lot changes
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [selectedLotId]);
 
   const fetchLots = async () => {
@@ -46,28 +85,24 @@ export default function AdminParkingSlots() {
     try {
       let query = supabase.from('parking_lots').select('*');
 
-      // 🔥 MULTI-TENANT LOGIC: Kung Manager o Guard siya, i-filter lang sa hawak nilang Lot
+      // Multi-tenant filtering
       if ((userRole === 'manager' || userRole === 'guard') && userLotId) {
         query = query.eq('id', userLotId);
       }
 
       const { data, error } = await query;
-
       if (error) throw error;
 
       if (data && data.length > 0) {
         setLots(data);
-        
-        // 🔥 NEW LOGIC: Saluhin ang kinlick galing sa "Parking Lots" page
         const viewLotId = localStorage.getItem("view_lot_id");
         
         if (viewLotId && data.some(l => l.id === viewLotId)) {
-          setSelectedLotId(viewLotId); // I-auto select yung lot na kinlick
-          localStorage.removeItem("view_lot_id"); // Linisin agad para isang beses lang gumana
+          setSelectedLotId(viewLotId); 
+          localStorage.removeItem("view_lot_id"); 
         } else {
-          setSelectedLotId(data[0].id); // Auto-select ang unang lot kung walang kinlick
+          setSelectedLotId(data[0].id); 
         }
-        
       } else {
         toast.error("Wala pang nakatalagang Parking Lot sa iyo.");
       }
@@ -105,10 +140,9 @@ export default function AdminParkingSlots() {
     }
   };
 
-  // 🔥 ACTION: Mag-add ng bagong slot sa database (FOR MANAGERS & ADMINS ONLY)
   const handleAddSlot = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (userRole === 'guard') return; // Double protection
+    if (userRole === 'guard') return; 
 
     if (!newSlotLabel.trim()) {
       toast.error("Please enter a slot label.");
@@ -124,13 +158,13 @@ export default function AdminParkingSlots() {
             label: newSlotLabel.trim().toUpperCase(),
             status: 'available',
             is_pwd: newSlotIsPwd,
-            is_reservable: true // Default ay pwede i-reserve
+            is_reservable: true 
           }
         ])
         .select();
 
       if (error) {
-        if (error.code === '23505') { // Unique violation
+        if (error.code === '23505') { 
             toast.error("This slot label already exists in this lot.");
         } else {
             throw error;
@@ -143,18 +177,15 @@ export default function AdminParkingSlots() {
       setNewSlotIsPwd(false);
       setIsAdding(false);
       
-      // I-refresh ang listahan
-      fetchSlots(selectedLotId);
-
+      // Note: No need to call fetchSlots here anymore because Realtime will auto-add it!
     } catch (error: any) {
       console.error("Supabase Error adding slot:", error.message);
       toast.error("Failed to add new slot.");
     }
   };
 
-  // 🔥 ACTION: Toggle Reservable (Walk-in vs Reservable)
   const toggleReservableStatus = async (slotId: string, currentStatus: boolean, slotLabel: string) => {
-    if (userRole === 'guard') return; // Double protection
+    if (userRole === 'guard') return; 
 
     const newStatus = !currentStatus;
     const targetMode = newStatus ? 'Reservable' : 'Walk-in Only';
@@ -170,18 +201,16 @@ export default function AdminParkingSlots() {
         .eq('id', slotId);
 
       if (error) throw error;
-      
       toast.success(`Slot ${slotLabel} is now set to ${newStatus ? 'Reservable' : 'Walk-in Only'}.`);
-      fetchSlots(selectedLotId); 
+      // No need to fetchSlots; Realtime handles the UI update!
     } catch (error: any) {
       console.error("Error updating slot status:", error.message);
       toast.error("Failed to update booking mode.");
     }
   };
 
-  // 🔥 ACTION: Mag-delete ng slot (SUPER ADMIN ONLY & AVAILABLE ONLY)
   const handleDeleteSlot = async (slotId: string, slotLabel: string, slotStatus: string) => {
-    if (userRole !== 'superadmin') return; // Double protection
+    if (userRole !== 'superadmin') return; 
 
     if (slotStatus !== 'available') {
       toast.error(`Bawal i-delete ang Slot ${slotLabel} dahil ito ay ${slotStatus}!`);
@@ -197,21 +226,17 @@ export default function AdminParkingSlots() {
         .eq('id', slotId);
 
       if (error) {
-        if (error.code === '23503') { 
-          throw new Error("Cannot delete slot. It has past reservations and is linked to billing history.");
-        }
+        if (error.code === '23503') throw new Error("Cannot delete slot linked to billing history.");
         throw error;
       }
-
       toast.success(`Slot ${slotLabel} deleted.`);
-      fetchSlots(selectedLotId);
+      // No need to fetchSlots; Realtime handles the removal!
     } catch (error: any) {
       console.error("Error deleting slot:", error.message);
       toast.error(error.message || "Failed to delete slot.");
     }
   };
 
-  // Kung naglo-load pa ang system
   if (loadingLots) {
     return (
       <AdminLayout title="Parking Slots">
@@ -223,11 +248,9 @@ export default function AdminParkingSlots() {
     );
   }
 
-  // Kunin ang active lot details
   const activeLot = lots.find((l) => l.id === selectedLotId);
   if (!activeLot) return <AdminLayout title="Parking Slots"><p className="p-6 text-muted-foreground">No data found.</p></AdminLayout>;
 
-  // Real-time Calculations galing mismo sa database slots
   const totalSlots = slots.length;
   const availableSlots = slots.filter((s) => s.status === 'available').length;
   const occupiedSlots = slots.filter((s) => s.status === 'occupied').length;
@@ -255,7 +278,6 @@ export default function AdminParkingSlots() {
                 </option>
               ))}
             </select>
-            {/* Custom Dropdown Arrow */}
             <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-muted-foreground">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
@@ -264,46 +286,36 @@ export default function AdminParkingSlots() {
           </div>
         </div>
 
-        {/* 🔥 DYNAMIC UI: Live Camera Feed based on Establishment */}
+        {/* DYNAMIC UI: Live Camera Feed */}
         <div className="w-full max-w-5xl mx-auto bg-slate-900 rounded-2xl shadow-sm border border-slate-800 overflow-hidden relative aspect-video flex items-center justify-center">
-          
-          {/* CHECK IF LOT IS "Thesis Demo" */}
           {activeLot.name.includes("Thesis Demo") ? (
             <>
-              {/* MAKE SURE TO REPLACE THIS SRC WITH YOUR NGROK LINK FOR PRODUCTION */}
               <img 
                 src="http://127.0.0.1:5000/video_feed" 
                 alt="Live Parking Stream" 
                 className="w-full h-full object-contain"
                 onError={(e) => {
-                   // Fallback: If the python script isn't running, hide the broken image and show the offline message
                    e.currentTarget.style.display = 'none';
                    const fallbackMsg = document.getElementById('stream-fallback');
                    if(fallbackMsg) fallbackMsg.style.display = 'flex';
                 }}
               />
-              
-              {/* Offline Fallback UI for Thesis Demo */}
               <div id="stream-fallback" className="absolute inset-0 flex-col items-center justify-center text-slate-400 hidden bg-slate-900">
                  <Eye size={32} className="mb-3 opacity-50" />
                  <p className="text-base font-bold text-slate-300">Camera Feed Offline</p>
                  <p className="text-xs opacity-70 mt-1">Run <code className="bg-slate-800 px-1 py-0.5 rounded text-primary">python smart_slots.py</code> in terminal to start stream</p>
               </div>
-
-              {/* Live Indicator Badge */}
               <div className="absolute top-4 left-4 bg-red-600/90 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-md flex items-center gap-1.5 shadow-lg backdrop-blur-sm">
                 <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE
               </div>
             </>
           ) : (
-            /* 🔥 OFFLINE STATE FOR ALL OTHER ESTABLISHMENTS */
             <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 bg-slate-900">
                <Eye size={32} className="mb-3 opacity-50" />
                <p className="text-base font-bold text-slate-300">Camera Feed Offline</p>
                <p className="text-sm opacity-70 mt-1 font-medium">Hardware integration not active for {activeLot.name}</p>
             </div>
           )}
-
         </div>
 
         {/* Real-time Stats */}
@@ -352,7 +364,6 @@ export default function AdminParkingSlots() {
                 {refreshing ? "Syncing..." : "Refresh"}
               </Button>
 
-              {/* HIDE "Add Slot" button if the user is a Guard */}
               {userRole !== 'guard' && (
                 <Button 
                   size="sm" 
@@ -366,7 +377,6 @@ export default function AdminParkingSlots() {
             </div>
           </div>
           
-          {/* HIDE Add Slot Form Panel if the user is a Guard */}
           {isAdding && userRole !== 'guard' && (
             <div className="mb-6 p-4 bg-muted/30 border border-border rounded-xl">
               <form onSubmit={handleAddSlot} className="flex flex-wrap items-end gap-4">
@@ -407,12 +417,11 @@ export default function AdminParkingSlots() {
             <div className="text-center p-8 mb-8 border-2 border-dashed border-border rounded-xl text-muted-foreground">
               {userRole === 'guard' 
                 ? "Wala pang nakalagay na slots sa mapang ito."
-                : <>Wala pang slots sa parking lot na ito.<br/>I-click ang "Add Slot" button sa taas para mag-umpisa.</>
+                : <>Wala pang slots sa parking lot na ito.<br/>I-click ang "Add Slot" button sa taas o gumuhit sa AI Camera Dashboard para mag-umpisa.</>
               }
             </div>
           )}
 
-          {/* HIDE Real Database Table entirely if the user is a Guard */}
           {userRole !== 'guard' && (
             <>
               <h3 className="text-base font-bold text-foreground mb-4 pt-4 border-t border-border" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
@@ -444,7 +453,6 @@ export default function AdminParkingSlots() {
                             )}
                           </td>
                           <td className="py-3">
-                            {/* BOOKING MODE BADGE */}
                             <Badge variant="outline" className={isReservable ? "border-blue-200 text-blue-700 bg-blue-50" : "border-gray-300 text-gray-500 bg-gray-100"}>
                               {isReservable ? "Reservable" : "Walk-in Only (X)"}
                             </Badge>
@@ -460,7 +468,6 @@ export default function AdminParkingSlots() {
                           </td>
                           <td className="py-3 text-right">
                             <div className="flex justify-end gap-2">
-                              {/* TOGGLE MODE BUTTON (Makikita ng Manager at Superadmin) */}
                               <button
                                 onClick={() => toggleReservableStatus(slot.id, isReservable, slot.label)}
                                 className="p-2 rounded-lg text-blue-500 hover:text-blue-700 hover:bg-blue-50 transition-colors inline-flex items-center"
@@ -469,7 +476,6 @@ export default function AdminParkingSlots() {
                                 <ArrowLeftRight size={16} />
                               </button>
 
-                              {/* DEFENSE LOGIC: Superadmin lang at Available Slots lang ang pwedeng i-delete */}
                               {userRole === 'superadmin' && (
                                 <button
                                   onClick={() => handleDeleteSlot(slot.id, slot.label, slot.status)}
