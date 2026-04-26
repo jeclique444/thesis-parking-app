@@ -1,5 +1,5 @@
 /*
- * iParkBayan — AdminPersonnel (System Manager Creation & Roster)
+ * iParkBayan — AdminPersonnel (System Manager Creation via Edge Function Invite)
  */
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/AdminLayout";
@@ -11,7 +11,6 @@ import {
   UserPlus, 
   ShieldCheck, 
   Mail, 
-  Lock, 
   MapPin, 
   Database, 
   Users, 
@@ -20,26 +19,12 @@ import {
   UserCheck 
 } from "lucide-react";
 import { supabase } from "@/supabaseClient"; 
-import { createClient } from "@supabase/supabase-js";
-
-// Secondary Client gamit ang ANON KEY para hindi ma-logout si Super Admin
-const authSupabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY,
-  {
-    auth: {
-      persistSession: false, 
-      autoRefreshToken: false,
-    }
-  }
-);
 
 export default function AdminPersonnel() {
   const [lots, setLots] = useState<any[]>([]);
   const [managers, setManagers] = useState<any[]>([]);
   
   const [adminEmail, setAdminEmail] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
   const [adminLotId, setAdminLotId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -54,48 +39,37 @@ export default function AdminPersonnel() {
   };
 
   const fetchManagers = async () => {
-    // 🔴 INUPDATE: Isinama natin ang 'status' sa pag-fetch ng data
     const { data, error } = await supabase
       .from('admin_profiles')
       .select('id, role, status, parking_lots(name)')
       .eq('role', 'manager')
-      .order('status', { ascending: true }); // Para mauna ang mga Active sa listahan
+      .order('status', { ascending: true });
       
     if (!error && data) setManagers(data);
   };
 
-  const handleAddAdmin = async (e: React.FormEvent) => {
+  // NEW: Invite manager via Edge Function (no password needed)
+  const handleInviteManager = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!adminEmail || !adminPassword || !adminLotId) {
-      return toast.error("Pakikumpleto ang lahat ng fields.");
-    }
-    if (adminPassword.length < 6) {
-      return toast.error("Ang password ay dapat at least 6 characters.");
+    if (!adminEmail || !adminLotId) {
+      return toast.error("Please fill in email and select a parking lot.");
     }
 
     setIsSubmitting(true);
     try {
-      const { data: authData, error: authError } = await authSupabase.auth.signUp({
-        email: adminEmail,
-        password: adminPassword,
+      const { error } = await supabase.functions.invoke("invite-manager", {
+        body: { 
+          email: adminEmail, 
+          lot_id: adminLotId, 
+          role: "manager" 
+        }
       });
 
-      if (authError) throw authError;
+      if (error) throw error;
 
-      const newUserId = authData.user?.id;
-      if (!newUserId) throw new Error("Hindi nakuha ang User ID.");
-
-      const { error: profileError } = await supabase.from('admin_profiles').insert([{
-        id: newUserId,
-        lot_id: adminLotId,
-        role: 'manager',
-        status: 'Active' // Default status
-      }]);
-
-      if (profileError) throw profileError;
-
-      toast.success(`Manager account para sa ${adminEmail} nagawa na!`);
-      setAdminEmail(""); setAdminPassword(""); setAdminLotId("");
+      toast.success(`Invitation sent to ${adminEmail}. They will receive an email to set their password.`);
+      setAdminEmail("");
+      setAdminLotId("");
       fetchManagers(); 
     } catch (error: any) {
       console.error(error);
@@ -105,9 +79,8 @@ export default function AdminPersonnel() {
     }
   };
 
-  // 🔴 BAGONG FUNCTION: Para sa Soft Delete (Suspend / Reactivate)
+  // Suspend / Reactivate (unchanged)
   const handleToggleStatus = async (managerId: string, currentStatus: string) => {
-    // Default to Active kung sakaling walang laman (null)
     const safeStatus = currentStatus || 'Active';
     const newStatus = safeStatus === 'Suspended' ? 'Active' : 'Suspended';
     const actionText = newStatus === 'Suspended' ? 'i-suspend' : 'i-activate';
@@ -125,7 +98,7 @@ export default function AdminPersonnel() {
       if (error) throw error;
 
       toast.success(`Manager account successfully ${newStatus.toLowerCase()}!`);
-      fetchManagers(); // I-refresh ang listahan
+      fetchManagers();
     } catch (error: any) {
       console.error(error);
       toast.error(`Error: ${error.message}`);
@@ -136,31 +109,23 @@ export default function AdminPersonnel() {
     <AdminLayout title="Personnel Management">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-     {/* LEFT COLUMN: CREATE MANAGER FORM */}
-<div className="lg:col-span-1">
-  <div className="bg-white rounded-[24px] shadow-sm border border-border overflow-hidden">
-    
-    {/* HEADER SECTION */}
-    <div className="bg-sidebar p-8 text-white relative overflow-hidden">
-      <div className="relative z-10 space-y-2">
-        {/* Title: Pinaka-kaliwa at Malaki */}
-        <h2 className="text-3xl font-extrabold tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}> New Manager </h2>
-        
-        {/* Subtitle: Naka-align din sa kaliwa */}
-        <div className="flex items-center gap-2">
-          <div className="h-[2px] w-8 bg-primary"></div>
-          <p className="text-primary text-[11px] font-black uppercase tracking-[0.2em]"> Provision Access
-          </p>
-        </div>
-      </div>
+        {/* LEFT COLUMN: INVITE MANAGER FORM */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-[24px] shadow-sm border border-border overflow-hidden">
+            <div className="bg-sidebar p-8 text-white relative overflow-hidden">
+              <div className="relative z-10 space-y-2">
+                <h2 className="text-3xl font-extrabold tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}> Invite Manager </h2>
+                <div className="flex items-center gap-2">
+                  <div className="h-[2px] w-8 bg-primary"></div>
+                  <p className="text-primary text-[11px] font-black uppercase tracking-[0.2em]"> Send Invitation </p>
+                </div>
+              </div>
+              <div className="absolute right-[-20px] bottom-[-20px] opacity-10 rotate-[-15deg]">
+                <ShieldCheck size={140} />
+              </div>
+            </div>
 
-      {/* Decorative Icon - mas pinalaki para magandang background accent */}
-      <div className="absolute right-[-20px] bottom-[-20px] opacity-10 rotate-[-15deg]">
-        <ShieldCheck size={140} />
-      </div>
-    </div>
-
-            <form onSubmit={handleAddAdmin} className="p-6 space-y-5">
+            <form onSubmit={handleInviteManager} className="p-6 space-y-5">
               <div className="space-y-2">
                 <Label className="text-[11px] font-bold uppercase text-muted-foreground ml-1">Assign to Branch</Label>
                 <div className="relative">
@@ -181,20 +146,8 @@ export default function AdminPersonnel() {
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                   <Input 
                     className="h-12 rounded-xl pl-10 focus:ring-2 focus:ring-primary"
-                    type="email" placeholder="manager@ipark.ph" 
+                    type="email" placeholder="manager@parkada.ph" 
                     value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-[11px] font-bold uppercase text-muted-foreground ml-1">Initial Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                  <Input 
-                    className="h-12 rounded-xl pl-10 focus:ring-2 focus:ring-primary"
-                    type="password" placeholder="Min. 6 characters" 
-                    value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} required
                   />
                 </div>
               </div>
@@ -203,13 +156,13 @@ export default function AdminPersonnel() {
                 type="submit" disabled={isSubmitting} 
                 className="w-full h-12 font-bold uppercase tracking-widest rounded-xl transition-all active:scale-95 mt-4"
               >
-                {isSubmitting ? "Provisioning..." : "Create Account"}
+                {isSubmitting ? "Sending Invite..." : "Send Invitation"}
               </Button>
             </form>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: ACTIVE MANAGERS LIST */}
+        {/* RIGHT COLUMN: ACTIVE MANAGERS LIST (unchanged) */}
         <div className="lg:col-span-2">
           <div className="bg-white rounded-[24px] shadow-sm border border-border p-6 h-full min-h-[400px]">
             <div className="flex items-center justify-between mb-6">
@@ -235,16 +188,14 @@ export default function AdminPersonnel() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {managers.map((manager, index) => {
-                  // 🔴 UI LOGIC: I-check kung Suspended o Active
                   const isActive = manager.status !== 'Suspended';
-                  
                   return (
                     <div 
                       key={index} 
                       className={`flex items-center justify-between p-4 rounded-xl border transition-colors ${
                         isActive 
                           ? 'border-border bg-slate-50 hover:border-primary/50' 
-                          : 'border-rose-200 bg-rose-50/50 opacity-80' // Faded look kapag suspended
+                          : 'border-rose-200 bg-rose-50/50 opacity-80'
                       }`}
                     >
                       <div className="flex items-start gap-4">
@@ -258,7 +209,6 @@ export default function AdminPersonnel() {
                             <p className="text-sm font-bold text-foreground">
                               Manager ID: <span className="text-xs font-normal text-muted-foreground">{manager.id.substring(0, 8)}</span>
                             </p>
-                            {/* STATUS BADGE */}
                             <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
                               isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
                             }`}>
@@ -274,13 +224,12 @@ export default function AdminPersonnel() {
                         </div>
                       </div>
 
-                      {/* ACTION BUTTON */}
                       <button 
                         onClick={() => handleToggleStatus(manager.id, manager.status)}
                         className={`p-2 rounded-lg transition-colors ${
                           isActive 
-                            ? 'text-rose-500 hover:bg-rose-100' // Button para i-suspend
-                            : 'text-emerald-600 hover:bg-emerald-100' // Button para i-reactivate
+                            ? 'text-rose-500 hover:bg-rose-100'
+                            : 'text-emerald-600 hover:bg-emerald-100'
                         }`}
                         title={isActive ? "Suspend Manager" : "Reactivate Manager"}
                       >
@@ -297,4 +246,4 @@ export default function AdminPersonnel() {
       </div>
     </AdminLayout>
   );
-} 
+}
