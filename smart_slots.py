@@ -26,7 +26,7 @@ if not VITE_SUPABASE_URL or not VITE_SUPABASE_SERVICE_KEY:
 supabase: Client = create_client(VITE_SUPABASE_URL, VITE_SUPABASE_SERVICE_KEY)
 
 # ⚠️ IMPORTANT: Paste your specific parking lot's UUID here!
-TARGET_LOT_ID = "54e3b733-51d9-405c-90d6-196179271053" # Make a new Parking just for the Demo
+TARGET_LOT_ID = "6928d8dc-1562-43cd-bad1-14c8bb412895" # Thesis Demo (De La Salle Lipa)
 
 def update_supabase_bg(db_id, db_status):
     """Runs the database status update in the background so the camera feed doesn't lag."""
