@@ -13,7 +13,6 @@ import { Eye, EyeOff, Shield, Loader2 } from "lucide-react";
 import { supabase } from "@/supabaseClient";
 import TrueFocus from "@/components/ui/focus";
 import DarkVeil from "@/components/ui/dark-veil"; // Make sure this says 'dark-veil' and not 'focus'!
-import logoImage from "@/assets/logo.png"; // Or whatever path reaches your assets folder
 
 export default function AdminLogin() {
   const [, navigate] = useLocation();
@@ -89,8 +88,7 @@ export default function AdminLogin() {
 
   return (
     <div className="min-h-screen flex bg-background">
-
-{/* Left Panel — TrueFocus + DarkVeil Background */}
+      {/* Left Panel — TrueFocus + DarkVeil Background */}
       <div className="hidden lg:flex lg:w-[65%] relative overflow-hidden bg-black">
         
         {/* The WebGL Shader Background */}
@@ -107,11 +105,11 @@ export default function AdminLogin() {
         </div>
 
         {/* The Foreground Content (Sits on top) */}
-        <div className="relative z-10 flex flex-col justify-between p-12 w-full h-full">
+        {/* Changed from p-12 to px-12 pb-12 pt-8 to reduce top margin */}
+        <div className="relative z-10 flex flex-col justify-between px-12 pb-12 pt-8 w-full h-full">
           
           {/* Top: Branding */}
           <div className="flex items-center gap-3">
-            {/* Replace src with your actual logo path (e.g., "/logo.png" or "/assets/logo.svg") */}
             <img 
               src="/ParKadav2.png" 
               alt="ParKada Logo" 
@@ -119,17 +117,19 @@ export default function AdminLogin() {
             />
             <span
               className="text-xl font-extrabold text-white"
-              style={{ fontFamily: "'DM Sans', sans-serif" }}
+              style={{ fontFamily: "'Montserrat', sans-serif" }}
             >
               ParKada
             </span>
           </div>
 
           {/* Middle: The TrueFocus Hero Section */}
-          <div className="flex-1 flex flex-col justify-center items-start -mt-12">
+          {/* Changed justify-left to justify-center to vertically center the content */}
+          <div className="flex-1 flex flex-col justify-center items-start w-full">
             
             {/* The TrueFocus Component */}
-            <div className="text-white w-full flex justify-start mb-6">
+            {/* Added explicit text sizing and whitespace-nowrap to fit on one line */}
+            <div className="text-white w-full flex justify-start mb-3 text-3xl xl:text-4xl 2xl:text-5xl whitespace-nowrap">
               <TrueFocus 
                 sentence="Parking Management Center"
                 manualMode={false}
@@ -141,32 +141,37 @@ export default function AdminLogin() {
               />
             </div>
 
-            <p className="text-white/80 mt-6 text-lg max-w-md leading-relaxed drop-shadow-md">
+            {/* Changed from text-lg to text-sm and reduced top margin */}
+            <p className="text-white/75 mt-3 text-sm md:text-base max-w-md leading-relaxed drop-shadow-md">
               Your centralized hub for managing parking reservations, occupancy, and facility operations.
             </p>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-3 gap-4 mt-12 w-full max-w-md">
-              {[
-                { label: "Registered Partners", value: "4" },
-                { label: "Occupancy Rate", value: "86%" },
-                { label: "Active Users", value: "28" },
-              ].map(({ label, value }) => (
-                <div key={label} className="bg-black/30 rounded-xl p-4 text-center backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors shadow-lg">
-                  <p className="text-3xl font-extrabold text-white">{value}</p>
-                  <p className="text-xs text-white/70 mt-1 uppercase tracking-wider font-semibold">{label}</p>
-                </div>
-              ))}
+            {/* Stats Grid - Wrapped in a flex justify-center container */}
+            <div className="w-full flex justify-center mt-12">
+              <div className="grid grid-cols-3 gap-4 w-full max-w-md">
+                {[
+                  { label: "Registered Partners", value: "4" },
+                  { label: "Occupancy Rate", value: "86%" },
+                  { label: "Active Users", value: "28" },
+                ].map(({ label, value }) => (
+                  <div key={label} className="bg-black/30 rounded-xl p-4 text-center backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors shadow-lg">
+                    <p className="text-3xl font-extrabold text-white">{value}</p>
+                    <p className="text-[10px] text-white/70 mt-1 uppercase tracking-wider font-semibold">{label}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
           {/* Bottom: Footer */}
-          <p className="text-white/50 text-xs tracking-wide font-medium">
-             IT3C Group 9 · De La Salle Lipa · 2026
-          </p>
-          <p className="text-white/50 text-xs tracking-wide font-medium">
-             Alcantara · Cadeliña · Lique · Mendez
-          </p>
+          <div>
+            <p className="text-white/50 text-xs tracking-wide font-medium">
+              IT3C Group 9 · De La Salle Lipa · 2026
+            </p>
+            <p className="text-white/50 text-xs tracking-wide font-medium mt-1">
+              Alcantara · Cadeliña · Lique · Mendez
+            </p>
+          </div>
         </div>
       </div>
 

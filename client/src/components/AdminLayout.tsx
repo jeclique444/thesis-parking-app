@@ -188,7 +188,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
               className="w-10 h-10 object-contain drop-shadow-md" 
             />
             <div>
-              <p className="font-extrabold text-lg text-white" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+              <p className="font-bold text-lg text-white" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                 ParKada
               </p>
               <p className="text-xs text-white/70 capitalize">
