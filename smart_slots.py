@@ -7,7 +7,7 @@ from ultralytics import YOLO
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
-# 🔥 IMPORTS FOR WEB STREAMING
+#IMPORTS FOR WEB STREAMING
 from flask import Flask, Response
 from flask_cors import CORS
 
@@ -25,7 +25,7 @@ if not VITE_SUPABASE_URL or not VITE_SUPABASE_SERVICE_KEY:
 
 supabase: Client = create_client(VITE_SUPABASE_URL, VITE_SUPABASE_SERVICE_KEY)
 
-# ⚠️ IMPORTANT: Paste your specific parking lot's UUID here!
+#IMPORTANT: Paste your specific parking lot's UUID here!
 TARGET_LOT_ID = "6928d8dc-1562-43cd-bad1-14c8bb412895" # Thesis Demo ID
 
 def update_supabase_bg(db_id, db_status):
@@ -49,7 +49,7 @@ data_lock = threading.Lock() # Protects lists while threads read/write
 slot_ids = []    # Tracks the database UUID for each slot
 all_slots = []   # Tracks the numpy arrays for OpenCV drawing
 slot_data = []   # Tracks the current FREE/FULL status and timers
-slot_labels = [] # 🔥 FIX: Locks the true database label (S1, S2) to the drawn box!
+slot_labels = [] # FIX: Locks the true database label (S1, S2) to the drawn box!
 current_points = [] # Tracks the points you are currently drawing
 
 pending_slots = [] # Slots created in the Web UI but not yet drawn in Python
@@ -73,7 +73,7 @@ def sync_db_loop():
 
                     if coords:
                         mapped_db_ids.append(db_id)
-                        # 🔥 FIX: Load existing drawn slots from the database on startup!
+                        # FIX: Load existing drawn slots from the database on startup!
                         if db_id not in slot_ids:
                             print(f"📥 Loaded existing slot from DB: {label}")
                             slot_ids.append(db_id)
@@ -145,7 +145,7 @@ class RTSPStream:
         self.lock = threading.Lock()
         self.running = True
         threading.Thread(target=self._reader, daemon=True).start()
-        print("📡 RTSP stream reader started...")
+        print("RTSP stream reader started...")
 
     def _reader(self):
         while self.running:
@@ -207,7 +207,7 @@ model = YOLO("best.pt")
 print("Warming up AI model (please wait a few seconds)...")
 dummy = np.zeros((416, 416, 3), dtype=np.uint8)
 model.predict(dummy, verbose=False, conf=0.4, imgsz=416, device="cpu")
-print("✅ Warmup complete!")
+print("Warmup complete!")
 
 # Camera RTSP Stream (Or use 0 for webcam testing)
 video_path = 0 
@@ -285,7 +285,7 @@ while True:
     if not paused:
         ret, frame = cap.read()
         if not ret or frame is None:
-            print("⚠️ Camera feed ended or disconnected.")
+            print("Camera feed ended or disconnected.")
             break
 
     display_frame = frame.copy()
@@ -318,7 +318,7 @@ while True:
                     is_occupied = True
                     break
 
-            # 🔥 FIX: Use the true database label instead of the list order!
+            # FIX: Use the true database label instead of the list order!
             slot_label = slot_labels[i]
 
             if is_occupied:
@@ -355,12 +355,6 @@ while True:
         cv2.circle(display_frame, point, 5, (0, 0, 255), -1)
     if len(current_points) > 1:
         cv2.polylines(display_frame, [np.array(current_points, np.int32)], False, (0, 0, 255), 2)
-
-    cv2.rectangle(display_frame, (10, 10), (300, 100), (0, 0, 0), -1)
-    cv2.putText(display_frame, f"FREE SPACES: {free_count}", (20, 45),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
-    cv2.putText(display_frame, f"FULL SPACES: {full_count}", (20, 85),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
 
     if paused:
         cv2.putText(display_frame, "PAUSED", (10, 140),
