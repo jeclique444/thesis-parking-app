@@ -108,7 +108,7 @@ export default function UpdatePasswordPage() {
       {/* Header Area */}
       <div className="relative h-56 overflow-hidden shrink-0">
         <img src={BG_IMG} alt="" className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-b from-[oklch(0.18_0.06_255/0.8)] to-[oklch(0.18_0.06_255/0.95)]" />
+        <div className="absolute inset-0 bg-linear-to-b from-[oklch(0.18_0.06_255/0.8)] to-[oklch(0.18_0.06_255/0.95)]" />
         
         {/* Back Button - conditional */}
         {showBackArrow && (

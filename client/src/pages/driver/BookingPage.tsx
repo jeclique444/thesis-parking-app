@@ -243,7 +243,7 @@ export default function MyReservationsPage() {
                     </div>
                   </div>
 
-                  <div className="h-[1px] w-full bg-gray-100 mb-2.5"></div>
+                  <div className="h-px w-full bg-gray-100 mb-2.5"></div>
 
                   <div className="flex justify-between items-center">
                     <p className="text-[15px] font-bold text-gray-900">₱{res.total_amount}</p>

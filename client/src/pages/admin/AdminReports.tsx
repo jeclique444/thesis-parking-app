@@ -132,7 +132,7 @@ export default function AdminReports() {
         </div>
 
         {/* Top Section: Revenue Chart */}
-        <div className="bg-white rounded-[24px] p-6 border border-slate-100 shadow-sm">
+        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h3 className="text-lg font-black text-slate-900 leading-tight">Monthly Revenue Performance</h3>
@@ -162,7 +162,7 @@ export default function AdminReports() {
         {/* Bottom Grid: Weekly & Hourly */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Weekly Occupancy */}
-          <div className="bg-white rounded-[24px] p-6 border border-slate-100 shadow-sm">
+          <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
             <h3 className="text-sm font-black text-slate-900 mb-1 flex items-center gap-2">
               <Calendar size={16} className="text-primary" /> Weekly Occupancy (%)
             </h3>
@@ -179,7 +179,7 @@ export default function AdminReports() {
           </div>
 
           {/* Hourly Pattern */}
-          <div className="bg-white rounded-[24px] p-6 border border-slate-100 shadow-sm">
+          <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
             <h3 className="text-sm font-black text-slate-900 mb-1 flex items-center gap-2">
               <Clock size={16} className="text-emerald-500" /> Hourly Occupancy Pattern
             </h3>
@@ -197,7 +197,7 @@ export default function AdminReports() {
         </div>
 
         {/* Breakdown Table */}
-        <div className="bg-white rounded-[24px] p-6 border border-slate-100 shadow-sm">
+        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
           <h3 className="text-lg font-black text-slate-900 mb-4 flex items-center gap-2">
             <MapPin size={20} className="text-primary" />
             {userRole === 'super_admin' ? "Revenue by Parking Lot" : "Your Lot Performance"}
@@ -234,7 +234,7 @@ export default function AdminReports() {
 
 function KPICard({ label, value, change, up }: any) {
   return (
-    <div className="bg-white rounded-[24px] p-5 border border-slate-100 shadow-sm transition-transform hover:scale-[1.02]">
+    <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm transition-transform hover:scale-[1.02]">
       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">{label}</p>
       <p className="text-2xl font-black text-slate-900 leading-none mb-2">{value}</p>
       <div className={`flex items-center gap-1 text-[10px] font-bold ${up ? "text-emerald-600" : "text-rose-600"}`}>

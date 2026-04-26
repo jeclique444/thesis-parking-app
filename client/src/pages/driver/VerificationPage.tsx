@@ -255,7 +255,7 @@ export default function VerificationPage() {
         {status === 'unverified' && !cameraMode && (
           <div className="mb-8">
             <div className="flex items-center justify-between relative px-2">
-              <div className="absolute top-1/2 left-0 w-full h-[2px] bg-slate-100 -z-10 -translate-y-1/2"></div>
+              <div className="absolute top-1/2 left-0 w-full h-0.5 bg-slate-100 -z-10 -translate-y-1/2"></div>
               
               {/* Step 1 Indicator */}
               <div className="flex flex-col items-center gap-2 bg-white">
@@ -492,22 +492,22 @@ export default function VerificationPage() {
 
         {/* --- FULL SCREEN CAMERA OVERLAYS --- */}
         {cameraMode && (
-          <div className="fixed inset-0 z-[100] bg-black flex items-center justify-center overflow-hidden">
+          <div className="fixed inset-0 z-100 bg-black flex items-center justify-center overflow-hidden">
             <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" autoPlay muted playsInline />
             
             {/* Analyzing Overlay */}
             {isAnalyzing && (
-              <div className="absolute inset-0 z-[130] flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm">
+              <div className="absolute inset-0 z-130 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm">
                 <Loader2 className="animate-spin text-blue-500 mb-4" size={48} />
                 <p className="text-white font-bold tracking-widest uppercase">Analyzing Frame...</p>
               </div>
             )}
 
             {/* Visual Guides & Shadow Outbox Overlay */}
-            <div className="absolute inset-0 z-[110] pointer-events-none flex flex-col items-center justify-center">
+            <div className="absolute inset-0 z-110 pointer-events-none flex flex-col items-center justify-center">
               
               {/* Overlay Top Texts */}
-              <div className="absolute top-16 left-0 w-full px-6 flex flex-col items-center text-center space-y-2 z-[120]">
+              <div className="absolute top-16 left-0 w-full px-6 flex flex-col items-center text-center space-y-2 z-120">
                 {cameraMode.includes('id') ? (
                   <>
                     <h2 className="text-white text-2xl font-black tracking-tight">
@@ -530,7 +530,7 @@ export default function VerificationPage() {
               {/* Central Cutout Framing */}
               <div className={cn(
                 "relative shadow-[0_0_0_4000px_rgba(0,0,0,0.7)]",
-                cameraMode.includes('id') ? "w-[85%] aspect-[1.58/1] rounded-2xl" : "w-[75%] aspect-[3/4] sm:aspect-square rounded-[100%]"
+                cameraMode.includes('id') ? "w-[85%] aspect-[1.58/1] rounded-2xl" : "w-[75%] aspect-3/4 sm:aspect-square rounded-[100%]"
               )}>
                 {/* ID Corner Brackets */}
                 {cameraMode.includes('id') && (
@@ -548,7 +548,7 @@ export default function VerificationPage() {
               </div>
 
               {/* Overlay Bottom Controls */}
-              <div className="absolute bottom-12 left-0 w-full flex flex-col items-center px-6 z-[120] pointer-events-auto">
+              <div className="absolute bottom-12 left-0 w-full flex flex-col items-center px-6 z-120 pointer-events-auto">
                 <Button 
                   onClick={capturePhoto} 
                   disabled={isAnalyzing} 
@@ -578,10 +578,10 @@ export default function VerificationPage() {
                 <Clock className="text-amber-500" size={48} />
              </div>
              <h2 className="text-2xl font-black text-slate-800 tracking-tight">Under Review</h2>
-             <p className="text-sm text-slate-500 mt-3 max-w-[280px] leading-relaxed">
+             <p className="text-sm text-slate-500 mt-3 max-w-70 leading-relaxed">
                 Sit tight! We're validating your identity documents. We'll notify you once approved.
              </p>
-             <Button onClick={() => navigate("/profile")} variant="outline" className="mt-10 rounded-full w-full max-w-[200px] font-bold">Back to Profile</Button>
+             <Button onClick={() => navigate("/profile")} variant="outline" className="mt-10 rounded-full w-full max-w-50 font-bold">Back to Profile</Button>
           </div>
         )}
 
@@ -594,7 +594,7 @@ export default function VerificationPage() {
              <p className="text-sm text-slate-500 mt-2">
                 Your account is successfully secured as a <strong>{idType}</strong> user.
              </p>
-             <Button onClick={() => navigate("/profile")} className="mt-10 bg-blue-600 text-white rounded-full w-full max-w-[200px] h-12 font-bold shadow-lg shadow-blue-600/20">
+             <Button onClick={() => navigate("/profile")} className="mt-10 bg-blue-600 text-white rounded-full w-full max-w-50 h-12 font-bold shadow-lg shadow-blue-600/20">
                Continue to Profile
              </Button>
           </div>

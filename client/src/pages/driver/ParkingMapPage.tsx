@@ -144,7 +144,7 @@ function RouteBoundsController({ routeCoords }: { routeCoords: [number, number][
 function ZoomHandler({ onCenterToUser }: { onCenterToUser: () => void }) {
   const map = useMap();
   return (
-    <div className="absolute right-4 top-20 z-[1000] flex flex-col gap-2">
+    <div className="absolute right-4 top-20 z-1000 flex flex-col gap-2">
       <button 
         onClick={() => map.setZoom(19)}
         className="w-10 h-10 bg-primary text-white rounded-full shadow-lg flex items-center justify-center active:scale-90 transition-transform"
@@ -538,7 +538,7 @@ export default function ParkingMapPage() {
             </MapContainer>
 
             {/* BOTTOM SHEET PREVIEW */}
-            <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md rounded-t-[24px] p-4 shadow-2xl z-[1000]">
+            <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md rounded-t-3xl p-4 shadow-2xl z-1000">
               <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-4" />
               <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-3 px-1">
                 {filteredAndSorted.length} Results

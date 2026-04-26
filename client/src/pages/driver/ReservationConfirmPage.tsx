@@ -183,7 +183,7 @@ export default function ReservationConfirmPage() {
         </div>
         <Button 
           onClick={() => navigate(`/receipt/${newReservationId}`)} 
-          className="w-full h-14 rounded-2xl bg-[oklch(0.22_0.07_255)] font-bold text-lg shadow-lg"
+          className="w-full h-14 rounded-2xl bg-navy-900 font-bold text-lg shadow-lg"
         >
           View Digital Receipt
         </Button>

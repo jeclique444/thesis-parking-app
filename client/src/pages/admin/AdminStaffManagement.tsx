@@ -168,7 +168,7 @@ export default function ManageGuards() {
         
         {/* LEFT COLUMN: CREATE GUARD FORM */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-[24px] shadow-sm border border-border overflow-hidden">
+          <div className="bg-white rounded-3xl shadow-sm border border-border overflow-hidden">
             
             {/* HEADER SECTION */}
             <div className="bg-sidebar p-8 text-white relative overflow-hidden">
@@ -178,7 +178,7 @@ export default function ManageGuards() {
                 </h2>
                 
                 <div className="flex items-center gap-2">
-                  <div className="h-[2px] w-8 bg-primary"></div>
+                  <div className="h-0.5 w-8 bg-primary"></div>
                   <p className="text-primary text-[11px] font-black uppercase tracking-[0.2em]"> 
                     Scanner Access 
                   </p>
@@ -186,7 +186,7 @@ export default function ManageGuards() {
               </div>
 
               {/* Decorative Icon */}
-              <div className="absolute right-[-20px] bottom-[-20px] opacity-10 rotate-[-15deg]">
+              <div className="absolute -right-5 -bottom-5 opacity-10 rotate-[-15deg]">
                 <ShieldCheck size={140} />
               </div>
             </div>
@@ -245,7 +245,7 @@ export default function ManageGuards() {
 
         {/* RIGHT COLUMN: ACTIVE GUARDS LIST */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-[24px] shadow-sm border border-border p-6 h-full min-h-[400px]">
+          <div className="bg-white rounded-3xl shadow-sm border border-border p-6 h-full min-h-100">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="bg-muted p-2 rounded-lg text-foreground">

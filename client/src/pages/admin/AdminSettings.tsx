@@ -84,7 +84,7 @@ export default function AdminSettings() {
             <div className="space-y-6">
               
               {/* 1. PRICING & RATES */}
-              <div className="bg-white rounded-[24px] shadow-sm border border-border p-6 space-y-6">
+              <div className="bg-white rounded-3xl shadow-sm border border-border p-6 space-y-6">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="bg-emerald-500/10 p-2 rounded-xl text-emerald-600">
                     <Banknote size={20} />
@@ -111,7 +111,7 @@ export default function AdminSettings() {
               </div>
 
               {/* 2. STATUTORY DISCOUNTS */}
-              <div className="bg-white rounded-[24px] shadow-sm border border-border p-6 space-y-6">
+              <div className="bg-white rounded-3xl shadow-sm border border-border p-6 space-y-6">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="bg-blue-500/10 p-2 rounded-xl text-blue-600">
                     <BadgePercent size={20} />
@@ -144,7 +144,7 @@ export default function AdminSettings() {
               </div>
 
               {/* 3. TAX & LGU SHARE */}
-              <div className="bg-white rounded-[24px] shadow-sm border border-border p-6 space-y-6">
+              <div className="bg-white rounded-3xl shadow-sm border border-border p-6 space-y-6">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="bg-slate-900 p-2 rounded-xl text-white">
                     <Percent size={20} />
@@ -172,7 +172,7 @@ export default function AdminSettings() {
             <div className="space-y-6">
 
               {/* 4. VIOLATIONS & PENALTIES */}
-              <div className="bg-white rounded-[24px] shadow-sm border border-border p-6 space-y-6">
+              <div className="bg-white rounded-3xl shadow-sm border border-border p-6 space-y-6">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="bg-rose-500/10 p-2 rounded-xl text-rose-600">
                     <Gavel size={20} />
@@ -199,7 +199,7 @@ export default function AdminSettings() {
               </div>
 
               {/* 5. BOOKING & OPERATIONS */}
-              <div className="bg-white rounded-[24px] shadow-sm border border-border p-6 space-y-6">
+              <div className="bg-white rounded-3xl shadow-sm border border-border p-6 space-y-6">
                 <div className="flex items-center gap-3 mb-2">
                   <div className="bg-violet-500/10 p-2 rounded-xl text-violet-600">
                     <CalendarClock size={20} />
@@ -230,7 +230,7 @@ export default function AdminSettings() {
               </div>
 
               {/* 6. PAYMENT GATEWAY (MOCK) */}
-              <div className="bg-slate-50 rounded-[24px] border border-border p-6 space-y-4">
+              <div className="bg-slate-50 rounded-3xl border border-border p-6 space-y-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
                     <div className="bg-white p-2 rounded-xl text-slate-700 shadow-sm border border-border">
@@ -262,7 +262,7 @@ export default function AdminSettings() {
           </div>
 
           {/* DANGER ZONE / SAVE ACTION */}
-          <div className="mt-8 bg-white border border-border rounded-[24px] p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
+          <div className="mt-8 bg-white border border-border rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
             <div className="flex items-center gap-4 text-rose-600">
               <div className="bg-rose-100 p-3 rounded-full">
                 <ShieldAlert size={24} />

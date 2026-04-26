@@ -175,7 +175,7 @@ export default function ParkingLotPage() {
               )}
             </div>
             <div className="text-right">
-              <p className="text-lg font-extrabold text-[oklch(0.22_0.07_255)]">
+              <p className="text-lg font-extrabold text-navy-900">
                 {lot.rate_per_hour === 0 ? "Free" : `₱${lot.rate_per_hour}`}
               </p>
               {lot.rate_per_hour > 0 && <p className="text-[10px] text-muted-foreground font-medium">per hour</p>}
@@ -215,10 +215,10 @@ export default function ParkingLotPage() {
         {selectedSlot && !isSuspended && (
           <div className="mx-4 mt-3 p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-2">
             <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center shadow-sm">
-              <Car size={18} className="text-[oklch(0.22_0.07_255)]" />
+              <Car size={18} className="text-navy-900" />
             </div>
             <div className="flex-1">
-              <p className="text-sm font-bold text-[oklch(0.22_0.07_255)]">
+              <p className="text-sm font-bold text-navy-900">
                 Slot {selectedSlot.label} Selected
               </p>
               <p className="text-xs text-muted-foreground font-medium">₱{lot.rate_per_hour}/hr · {lot.name}</p>

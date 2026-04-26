@@ -284,7 +284,7 @@ export default function AdminScanner() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="h-11 px-6 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:opacity-90 disabled:opacity-50 min-w-[100px]"
+                  className="h-11 px-6 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:opacity-90 disabled:opacity-50 min-w-25"
                 >
                   {isLoading ? <Loader2 size={18} className="animate-spin" /> : "Search"}
                 </button>
@@ -324,7 +324,7 @@ export default function AdminScanner() {
 
           {/* Verification Result */}
           <div className="space-y-4">
-            <div className="bg-white rounded-2xl p-6 border border-border shadow-sm min-h-[400px] flex flex-col">
+            <div className="bg-white rounded-2xl p-6 border border-border shadow-sm min-h-100 flex flex-col">
               <h3 className="text-sm font-bold text-foreground mb-4">Verification Result</h3>
 
               {!bookingData ? (

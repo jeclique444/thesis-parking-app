@@ -190,7 +190,7 @@ export default function VehiclesPage() {
         {loading ? (
           <div className="flex justify-center py-20"><Loader2 className="animate-spin text-slate-300" /></div>
         ) : vehicles.length === 0 ? (
-          <div className="text-center py-20 bg-slate-50 rounded-[2rem] border-2 border-dashed border-slate-200">
+          <div className="text-center py-20 bg-slate-50 rounded-4xl border-2 border-dashed border-slate-200">
             <Car size={48} className="mx-auto text-slate-200 mb-2" />
             <p className="text-sm font-bold text-slate-400">No vehicles yet.</p>
           </div>
@@ -235,7 +235,7 @@ export default function VehiclesPage() {
               {isMaxReached ? "Max Limit Reached (3/3)" : "Register New Vehicle"}
             </Button>
           </DialogTrigger>
-          <DialogContent className="rounded-[2rem] w-[92%] max-w-md mx-auto p-6">
+          <DialogContent className="rounded-4xl w-[92%] max-w-md mx-auto p-6">
             <DialogHeader>
               <DialogTitle className="text-xl font-black uppercase tracking-tight">Add Vehicle</DialogTitle>
             </DialogHeader>

@@ -325,7 +325,7 @@ export default function ReservationPage() {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[oklch(0.22_0.07_255)] mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-navy-900 mx-auto mb-4"></div>
           <p className="text-gray-500 font-medium">Loading reservation details...</p>
         </div>
       </div>
@@ -340,7 +340,7 @@ export default function ReservationPage() {
         
         {/* ========== UNVERIFIED USER NOTICE ========== */}
         {!isVerified && (
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-4 shadow-md">
+          <div className="bg-linear-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-4 shadow-md">
             <div className="flex items-start gap-3 mb-3">
               <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
                 <Shield className="w-5 h-5 text-blue-600" />
@@ -512,7 +512,7 @@ export default function ReservationPage() {
         {/* ========== SLOT INFO CARD ========== */}
         <div className={cn(
           "text-white rounded-2xl p-5 shadow-lg transition-colors",
-          isBlocked && isVerified ? "bg-gray-400" : "bg-gradient-to-br from-[oklch(0.22_0.07_255)] to-[oklch(0.28_0.07_255)]"
+          isBlocked && isVerified ? "bg-gray-400" : "bg-linear-to-br from-navy-900 to-[oklch(0.28_0.07_255)]"
         )}>
           <div className="flex justify-between items-start">
             <div>
@@ -732,7 +732,7 @@ export default function ReservationPage() {
             "w-full h-14 rounded-xl text-base font-black shadow-lg transition-all",
             !isVerified || isBlocked || !plateNumber || isExceedingCloseTime || isParkingClosed || isBookingCutoff
               ? "bg-gray-300 text-gray-500 cursor-not-allowed" 
-              : "bg-[oklch(0.22_0.07_255)] text-white hover:bg-[oklch(0.25_0.07_255)] active:scale-[0.98]"
+              : "bg-navy-900 text-white hover:bg-[oklch(0.25_0.07_255)] active:scale-[0.98]"
           )}
         >
           {!isVerified ? (

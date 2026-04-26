@@ -192,7 +192,7 @@ export default function ActiveReservationTimer({ reservation, onUpdate }: Active
         {isExpiringSoon && !isOvertime && settings.allow_extensions && (
           <button
             onClick={() => setShowExtendModal(true)}
-            className="w-full mt-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-200 shadow-lg"
+            className="w-full mt-1 bg-linear-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all duration-200 shadow-lg"
           >
             Extend Session
           </button>
