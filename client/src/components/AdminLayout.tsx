@@ -14,8 +14,6 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@/supabaseClient";
-
-// IMPORTANT: Import the DarkVeil component
 import DarkVeil from "@/components/ui/dark-veil"; 
 
 interface AdminLayoutProps {
@@ -37,12 +35,11 @@ const allNavItems = [
 ];
 
 export default function AdminLayout({ children, title }: AdminLayoutProps) {
-  const [location, navigate] = useLocation();
+  const [location, setLocation] = useLocation();
   const [adminEmail, setAdminEmail] = useState<string>("Loading...");
   const [initials, setInitials] = useState<string>("A");
   const [userId, setUserId] = useState<string | null>(null);
   
-  // Notification States
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -132,19 +129,19 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             toast.error("⚠️ SYSTEM ALERT: Ang iyong account ay sinuspinde.", { duration: 8000 });
             await supabase.auth.signOut();
             localStorage.clear();
-            setTimeout(() => { navigate("/admin"); }, 2000);
+            setTimeout(() => { setLocation("/admin"); }, 2000);
           }
         }
       ).subscribe();
     return () => { supabase.removeChannel(subscription); };
-  }, [userId, navigate]);
+  }, [userId, setLocation]);
 
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
       localStorage.clear();
       toast.success("Successfully logged out");
-      navigate("/admin");
+      setLocation("/admin");
     } catch (error) {
       toast.error("Error logging out");
     }
@@ -156,12 +153,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
   return (
     <div className="flex h-screen bg-background overflow-hidden relative">
       
-      {/* ================================================= */}
-      {/* SIDEBAR START */}
-      {/* ================================================= */}
       <aside className="w-64 flex flex-col shrink-0 z-20 relative overflow-hidden bg-black text-white border-r border-border/50">
-        
-        {/* The Dark Veil Background */}
         <div className="absolute inset-0 z-0 pointer-events-none">
           <DarkVeil
             speed={1.5}
@@ -176,8 +168,6 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
         </div>
 
         <div className="relative z-10 flex flex-col h-full w-full">
-          
-          {/* Top: Branding */}
           <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
             <img 
               src="/ParKadav2.png" 
@@ -194,14 +184,13 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             </div>
           </div>
 
-          {/* Navigation Links */}
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {filteredNavItems.map(({ path, icon: Icon, label }) => {
               const isActive = location === path;
               return (
                 <button
                   key={path}
-                  onClick={() => navigate(path)}
+                  onClick={() => setLocation(path)}
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
                     isActive
@@ -216,7 +205,6 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             })}
           </nav>
 
-          {/* Bottom Profile */}
           <div className="px-3 py-4 border-t border-white/10 space-y-1">
             <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg">
               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white uppercase border border-white/20">
@@ -241,14 +229,9 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
           </div>
         </div>
       </aside>
-      {/* ================================================= */}
-      {/* SIDEBAR END */}
-      {/* ================================================= */}
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
         <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-border shrink-0 relative z-40">
-          {/* Changed text-xl to text-lg */}
           <h1 className="text-lg font-bold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             {title}
           </h1>
@@ -256,12 +239,11 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
           <div className="flex items-center gap-3">
             {/* NOTIFICATIONS DROPDOWN */}
             <div className="relative">
-              {/* Changed w-10 h-10 to w-9 h-9 */}
               <button
                 onClick={() => { setShowNotifs(!showNotifs); setShowProfile(false); }}
                 className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors relative"
+                aria-label="Notifications"
               >
-                {/* Changed icon size from 18 to 16 */}
                 <Bell size={16} className="text-slate-600" />
                 {unreadCount > 0 && (
                   <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
@@ -274,7 +256,6 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
               {showNotifs && (
                 <div className="absolute right-0 mt-3 w-80 bg-white border border-border rounded-xl shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
                   <div className="bg-slate-50 border-b border-border px-4 py-2.5 flex items-center justify-between">
-                    {/* Changed to text-xs */}
                     <h4 className="text-xs font-bold text-slate-800">Notifications</h4>
                     {unreadCount > 0 && <span className="text-[9px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">{unreadCount} New</span>}
                   </div>
@@ -283,14 +264,13 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
                       notifications.map((n) => (
                         <div key={n.id} className={cn("w-full text-left px-4 py-2.5 border-b border-border flex gap-3 transition-colors", n.read === false ? "bg-primary/5" : "hover:bg-slate-50 opacity-70")}>
                           <div className={cn("mt-0.5 p-1.5 rounded-full shrink-0", n.type === 'urgent' ? "bg-rose-100 text-rose-600" : "bg-blue-100 text-blue-600")}>
-                             {n.type === 'urgent' ? <Bell size={12} /> : <CheckCircle2 size={12} />}
+                            {n.type === 'urgent' ? <Bell size={12} /> : <CheckCircle2 size={12} />}
                           </div>
                           <div className="flex-1 min-w-0">
-                            {/* Scaled down text sizes */}
                             <p className="text-[11px] font-bold text-slate-800 truncate">{n.title}</p>
                             <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">{n.message}</p>
                             <p className="text-[8px] text-slate-400 mt-1 uppercase font-medium flex items-center gap-1">
-                               <Clock size={8} /> {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              <Clock size={8} /> {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </p>
                           </div>
                         </div>
@@ -313,8 +293,8 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
               <button
                 onClick={() => { setShowProfile(!showProfile); setShowNotifs(false); }}
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                aria-label="Profile menu"
               >
-                {/* Changed w-10 h-10 to w-9 h-9, text-sm to text-xs */}
                 <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shadow-sm border-2 border-white ring-1 ring-slate-200">
                   {initials}
                 </div>
@@ -323,7 +303,6 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
               {showProfile && (
                 <div className="absolute right-0 mt-3 w-48 bg-white border border-border rounded-xl shadow-lg z-50 animate-in fade-in slide-in-from-top-2 p-1.5">
                   <div className="px-3 py-2.5 border-b border-border mb-1">
-                    {/* Scaled down text sizes */}
                     <p className="text-xs font-bold text-slate-800 capitalize truncate">
                       {adminRole === 'superadmin' ? 'Super Admin' : 'Manager'}
                     </p>
@@ -331,7 +310,6 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
                       {adminEmail}
                     </p>
                   </div>
-                  {/* Changed text-sm to text-xs and icon size 16 to 14 */}
                   <button onClick={() => toast.info("Profile settings coming soon!")} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
                     <User size={14} className="text-slate-500" /> My Profile
                   </button>
@@ -349,10 +327,9 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
 
         {/* OVERLAY */}
         {(showNotifs || showProfile) && (
-          <div className="fixed inset-0 z-30" onClick={closeDropdowns} />
+          <div className="fixed inset-0 z-30" onClick={closeDropdowns} aria-hidden="true" />
         )}
 
-        {/* Added 'text-sm' to the main tag to cascade a smaller font base to children */}
         <main className="flex-1 overflow-y-auto p-6 bg-background relative z-10 text-sm">
           {children}
         </main>
