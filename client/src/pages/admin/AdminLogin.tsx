@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { Eye, EyeOff, Shield, Loader2 } from "lucide-react";
 import { supabase } from "@/supabaseClient";
 import TrueFocus from "@/components/ui/focus";
-import DarkVeil from "@/components/ui/dark-veil"; // Make sure this says 'dark-veil' and not 'focus'!
+import DarkVeil from "@/components/ui/dark-veil"; 
 
 export default function AdminLogin() {
   const [, navigate] = useLocation();
@@ -94,18 +94,17 @@ export default function AdminLogin() {
         {/* The WebGL Shader Background */}
         <div className="absolute inset-0 z-0">
           <DarkVeil
-            speed={2.0}              // Slow, moody movement
-            noiseIntensity={0.05}    // Subtle retro film grain
-            scanlineIntensity={0.3}  // Slight CRT scanlines
+            speed={2.0}              
+            noiseIntensity={0.05}    
+            scanlineIntensity={0.3}  
             scanlineFrequency={800}
-            hueShift={10}           // Shifts the shader colors towards a deep purple/blue to match your vibe
+            hueShift={10}           
             warpAmount={0.3}
             resolutionScale={1}
           />
         </div>
 
         {/* The Foreground Content (Sits on top) */}
-        {/* Changed from p-12 to px-12 pb-12 pt-8 to reduce top margin */}
         <div className="relative z-10 flex flex-col justify-between px-12 pb-12 pt-8 w-full h-full">
           
           {/* Top: Branding */}
@@ -124,11 +123,10 @@ export default function AdminLogin() {
           </div>
 
           {/* Middle: The TrueFocus Hero Section */}
-          <div className="flex-1 flex flex-col justify-left items-start w-full">
+          <div className="flex-1 flex flex-col justify-center items-start w-full">
             
             {/* The TrueFocus Component */}
-            {/* Added explicit text sizing and whitespace-nowrap to fit on one line */}
-            <div className="text-white w-full flex justify-start mb-3 text-3xl xl:text-4xl 2xl:text-5xl whitespace-nowrap">
+            <div className="text-white flex justify-start mb-3 text-2xl lg:text-3xl xl:text-4xl w-max whitespace-nowrap">
               <TrueFocus 
                 sentence="Parking Management Center"
                 manualMode={false}
@@ -140,12 +138,11 @@ export default function AdminLogin() {
               />
             </div>
 
-            {/* Changed from text-lg to text-sm and reduced top margin */}
             <p className="text-white/75 mt-3 text-sm md:text-base max-w-md leading-relaxed drop-shadow-md">
               Your centralized hub for managing parking reservations, occupancy, and facility operations.
             </p>
 
-            {/* Stats Grid - Wrapped in a flex justify-center container */}
+            {/* Stats Grid */}
             <div className="w-full flex justify-center mt-12">
               <div className="grid grid-cols-3 gap-4 w-full max-w-md">
                 {[
