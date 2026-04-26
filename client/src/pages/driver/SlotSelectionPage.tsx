@@ -69,7 +69,7 @@ export default function SlotSelectionPage({ lotId }: { lotId: string }) {
         </div>
 
         {/* PARKING LOT GRID */}
-        <div className="bg-slate-50 rounded-[32px] p-6 border-2 border-slate-200 shadow-inner">
+        <div className="bg-slate-50 rounded-4xl p-6 border-2 border-slate-200 shadow-inner">
           <div className="w-full text-center mb-8">
             <span className="bg-slate-200 text-slate-500 px-6 py-1.5 rounded-full text-[9px] font-black uppercase tracking-[0.2em]">
               Driving Lane

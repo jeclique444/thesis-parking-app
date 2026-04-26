@@ -409,7 +409,7 @@ export default function AdminDashboard() {
               <h3 className="text-sm font-bold text-foreground">Parking Network Map</h3>
               <MapIcon size={16} className="text-muted-foreground" />
             </div>
-            <div className="flex-1 w-full min-h-[220px] rounded-xl overflow-hidden relative z-0 border border-border bg-slate-50">
+            <div className="flex-1 w-full min-h-55 rounded-xl overflow-hidden relative z-0 border border-border bg-slate-50">
               <MapContainer center={[13.9419, 121.1644]} zoom={14} style={{ height: "100%", width: "100%" }} zoomControl={false}>
                 <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" attribution="&copy; Google Maps" />
                 {lotsOverview.filter(lot => lot.lat && lot.lng).map((lot) => (
@@ -465,7 +465,7 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-2xl p-4 sm:p-5 card-elevated">
           <h3 className="text-sm font-bold text-foreground mb-4">Recent Reservations</h3>
           <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-            <table className="w-full text-sm min-w-[500px]">
+            <table className="w-full text-sm min-w-125">
               <thead>
                 <tr className="text-xs text-muted-foreground border-b border-border">
                   <th className="text-left pb-2 font-semibold">ID</th>
@@ -485,7 +485,7 @@ export default function AdminDashboard() {
                   recentReservations.map((res) => (
                     <tr key={res.id} onClick={() => setLocation("/admin/reservations")} className="hover:bg-muted/30 transition-colors cursor-pointer">
                       <td className="py-2.5 font-mono text-xs text-muted-foreground">{res.id}</td>
-                      <td className="py-2.5 font-medium truncate max-w-[140px]">{res.lotName}</td>
+                      <td className="py-2.5 font-medium truncate max-w-35">{res.lotName}</td>
                       <td className="py-2.5 font-bold">{res.slotLabel}</td>
                       <td className="py-2.5 text-muted-foreground text-xs whitespace-nowrap">{res.date}</td>
                       <td className="py-2.5 font-bold text-primary">{res.amount === 0 ? "Free" : `₱${res.amount}`}</td>

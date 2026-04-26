@@ -48,7 +48,7 @@ export default function AdminPersonnel() {
     if (!error && data) setManagers(data);
   };
 
-  // NEW: Invite manager via Edge Function (no password needed)
+  // Invite manager via Edge Function (no password needed)
   const handleInviteManager = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adminEmail || !adminLotId) {
@@ -79,7 +79,7 @@ export default function AdminPersonnel() {
     }
   };
 
-  // Suspend / Reactivate (unchanged)
+  // Suspend / Reactivate
   const handleToggleStatus = async (managerId: string, currentStatus: string) => {
     const safeStatus = currentStatus || 'Active';
     const newStatus = safeStatus === 'Suspended' ? 'Active' : 'Suspended';
@@ -114,10 +114,12 @@ export default function AdminPersonnel() {
           <div className="bg-white rounded-[24px] shadow-sm border border-border overflow-hidden">
             <div className="bg-sidebar p-8 text-white relative overflow-hidden">
               <div className="relative z-10 space-y-2">
-                <h2 className="text-3xl font-extrabold tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}> Invite Manager </h2>
+                <h2 className="text-3xl font-extrabold tracking-tight" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  Invite Manager
+                </h2>
                 <div className="flex items-center gap-2">
                   <div className="h-[2px] w-8 bg-primary"></div>
-                  <p className="text-primary text-[11px] font-black uppercase tracking-[0.2em]"> Send Invitation </p>
+                  <p className="text-primary text-[11px] font-black uppercase tracking-[0.2em]">Send Invitation</p>
                 </div>
               </div>
               <div className="absolute right-[-20px] bottom-[-20px] opacity-10 rotate-[-15deg]">
@@ -162,9 +164,9 @@ export default function AdminPersonnel() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: ACTIVE MANAGERS LIST (unchanged) */}
+        {/* RIGHT COLUMN: ACTIVE MANAGERS LIST */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-[24px] shadow-sm border border-border p-6 h-full min-h-[400px]">
+          <div className="bg-white rounded-3xl shadow-sm border border-border p-6 h-full min-h-100">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="bg-muted p-2 rounded-lg text-foreground">

@@ -256,7 +256,7 @@ export default function AdminVerifications() {
                                   <p>Bday: <span className="text-slate-700">{new Date(user.birthdate).toLocaleDateString()}</span></p>
                                 )}
                                 {user.address && (
-                                  <p className="max-w-[200px] truncate" title={user.address}>
+                                  <p className="max-w-50 truncate" title={user.address}>
                                     Address: <span className="text-slate-700">{user.address}</span>
                                   </p>
                                 )}
