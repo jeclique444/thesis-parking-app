@@ -138,7 +138,7 @@ export default function AdminLogin() {
               />
             </div>
 
-            <p className="text-white/75 mt-3 text-sm md:text-base max-w-md leading-relaxed drop-shadow-md">
+            <p className="text-white/75 mt-5 text-sm md:text-base max-w-md leading-relaxed drop-shadow-md">
               Your centralized hub for managing parking reservations, occupancy, and facility operations.
             </p>
 

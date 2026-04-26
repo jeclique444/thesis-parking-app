@@ -172,16 +172,13 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             warpAmount={0.3}
             resolutionScale={1}
           />
-          {/* A slight dark overlay so the text remains easy to read */}
           <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
         </div>
 
-        {/* Sidebar Content Wrapper (Z-10 keeps it above the veil) */}
         <div className="relative z-10 flex flex-col h-full w-full">
           
           {/* Top: Branding */}
           <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
-            {/* Replaced SVG with your new Logo */}
             <img 
               src="/ParKadav2.png" 
               alt="ParKada Logo" 
@@ -208,7 +205,6 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
                   className={cn(
                     "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
                     isActive
-                      // Changed from Yellow to crisp White
                       ? "bg-white text-slate-900 shadow-md font-bold" 
                       : "text-white/70 hover:bg-white/10 hover:text-white"
                   )}
@@ -252,20 +248,23 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
         <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-border shrink-0 relative z-40">
-          <h1 className="text-xl font-bold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+          {/* Changed text-xl to text-lg */}
+          <h1 className="text-lg font-bold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
             {title}
           </h1>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {/* NOTIFICATIONS DROPDOWN */}
             <div className="relative">
+              {/* Changed w-10 h-10 to w-9 h-9 */}
               <button
                 onClick={() => { setShowNotifs(!showNotifs); setShowProfile(false); }}
-                className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors relative"
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors relative"
               >
-                <Bell size={18} className="text-slate-600" />
+                {/* Changed icon size from 18 to 16 */}
+                <Bell size={16} className="text-slate-600" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-2 right-2 flex h-2.5 w-2.5">
+                  <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 border-2 border-white"></span>
                   </span>
@@ -273,33 +272,35 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
               </button>
 
               {showNotifs && (
-                <div className="absolute right-0 mt-3 w-80 bg-white border border-border rounded-2xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
-                  <div className="bg-slate-50 border-b border-border px-4 py-3 flex items-center justify-between">
-                    <h4 className="text-sm font-bold text-slate-800">Notifications</h4>
-                    {unreadCount > 0 && <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">{unreadCount} New</span>}
+                <div className="absolute right-0 mt-3 w-80 bg-white border border-border rounded-xl shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
+                  <div className="bg-slate-50 border-b border-border px-4 py-2.5 flex items-center justify-between">
+                    {/* Changed to text-xs */}
+                    <h4 className="text-xs font-bold text-slate-800">Notifications</h4>
+                    {unreadCount > 0 && <span className="text-[9px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">{unreadCount} New</span>}
                   </div>
-                  <div className="max-h-87.5 overflow-y-auto">
+                  <div className="max-h-80 overflow-y-auto">
                     {notifications.length > 0 ? (
                       notifications.map((n) => (
-                        <div key={n.id} className={cn("w-full text-left px-4 py-3 border-b border-border flex gap-3 transition-colors", n.read === false ? "bg-primary/5" : "hover:bg-slate-50 opacity-70")}>
+                        <div key={n.id} className={cn("w-full text-left px-4 py-2.5 border-b border-border flex gap-3 transition-colors", n.read === false ? "bg-primary/5" : "hover:bg-slate-50 opacity-70")}>
                           <div className={cn("mt-0.5 p-1.5 rounded-full shrink-0", n.type === 'urgent' ? "bg-rose-100 text-rose-600" : "bg-blue-100 text-blue-600")}>
-                             {n.type === 'urgent' ? <Bell size={14} /> : <CheckCircle2 size={14} />}
+                             {n.type === 'urgent' ? <Bell size={12} /> : <CheckCircle2 size={12} />}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-slate-800 truncate">{n.title}</p>
-                            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{n.message}</p>
-                            <p className="text-[9px] text-slate-400 mt-1 uppercase font-medium flex items-center gap-1">
-                               <Clock size={10} /> {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {/* Scaled down text sizes */}
+                            <p className="text-[11px] font-bold text-slate-800 truncate">{n.title}</p>
+                            <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">{n.message}</p>
+                            <p className="text-[8px] text-slate-400 mt-1 uppercase font-medium flex items-center gap-1">
+                               <Clock size={8} /> {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </p>
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="p-8 text-center text-slate-400 text-xs italic">No notifications yet.</div>
+                      <div className="p-8 text-center text-slate-400 text-[11px] italic">No notifications yet.</div>
                     )}
                   </div>
-                  <div className="bg-slate-50 border-t border-border p-2">
-                    <button onClick={markAllAsRead} className="w-full text-center text-xs text-primary font-bold hover:underline py-1">
+                  <div className="bg-slate-50 border-t border-border p-1.5">
+                    <button onClick={markAllAsRead} className="w-full text-center text-[11px] text-primary font-bold hover:underline py-1">
                       Mark all as read
                     </button>
                   </div>
@@ -313,29 +314,32 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
                 onClick={() => { setShowProfile(!showProfile); setShowNotifs(false); }}
                 className="flex items-center gap-2 hover:opacity-80 transition-opacity"
               >
-                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-sm font-bold text-primary-foreground shadow-md border-2 border-white ring-2 ring-slate-100">
+                {/* Changed w-10 h-10 to w-9 h-9, text-sm to text-xs */}
+                <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shadow-sm border-2 border-white ring-1 ring-slate-200">
                   {initials}
                 </div>
               </button>
 
               {showProfile && (
-                <div className="absolute right-0 mt-3 w-56 bg-white border border-border rounded-2xl shadow-xl z-50 animate-in fade-in slide-in-from-top-2 p-1.5">
-                  <div className="px-3 py-3 border-b border-border mb-1">
-                    <p className="text-sm font-bold text-slate-800 capitalize truncate">
+                <div className="absolute right-0 mt-3 w-48 bg-white border border-border rounded-xl shadow-lg z-50 animate-in fade-in slide-in-from-top-2 p-1.5">
+                  <div className="px-3 py-2.5 border-b border-border mb-1">
+                    {/* Scaled down text sizes */}
+                    <p className="text-xs font-bold text-slate-800 capitalize truncate">
                       {adminRole === 'superadmin' ? 'Super Admin' : 'Manager'}
                     </p>
-                    <p className="text-xs text-slate-500 truncate mt-0.5" title={adminEmail}>
+                    <p className="text-[10px] text-slate-500 truncate mt-0.5" title={adminEmail}>
                       {adminEmail}
                     </p>
                   </div>
-                  <button onClick={() => toast.info("Profile settings coming soon!")} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
-                    <User size={16} className="text-slate-500" /> My Profile
+                  {/* Changed text-sm to text-xs and icon size 16 to 14 */}
+                  <button onClick={() => toast.info("Profile settings coming soon!")} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+                    <User size={14} className="text-slate-500" /> My Profile
                   </button>
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-rose-600 font-medium hover:bg-rose-50 rounded-lg transition-colors mt-1"
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-600 font-medium hover:bg-rose-50 rounded-lg transition-colors mt-1"
                   >
-                    <LogOut size={16} /> Sign Out
+                    <LogOut size={14} /> Sign Out
                   </button>
                 </div>
               )}
@@ -348,7 +352,8 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
           <div className="fixed inset-0 z-30" onClick={closeDropdowns} />
         )}
 
-        <main className="flex-1 overflow-y-auto p-6 bg-background relative z-10">
+        {/* Added 'text-sm' to the main tag to cascade a smaller font base to children */}
+        <main className="flex-1 overflow-y-auto p-6 bg-background relative z-10 text-sm">
           {children}
         </main>
       </div>
