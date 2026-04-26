@@ -192,7 +192,8 @@ print("Loading custom AI brain (best.pt)...")
 model = YOLO("best.pt")
 
 # Camera RTSP Stream (Or use 0 for webcam)
-cap = RTSPStream(0)
+video_path = "rtsp://admincam:admin123@192.168.43.161:554/stream2"
+cap = RTSPStream(0) #change this 
 
 print("Waiting for stream to stabilize...")
 time.sleep(2)
