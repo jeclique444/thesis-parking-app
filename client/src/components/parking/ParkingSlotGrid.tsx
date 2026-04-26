@@ -1,9 +1,9 @@
 /*
- * iParkBayan — ParkingSlotGrid (Final Clean Up: Mobile Responsive + PWD Icon + Stats)
+ * iParkBayan — ParkingSlotGrid (Final Clean Up: Mobile Responsive + PWD Icon + Stats + Unmapped Support)
  */
 import { cn } from "@/lib/utils";
 import type { ParkingSlot } from "@/lib/data";
-import { Car, X, Accessibility } from "lucide-react"; // 🔥 Idinagdag ang Accessibility icon para sa PWD
+import { Car, X, Accessibility } from "lucide-react"; 
 import { toast } from "sonner";
 
 interface ParkingSlotGridProps {
@@ -32,6 +32,13 @@ const statusConfig = {
     label: "Reserved",
     dot: "bg-amber-500",
   },
+  // 🔥 FIX: Added 'unmapped' status configuration!
+  unmapped: {
+    bg: "bg-slate-100 border-slate-400 border-dashed cursor-not-allowed opacity-80",
+    text: "text-slate-500", 
+    label: "Unmapped",
+    dot: "bg-slate-400",
+  },
 };
 
 export default function ParkingSlotGrid({
@@ -46,6 +53,8 @@ export default function ParkingSlotGrid({
   const availableSlots = slots.filter((s) => s.status === "available").length;
   const occupiedSlots = slots.filter((s) => s.status === "occupied").length;
   const reservedSlots = slots.filter((s) => s.status === "reserved").length;
+  // 🔥 FIX: Added unmapped slots counter
+  const unmappedSlots = slots.filter((s) => s.status === "unmapped" || s.status === "NULL / NOT DRAWN" || !s.status).length;
 
   // Kung walang slot.row sa database, kukunin niya ang unang letter ng slot.label
   const rows = slots.reduce<Record<string, ParkingSlot[]>>((acc, slot) => {
@@ -72,9 +81,14 @@ export default function ParkingSlotGrid({
           <span className="text-xl font-black text-rose-600">{occupiedSlots}</span>
           <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Occupied</span>
         </div>
-        <div className="flex flex-col items-center flex-1">
+        <div className="flex flex-col items-center flex-1 border-r">
           <span className="text-xl font-black text-amber-500">{reservedSlots}</span>
           <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Reserved</span>
+        </div>
+        {/* 🔥 FIX: Added Unmapped Column to Stats */}
+        <div className="flex flex-col items-center flex-1">
+          <span className="text-xl font-black text-slate-500">{unmappedSlots}</span>
+          <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Unmapped</span>
         </div>
       </div>
 
@@ -125,7 +139,10 @@ export default function ParkingSlotGrid({
                     const isWalkIn = slot.label === "C1" || (slot as any).is_reservable === false || String((slot as any).is_reservable) === "false";
                     const isPwd = (slot as any).is_pwd === true || String((slot as any).is_pwd) === "true"; // Kunin kung PWD
                     
-                    const config = statusConfig[slot.status as keyof typeof statusConfig] || statusConfig.available;
+                    // 🔥 FIX: Safe handling for weird statuses (like "NULL / NOT DRAWN"). Defaults to unmapped instead of available!
+                    const normalizedStatus = slot.status === "NULL / NOT DRAWN" || !slot.status ? "unmapped" : slot.status;
+                    const config = statusConfig[normalizedStatus as keyof typeof statusConfig] || statusConfig.unmapped;
+                    
                     const isSelected = selectedSlot === slot.id;
                     const canSelect = interactive && slot.status === "available";
 
@@ -149,7 +166,7 @@ export default function ParkingSlotGrid({
                         )}
                       >
                         <div className="h-4 flex items-center justify-center mb-0.5">
-                          {/* 🔥 LOGIC PARA SA ICONS: Inuna natin i-check kung PWD o Occupied */}
+                          {/* 🔥 LOGIC PARA SA ICONS */}
                           {slot.status === "occupied" ? (
                             <Car size={14} className="opacity-80" /> 
                           ) : isPwd ? (
@@ -173,4 +190,4 @@ export default function ParkingSlotGrid({
       </div>
     </div>
   );
-} 
+}

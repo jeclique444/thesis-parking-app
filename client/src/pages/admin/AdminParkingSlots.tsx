@@ -205,7 +205,7 @@ export default function AdminParkingSlots() {
     }
   };
 
-  const handleDeleteSlot = async (slotId: string, slotLabel: string, slotStatus: string) => {
+ const handleDeleteSlot = async (slotId: string, slotLabel: string, slotStatus: string) => {
     if (userRole !== 'superadmin') return; 
 
     if (slotStatus === 'occupied') {
@@ -225,6 +225,10 @@ export default function AdminParkingSlots() {
         if (error.code === '23503') throw new Error("Cannot delete slot linked to billing history.");
         throw error;
       }
+      
+      // 🔥 FIX: Manually remove the slot from the screen immediately!
+      setSlots((prev) => prev.filter((slot) => slot.id !== slotId));
+      
       toast.success(`Slot ${slotLabel} deleted.`);
     } catch (error: any) {
       console.error("Error deleting slot:", error.message);

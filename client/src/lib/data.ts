@@ -1,7 +1,7 @@
 // iParkBayan — Mock data and types
 // Design: Civic Tech / Modern Filipino Urban Identity
 
-export type SlotStatus = "available" | "occupied" | "reserved";
+export type SlotStatus = "available" | "occupied" | "reserved" | "unmapped" | 'NULL / NOT DRAWN';
 
 export interface ParkingSlot {
   id: string;
@@ -133,7 +133,7 @@ export const parkingLots: ParkingLot[] = [
 ];
 
 function generateSlots(count: number, prefix: string): ParkingSlot[] {
-  const statuses: SlotStatus[] = ["available", "occupied", "reserved"];
+  const statuses: SlotStatus[] = ["available", "occupied", "reserved", "unmapped"];
   const rows = ["A", "B", "C", "D", "E", "F"];
   return Array.from({ length: count }, (_, i) => {
     const row = rows[Math.floor(i / 10) % rows.length];
