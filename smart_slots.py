@@ -28,18 +28,18 @@ supabase: Client = create_client(VITE_SUPABASE_URL, VITE_SUPABASE_SERVICE_KEY)
 #IMPORTANT: Paste your specific parking lot's UUID here!
 TARGET_LOT_ID = "6928d8dc-1562-43cd-bad1-14c8bb412895" # Thesis Demo ID
 
-def update_supabase_bg(db_id, db_status):
-    """Runs the database status update in the background so the camera feed doesn't lag."""
-    def run_update():
+# Change your update function to target the new column
+def update_supabase_bg(target_id, physical_state):
+    def api_call():
         try:
-            supabase.table('parking_slots') \
-                .update({'status': db_status}) \
-                .eq('id', db_id) \
-                .execute()
+            # 🔥 FIX: Tell Python to only update physical_status
+            supabase.table('parking_slots').update({
+                'physical_status': physical_state 
+            }).eq('id', target_id).execute()
         except Exception as e:
-            print(f"[CLOUD ERROR] Failed to update slot status: {e}")
-
-    threading.Thread(target=run_update).start()
+            print(f"Background Supabase update failed: {e}")
+    
+    threading.Thread(target=api_call).start()
 
 # ---------------------------------------------------------
 # 2. CLOUD SYNC LOGIC (Bi-directional)
@@ -332,7 +332,7 @@ while True:
                     is_occupied = True
                     break
 
-            # FIX: Use the true database label instead of the list order!
+            # Use the true database label instead of the list order
             slot_label = slot_labels[i]
 
             if is_occupied:
@@ -340,9 +340,9 @@ while True:
                     slot_data[i]["status"] = "FULL"
                     slot_data[i]["time_in"] = time.time()
                     
-                    # 🔥 CRITICAL FIX: Only update to 'occupied' if it is NOT reserved!
-                    if slot_data[i].get("db_status") != "reserved":
-                        update_supabase_bg(slot_ids[i], "occupied")
+                    # 🔥 Send "occupied" to update_supabase_bg
+                    # (Make sure update_supabase_bg is pointing to the new 'physical_status' column!)
+                    update_supabase_bg(slot_ids[i], "occupied")
 
                 elapsed = int(time.time() - slot_data[i]["time_in"])
                 mins, secs = divmod(elapsed, 60)
@@ -356,9 +356,9 @@ while True:
                     slot_data[i]["status"] = "FREE"
                     slot_data[i]["time_in"] = 0
                     
-                    # 🔥 CRITICAL FIX: Only update to 'available' if it is NOT reserved!
-                    if slot_data[i].get("db_status") != "reserved":
-                        update_supabase_bg(slot_ids[i], "available")
+                    # 🔥 Send "empty" to update_supabase_bg 
+                    # We use "empty" instead of "available" so it doesn't get confused with booking terms
+                    update_supabase_bg(slot_ids[i], "empty")
 
                 color = (0, 255, 0)  # Green
                 text = f"{slot_label}: FREE"

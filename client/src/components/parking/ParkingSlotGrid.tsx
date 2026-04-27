@@ -2,7 +2,7 @@
  * iParkBayan — ParkingSlotGrid (Final Clean Up: Mobile Responsive + PWD Icon + Stats + Unmapped Support)
  */
 import { cn } from "@/lib/utils";
-import type { ParkingSlot } from "@/lib/data";
+import type { ParkingSlot } from "@/lib/data"; // 👈 The interface is imported from here!
 import { Car, X, Accessibility } from "lucide-react"; 
 import { toast } from "sonner";
 
@@ -135,7 +135,6 @@ export default function ParkingSlotGrid({
                 
                 <div className="flex gap-2">
                   {rowSlots.map((slot) => {
-                    const isOccupied = slot.status === "occupied" || slot.status === "reserved";
                     const isWalkIn = slot.label === "C1" || (slot as any).is_reservable === false || String((slot as any).is_reservable) === "false";
                     const isPwd = (slot as any).is_pwd === true || String((slot as any).is_pwd) === "true"; // Kunin kung PWD
                     
@@ -165,18 +164,24 @@ export default function ParkingSlotGrid({
                           canSelect && "hover:scale-105 hover:shadow-sm active:scale-95 cursor-pointer"
                         )}
                       >
+                        
+                        {/* 🔥 LOGIC PARA SA ICONS - NOW USING PHYSICAL STATUS */}
                         <div className="h-4 flex items-center justify-center mb-0.5">
-                          {/* 🔥 LOGIC PARA SA ICONS */}
-                          {slot.status === "occupied" ? (
+                          {(slot as any).physical_status === "occupied" ? (
+                            // If the camera sees a car, show the car icon immediately!
                             <Car size={14} className="opacity-80" /> 
                           ) : isPwd ? (
-                            <Accessibility size={14} className={cn(isSelected ? "text-primary" : "text-amber-600")} /> // PWD Icon
+                            // If empty but PWD, show accessibility icon
+                            <Accessibility size={14} className={cn(isSelected ? "text-primary" : "text-amber-600")} />
                           ) : isWalkIn ? (
+                            // If empty but Walk-In, show X
                             <X size={14} className="text-current stroke-[4px]" />
                           ) : (
+                            // If empty and regular, show the dot
                             <div className={cn("w-2 h-2 rounded-full", isSelected ? "bg-primary" : config.dot)} />
                           )}
                         </div>
+
                         <span className="text-[11px] leading-none font-black mt-0.5">{slot.label}</span>
                       </button>
                     );
