@@ -21,32 +21,33 @@ serve(async (req) => {
     const { slot_id, user_id, lot_id, plate_number, start_time, end_time, duration, total_amount, payment_method } = await req.json();
 
     if (!slot_id || !user_id || !lot_id || !plate_number || !start_time || !end_time) {
-      return new Response(JSON.stringify({ error: "Missing fields" }), {
+      return new Response(JSON.stringify({ error: "Missing required fields" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Correct overlap check: existing.start_time < new.end_time AND existing.end_time > new.start_time
+    // Check for overlapping active reservations
     const { data: conflicts, error: checkError } = await supabaseAdmin
       .from("reservations")
       .select("id")
       .eq("slot_id", slot_id)
       .in("status", ["active", "confirmed", "reserved"])
-      .filter("start_time", "lt", end_time)      // existing.start_time < new.end_time
-      .filter("end_time", "gt", start_time)      // existing.end_time > new.start_time
+      .filter("start_time", "lt", end_time)
+      .filter("end_time", "gt", start_time)
       .limit(1);
 
     if (checkError) throw checkError;
 
     if (conflicts && conflicts.length > 0) {
-      return new Response(JSON.stringify({ error: "This slot is already taken for the selected time." }), {
+      // 🔥 User‑friendly message
+      return new Response(JSON.stringify({ error: "Slot reservation failed. This slot has just been taken by another user. Please choose a different slot or time." }), {
         status: 409,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Insert reservation (no conflict)
+    // Insert reservation
     const { data: newRes, error: insertError } = await supabaseAdmin
       .from("reservations")
       .insert({
