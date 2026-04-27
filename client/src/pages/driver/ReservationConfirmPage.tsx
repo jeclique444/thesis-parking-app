@@ -2,6 +2,7 @@
  * iParkBayan — ReservationConfirmPage (Payment Gateway & Details)
  * Design: Civic Tech / Filipino Urban Identity
  * UPDATED: Real-time start_time/end_time, active status, extension/fine columns
+ * FIXED: Uses Edge Function to prevent double booking.
  */
 import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
@@ -73,81 +74,75 @@ export default function ReservationConfirmPage() {
     if (error) console.error("Notification trigger failed:", error.message);
   };
 
-  // 🔥 UPDATED: Real-time start and end times
+  // 🔥 UPDATED: Uses Edge Function for atomic reservation (prevents double booking)
   const handlePayment = async () => {
     setIsProcessing(true);
     
-    setTimeout(async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("Not logged in");
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not logged in");
 
-        // Compute real start and end times
-        const now = new Date();
-        const startTimeISO = now.toISOString();
-        const durationHours = parseInt(duration || "3");
-        const endTimeDate = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
-        const endTimeISO = endTimeDate.toISOString();
+      // Compute real start and end times
+      const now = new Date();
+      const startTimeISO = now.toISOString();
+      const durationHours = parseInt(duration || "3");
+      const endTimeDate = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
+      const endTimeISO = endTimeDate.toISOString();
 
-        // 1. SAVE TO RESERVATIONS (with new columns)
-        const { data: newRes, error: resError } = await supabase
-          .from("reservations")
-          .insert({
-            user_id: user.id,
-            lot_id: lotId,
-            slot_id: slotId,
-            plate_number: plateNumber?.toUpperCase(),
-            start_time: startTimeISO,
-            end_time: endTimeISO,
-            duration: durationHours,
-            total_amount: parseFloat(totalAmount || "40"),
-            payment_method: paymentMethod,
-            status: "active",                         // ← real-time active
-            extension_count: 0,
-            extension_fee: 0,
-            fine_amount: 0,
-            fine_paid: false,
-            original_end_time: endTimeISO
-          })
-          .select()
-          .single();
+      // 🚀 Call the atomic reservation Edge Function
+      const { data, error } = await supabase.functions.invoke("reserve-slot", {
+        body: {
+          slot_id: slotId,
+          user_id: user.id,
+          lot_id: lotId,
+          plate_number: plateNumber?.toUpperCase(),
+          start_time: startTimeISO,
+          end_time: endTimeISO,
+          duration: durationHours,
+          total_amount: parseFloat(totalAmount || "40"),
+          payment_method: paymentMethod,
+        }
+      });
 
-        if (resError) throw resError;
+      if (error) throw new Error(error.message);
 
-        // 2. CREATE RECEIPT
-        const randomChars = Math.random().toString(36).substring(2, 8).toUpperCase();
-        const refNo = `EZP-${randomChars}`;
-        const { error: receiptError } = await supabase
-          .from("receipts")
-          .insert({
-            reservation_id: newRes.id,
-            user_id: user.id,
-            reference_no: refNo,
-            amount_paid: parseFloat(totalAmount || "40"),
-            payment_method: paymentMethod || "Unknown"
-          });
-        if (receiptError) throw receiptError;
+      const newRes = data.reservation;
 
-        // 3. UPDATE PARKING_SLOTS STATUS (occupied, not reserved)
-        const { error: updateError } = await supabase
-          .from("parking_slots")
-          .update({ status: "reserved" })
-          .eq("id", slotId);
-        if (updateError) throw updateError;
+      // 2. CREATE RECEIPT
+      const randomChars = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const refNo = `EZP-${randomChars}`;
+      const { error: receiptError } = await supabase
+        .from("receipts")
+        .insert({
+          reservation_id: newRes.id,
+          user_id: user.id,
+          reference_no: refNo,
+          amount_paid: parseFloat(totalAmount || "40"),
+          payment_method: paymentMethod || "Unknown"
+        });
+      if (receiptError) throw receiptError;
 
-        // 4. TRIGGER NOTIFICATION
-        await triggerNotification(user.id, slot?.label || "");
+      // 3. UPDATE PARKING_SLOTS STATUS (Edge Function already does this, but it's safe to repeat)
+      const { error: updateError } = await supabase
+        .from("parking_slots")
+        .update({ status: "reserved" })
+        .eq("id", slotId);
+      if (updateError) throw updateError;
 
-        setNewReservationId(newRes.id);
-        setIsSuccess(true);
-        toast.success("Reservation successful!");
+      // 4. TRIGGER NOTIFICATION
+      await triggerNotification(user.id, slot?.label || "");
 
-      } catch (err: any) {
-        console.error("Full Error:", err);
-        toast.error("Process Failed: " + err.message);
-        setIsProcessing(false);
-      }
-    }, 2500);
+      setNewReservationId(newRes.id);
+      setIsSuccess(true);
+      toast.success("Reservation successful!");
+
+    } catch (err: any) {
+      console.error("Reservation error:", err);
+      toast.error(err.message || "Slot may have been taken. Please try again.");
+      setIsProcessing(false);
+      // Optionally redirect back to slot selection
+      navigate(`/reserve/${slotId}?lot=${lotId}`);
+    }
   };
 
   if (loading) return (
