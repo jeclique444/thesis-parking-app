@@ -15,39 +15,38 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const { slot_id, user_id, lot_id, plate_number, start_time, end_time, duration, total_amount, payment_method } = await req.json();
 
     if (!slot_id || !user_id || !lot_id || !plate_number || !start_time || !end_time) {
-      return new Response(JSON.stringify({ error: "Missing required fields" }), {
+      return new Response(JSON.stringify({ error: "Missing fields" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Check for overlapping active reservation
-    const { data: conflict, error: checkError } = await supabaseAdmin
+    // Correct overlap check: existing.start_time < new.end_time AND existing.end_time > new.start_time
+    const { data: conflicts, error: checkError } = await supabaseAdmin
       .from("reservations")
       .select("id")
       .eq("slot_id", slot_id)
       .in("status", ["active", "confirmed", "reserved"])
-      .or(`start_time.lte.${end_time},end_time.gte.${start_time}`)
+      .filter("start_time", "lt", end_time)      // existing.start_time < new.end_time
+      .filter("end_time", "gt", start_time)      // existing.end_time > new.start_time
       .limit(1);
 
     if (checkError) throw checkError;
 
-    if (conflict && conflict.length > 0) {
-      return new Response(JSON.stringify({ error: "This slot is already taken for the selected time period." }), {
+    if (conflicts && conflicts.length > 0) {
+      return new Response(JSON.stringify({ error: "This slot is already taken for the selected time." }), {
         status: 409,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Insert reservation
+    // Insert reservation (no conflict)
     const { data: newRes, error: insertError } = await supabaseAdmin
       .from("reservations")
       .insert({
@@ -72,7 +71,7 @@ serve(async (req) => {
 
     if (insertError) throw insertError;
 
-    // Update slot status (optional)
+    // Update slot status
     await supabaseAdmin
       .from("parking_slots")
       .update({ status: "reserved" })
