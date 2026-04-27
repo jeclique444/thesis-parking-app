@@ -131,7 +131,7 @@ export default function ReservationConfirmPage() {
         // 3. UPDATE PARKING_SLOTS STATUS (occupied, not reserved)
         const { error: updateError } = await supabase
           .from("parking_slots")
-          .update({ status: "occupied" })
+          .update({ status: "reserved" })
           .eq("id", slotId);
         if (updateError) throw updateError;
 

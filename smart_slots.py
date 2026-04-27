@@ -75,7 +75,7 @@ def sync_db_loop():
                         mapped_db_ids.append(db_id)
                         # FIX: Load existing drawn slots from the database on startup!
                         if db_id not in slot_ids:
-                            print(f"📥 Loaded existing slot from DB: {label}")
+                            print(f"Loaded existing slot from DB: {label}")
                             slot_ids.append(db_id)
                             slot_labels.append(label)
                             all_slots.append(np.array(coords, np.int32))
@@ -89,7 +89,7 @@ def sync_db_loop():
                 # 2. Handle Deletions (Exists locally, but deleted from Web UI)
                 for i in range(len(slot_ids) - 1, -1, -1):
                     if slot_ids[i] not in mapped_db_ids:
-                        print(f"🗑️ Sync: Slot '{slot_labels[i]}' removed from web UI. Deleting locally.")
+                        print(f"Sync: Slot '{slot_labels[i]}' removed from web UI. Deleting locally.")
                         all_slots.pop(i)
                         slot_data.pop(i)
                         slot_labels.pop(i)
@@ -129,7 +129,7 @@ def delete_slot_from_db(db_id):
     """Deletes a slot from Supabase."""
     try:
         supabase.table('parking_slots').delete().eq('id', db_id).execute()
-        print(f"🗑️ [SUPABASE] Slot deleted successfully!")
+        print(f"[SUPABASE] Slot deleted successfully!")
     except Exception as e:
         print(f"[DB ERROR] Failed to delete slot: {e}")
 
@@ -210,8 +210,8 @@ model.predict(dummy, verbose=False, conf=0.4, imgsz=416, device="cpu")
 print("Warmup complete!")
 
 # Camera RTSP Stream (Or use 0 for webcam testing)
-video_path = 0 
-cap = RTSPStream(video_path) 
+video_path = "rtsp://admincam:admin123@10.0.1.69:554/stream1" 
+cap = RTSPStream(0) 
 
 print("Waiting for stream to stabilize...")
 time.sleep(2)
@@ -245,7 +245,7 @@ def handle_mouse(event, x, y, flags, param):
                         slot_data.append({"status": "FREE", "time_in": 0})
                         slot_ids.append(target_id)
                         slot_labels.append(target_label) # Lock the label
-                        print(f"🔗 Mapped drawn slot to existing UI element: {target_label}")
+                        print(f"Mapped drawn slot to existing UI element: {target_label}")
                     except Exception as e:
                         print(f"Failed to map coordinates: {e}")
                 else:
@@ -257,7 +257,7 @@ def handle_mouse(event, x, y, flags, param):
                         slot_data.append({"status": "FREE", "time_in": 0})
                         slot_ids.append(new_db_id)
                         slot_labels.append(new_label) # Lock the label
-                        print(f"➕ Created brand new slot: {new_label}")
+                        print(f"Created brand new slot: {new_label}")
             
             current_points = []
 
@@ -281,15 +281,29 @@ paused = False
 # ---------------------------------------------------------
 # 7. MAIN AI LOOP
 # ---------------------------------------------------------
+empty_frame_strikes = 0 # Keeps track of how many times we missed a frame
+
 while True:
     if not paused:
         ret, frame = cap.read()
+        
+        #FIX: Don't instantly break! Be patient for network buffering.
         if not ret or frame is None:
-            print("Camera feed ended or disconnected.")
-            break
+            empty_frame_strikes += 1
+            if empty_frame_strikes % 20 == 0: # Print a warning every few seconds
+                print("Waiting for camera feed... (Buffering or disconnected)")
+            
+            if empty_frame_strikes > 200: # If it's been dead for way too long (e.g., 10 seconds)
+                print("CRITICAL: Camera completely unreachable. Shutting down.")
+                break
+                
+            time.sleep(0.1) # Wait a millisecond and try grabbing the frame again
+            continue # Skip the rest of the loop and try again
+            
+        else:
+            empty_frame_strikes = 0 # Reset strikes when we successfully get a frame!
 
     display_frame = frame.copy()
-
     results = model.predict(display_frame, verbose=False, conf=0.4, imgsz=416, device="cpu")
 
     vehicle_centers = []
@@ -325,7 +339,10 @@ while True:
                 if slot_data[i]["status"] == "FREE":
                     slot_data[i]["status"] = "FULL"
                     slot_data[i]["time_in"] = time.time()
-                    update_supabase_bg(slot_ids[i], "occupied")
+                    
+                    # 🔥 CRITICAL FIX: Only update to 'occupied' if it is NOT reserved!
+                    if slot_data[i].get("db_status") != "reserved":
+                        update_supabase_bg(slot_ids[i], "occupied")
 
                 elapsed = int(time.time() - slot_data[i]["time_in"])
                 mins, secs = divmod(elapsed, 60)
@@ -338,7 +355,10 @@ while True:
                 if slot_data[i]["status"] == "FULL":
                     slot_data[i]["status"] = "FREE"
                     slot_data[i]["time_in"] = 0
-                    update_supabase_bg(slot_ids[i], "available")
+                    
+                    # 🔥 CRITICAL FIX: Only update to 'available' if it is NOT reserved!
+                    if slot_data[i].get("db_status") != "reserved":
+                        update_supabase_bg(slot_ids[i], "available")
 
                 color = (0, 255, 0)  # Green
                 text = f"{slot_label}: FREE"
