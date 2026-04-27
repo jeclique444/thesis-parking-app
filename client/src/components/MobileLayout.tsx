@@ -50,8 +50,12 @@ export default function MobileLayout({
             </button>
           )}
           
+          {/* 🔥 Logo now clickable */}
           {!showBack && (
-            <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate("/home")}
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            >
               <img 
                 src="/ParKadav2.png" 
                 alt="ParKada Logo" 
@@ -60,7 +64,7 @@ export default function MobileLayout({
               <span className="font-bold text-base text-foreground" style={{ fontFamily: "'Manrope', sans-serif" }}>
                 {title}
               </span>
-            </div>
+            </button>
           )}
 
           {showBack && (

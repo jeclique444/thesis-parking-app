@@ -9,7 +9,7 @@ import {
   LayoutDashboard, ParkingSquare, BookOpen, BarChart3, 
   Settings, LogOut, Bell, User, MapPin, 
   CheckCircle2, Users, QrCode, Clock,
-  ShieldCheck 
+  ShieldCheck, DollarSign 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ const allNavItems = [
   { path: "/admin/personnel", icon: User, label: "Personnel", allowedRoles: ["superadmin"] }, 
   { path: "/admin/verifications", icon: ShieldCheck, label: "Verifications", allowedRoles: ["superadmin"] }, 
   { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["superadmin", "manager"] },
+  { path: "/admin/walkin", icon: DollarSign, label: "Walk‑ins", allowedRoles: ["manager", "guard"] },
   { path: "/admin/reports", icon: BarChart3, label: "Reports", allowedRoles: ["superadmin", "manager"] },
   { path: "/admin/staffmanagement", icon: Users, label: "Staff Management", allowedRoles: ["manager"] },
   { path: "/admin/settings", icon: Settings, label: "Settings", allowedRoles: ["superadmin", "manager"] }, 
@@ -168,13 +169,18 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
         </div>
 
         <div className="relative z-10 flex flex-col h-full w-full">
-          <div className="flex items-center gap-3 px-6 py-5 border-b border-white/10">
+          
+          {/* 🔥 Logo section - now clickable */}
+          <button
+            onClick={() => setLocation("/admin/dashboard")}
+            className="w-full flex items-center gap-3 px-6 py-5 border-b border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
+          >
             <img 
               src="/ParKadav2.png" 
               alt="ParKada Logo" 
               className="w-10 h-10 object-contain drop-shadow-md" 
             />
-            <div>
+            <div className="text-left">
               <p className="font-bold text-lg text-white" style={{ fontFamily: "'Montserrat', sans-serif" }}>
                 ParKada
               </p>
@@ -182,7 +188,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
                 {adminRole === 'superadmin' ? 'Super Admin' : 'Lot Manager'} Panel
               </p>
             </div>
-          </div>
+          </button>
 
           <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
             {filteredNavItems.map(({ path, icon: Icon, label }) => {

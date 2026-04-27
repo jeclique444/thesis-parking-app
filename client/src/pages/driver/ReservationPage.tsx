@@ -8,6 +8,7 @@
  * 
  * UPDATED: "Verify Now" button now shows "Coming Soon" toast instead of navigating.
  * FIXED: Vehicle dropdown only shows active vehicles (is_active = true).
+ * UPDATED: Grace Period Policy → No‑Show Policy (no 1‑hour grace period).
  */
 import { useState, useEffect } from "react";
 import { useLocation, useParams } from "wouter";
@@ -712,14 +713,15 @@ export default function ReservationPage() {
           </div>
         )}
 
-        {/* ========== GRACE PERIOD POLICY ========== */}
+        {/* ========== NO‑SHOW POLICY (UPDATED) ========== */}
         {isVerified && (
           <div className="bg-amber-50 rounded-xl p-3 border border-amber-200">
-            <p className="text-[10px] font-bold uppercase text-amber-800 mb-1">⏰ Grace Period Policy</p>
+            <p className="text-[10px] font-bold uppercase text-amber-800 mb-1 flex items-center gap-1">
+              <span>⏰</span> No‑Show Policy
+            </p>
             <p className="text-xs text-amber-700">
-              You have <b>1 hour</b> to arrive after booking. If you don't check in, 
-              your reservation will be cancelled and the slot released.
-              <span className="block mt-1 text-red-600 font-bold">No refunds for no-shows.</span>
+              ❌ <b>No refunds for no‑shows.</b><br />
+               If you do not check in, <b>your reservation will be cancelled</b> and the <b>slot will be released</b> for others.
             </p>
           </div>
         )}

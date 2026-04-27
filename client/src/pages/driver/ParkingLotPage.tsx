@@ -1,11 +1,13 @@
 /*
- * iParkBayan — ParkingLotPage (With Status Protection + Rating Summary)
+ * iParkBayan — ParkingLotPage (With Clickable Reviews Modal using parking_reviews)
+ * Fixed: Slot labels sorted alphabetically by row letter, then numerically by number.
+ * Removed redundant back arrow (MobileLayout already handles back navigation).
  */
 import { useEffect, useState } from "react";
 import { useLocation, useParams } from "wouter";
 import MobileLayout from "@/components/MobileLayout";
 import ParkingSlotGrid from "@/components/parking/ParkingSlotGrid";
-import { MapPin, Clock, Car, ChevronRight, Info, AlertTriangle, Ban, Star } from "lucide-react";
+import { MapPin, Clock, Car, ChevronRight, Info, AlertTriangle, Ban, Star, ExternalLink, X, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -29,11 +31,16 @@ const renderStaticStars = (rating: number) => {
 export default function ParkingLotPage() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
-  
+
   const [lot, setLot] = useState<any>(null);
   const [slots, setSlots] = useState<any[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // State for reviews modal
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
 
   const fetchLotDetails = async () => {
     try {
@@ -48,17 +55,32 @@ export default function ParkingLotPage() {
       if (lotError) throw lotError;
       setLot(lotData);
 
-      // Fetch slots
+      // Fetch slots (without order, we'll sort manually)
       const { data: slotsData, error: slotsError } = await supabase
         .from("parking_slots")
         .select("*")
-        .eq("lot_id", params.id)
-        .order("label", { ascending: true });
+        .eq("lot_id", params.id);
 
       if (slotsError) throw slotsError;
 
-      // Override for C1
-      const updatedSlots = (slotsData || []).map(slot => {
+      // 🔥 Sort by letter part first, then by numeric part
+      const sortedSlots = (slotsData || []).sort((a, b) => {
+        // Extract leading letters (e.g., "A" from "A1", "AB" from "AB3")
+        const lettersA = a.label.match(/^[A-Za-z]+/)?.[0] || "";
+        const lettersB = b.label.match(/^[A-Za-z]+/)?.[0] || "";
+        // Extract trailing numbers
+        const numA = parseInt(a.label.match(/\d+$/)?.[0] || "0", 10);
+        const numB = parseInt(b.label.match(/\d+$/)?.[0] || "0", 10);
+        // Compare letters first
+        if (lettersA !== lettersB) {
+          return lettersA.localeCompare(lettersB);
+        }
+        // Then compare numbers
+        return numA - numB;
+      });
+
+      // Override for C1 (walk‑in only)
+      const updatedSlots = sortedSlots.map(slot => {
         if (slot.label === "C1") {
           return { ...slot, is_reservable: false };
         }
@@ -90,6 +112,74 @@ export default function ParkingLotPage() {
     };
   }, [params?.id]);
 
+  // Fetch reviews using parking_reviews table (two-step query for user names)
+  const fetchReviews = async () => {
+    setLoadingReviews(true);
+    try {
+      // 1. Kunin ang reviews ng parking lot na ito mula sa parking_reviews
+      const { data: reviewsData, error: reviewsError } = await supabase
+        .from("parking_reviews")
+        .select("id, rating, review, created_at, user_id")
+        .eq("lot_id", params.id)
+        .order("created_at", { ascending: false }); // newest first
+
+      if (reviewsError) throw reviewsError;
+      if (!reviewsData || reviewsData.length === 0) {
+        setReviews([]);
+        setLoadingReviews(false);
+        return;
+      }
+
+      // 2. Kunin ang lahat ng natatanging user_id para makuha ang pangalan
+      const userIds = [...new Set(reviewsData.map(r => r.user_id).filter(Boolean))];
+      let userMap = new Map();
+
+      if (userIds.length > 0) {
+        // Subukan muna sa profiles table (kung may full_name)
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", userIds);
+
+        if (!profilesError && profilesData) {
+          userMap = new Map(profilesData.map(p => [p.id, p.full_name || "Anonymous"]));
+        } else {
+          // Kung walang profiles table, subukan sa auth.users (email lang ang available)
+          const { data: usersData, error: usersError } = await supabase
+            .from("auth.users")
+            .select("id, email")
+            .in("id", userIds);
+          if (!usersError && usersData) {
+            userMap = new Map(usersData.map(u => [u.id, u.email?.split('@')[0] || "User"]));
+          } else {
+            // Wala talagang makuha – Anonymous na lang
+            userIds.forEach(id => userMap.set(id, "Anonymous"));
+          }
+        }
+      }
+
+      // 3. Pagsamahin ang reviews at user names
+      const formatted = reviewsData.map(r => ({
+        id: r.id,
+        rating: r.rating,
+        comment: r.review,
+        created_at: r.created_at,
+        user_name: userMap.get(r.user_id) || "Anonymous",
+      }));
+      setReviews(formatted);
+    } catch (error) {
+      console.error("Error fetching reviews:", error);
+      setReviews([]);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  const openReviewsModal = () => {
+    setShowReviewsModal(true);
+    fetchReviews();
+  };
+
   const handleReserve = () => {
     if (lot?.status === 'suspended') {
       toast.error("This location is currently unavailable.");
@@ -104,7 +194,7 @@ export default function ParkingLotPage() {
 
   if (loading) {
     return (
-      <MobileLayout title="Loading..." showBack onBack={() => navigate("/home")}>
+      <MobileLayout title="Loading..." showBack={false} onBack={() => navigate("/home")}>
         <div className="flex items-center justify-center h-64">
           <p className="text-muted-foreground animate-pulse font-medium">Fetching lot details...</p>
         </div>
@@ -120,9 +210,9 @@ export default function ParkingLotPage() {
   const totalReviews = lot.total_reviews || 0;
 
   return (
-    <MobileLayout title={lot.name} showBack onBack={() => navigate("/home")}>
+    <MobileLayout title={lot.name} showBack={false} onBack={() => navigate("/home")}>
       <div className="page-enter">
-        
+
         {/* Suspension notice */}
         {isSuspended && (
           <div className="mx-4 mt-4 p-4 bg-amber-50 border-2 border-amber-200 rounded-2xl flex items-start gap-3 animate-in fade-in zoom-in-95 duration-300">
@@ -163,14 +253,18 @@ export default function ParkingLotPage() {
                 <MapPin size={12} />
                 <span className="text-xs">{lot.address}</span>
               </div>
-              {/* Rating summary (stars + count) */}
-              {averageRating > 0 && (
-                <div className="flex items-center gap-2 mt-2 pt-1">
+              {/* Clickable rating summary */}
+              {(averageRating > 0 || totalReviews > 0) && (
+                <div 
+                  onClick={openReviewsModal}
+                  className="flex items-center gap-2 mt-2 pt-1 cursor-pointer hover:bg-gray-50 rounded-lg p-1 transition-colors"
+                >
                   <div className="flex items-center gap-1">
                     {renderStaticStars(averageRating)}
                     <span className="text-xs font-bold ml-1">{averageRating.toFixed(1)}</span>
                   </div>
-                  <span className="text-xs text-gray-400">({totalReviews} reviews)</span>
+                  <span className="text-xs text-gray-400">({totalReviews} {totalReviews === 1 ? "review" : "reviews"})</span>
+                  <ExternalLink size={12} className="text-gray-400" />
                 </div>
               )}
             </div>
@@ -243,6 +337,57 @@ export default function ParkingLotPage() {
           </Button>
         </div>
       </div>
+
+      {/* REVIEWS MODAL */}
+      {showReviewsModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm transition-all">
+          <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[80vh] overflow-y-auto animate-in slide-in-from-bottom">
+            <div className="sticky top-0 bg-white p-4 border-b flex justify-between items-center">
+              <h3 className="font-bold text-lg">Customer Reviews</h3>
+              <button onClick={() => setShowReviewsModal(false)} className="p-1 rounded-full hover:bg-gray-100">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 space-y-5">
+              {loadingReviews ? (
+                <div className="text-center py-8 text-gray-500">Loading reviews...</div>
+              ) : reviews.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">No reviews yet. Be the first to rate!</div>
+              ) : (
+                reviews.map((review) => (
+                  <div key={review.id} className="border-b border-gray-100 pb-4 last:border-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                          <span className="text-sm font-bold text-gray-600">
+                            {review.user_name?.charAt(0).toUpperCase() || "?"}
+                          </span>
+                        </div>
+                        <span className="font-semibold text-gray-800">{review.user_name}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {renderStaticStars(review.rating)}
+                        <span className="text-xs text-gray-400 ml-1">{review.rating}.0</span>
+                      </div>
+                    </div>
+                    {review.comment && (
+                      <p className="text-sm text-gray-600 mt-2 ml-10">{review.comment}</p>
+                    )}
+                    <div className="flex items-center gap-2 mt-2 ml-10 text-[10px] text-gray-400">
+                      <Clock size={10} />
+                      {new Date(review.created_at).toLocaleDateString(undefined, { 
+                        year: 'numeric', 
+                        month: 'short', 
+                        day: 'numeric' 
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </MobileLayout>
   );
-} 
+}

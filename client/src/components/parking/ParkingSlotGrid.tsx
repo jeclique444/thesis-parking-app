@@ -1,8 +1,8 @@
 /*
- * iParkBayan — ParkingSlotGrid (Final Clean Up: Mobile Responsive + PWD Icon + Stats + Unmapped Support)
+ * iParkBayan — ParkingSlotGrid (Stats: PWD instead of Unmapped, blue color)
  */
 import { cn } from "@/lib/utils";
-import type { ParkingSlot } from "@/lib/data"; // 👈 The interface is imported from here!
+import type { ParkingSlot } from "@/lib/data";
 import { Car, X, Accessibility } from "lucide-react"; 
 import { toast } from "sonner";
 
@@ -32,7 +32,6 @@ const statusConfig = {
     label: "Reserved",
     dot: "bg-amber-500",
   },
-  // 🔥 FIX: Added 'unmapped' status configuration!
   unmapped: {
     bg: "bg-slate-100 border-slate-400 border-dashed cursor-not-allowed opacity-80",
     text: "text-slate-500", 
@@ -48,15 +47,15 @@ export default function ParkingSlotGrid({
   interactive = true,
 }: ParkingSlotGridProps) {
   
-  // Bilangin ang total at bawat status para sa Stats Summary
   const totalSlots = slots.length;
   const availableSlots = slots.filter((s) => s.status === "available").length;
   const occupiedSlots = slots.filter((s) => s.status === "occupied").length;
   const reservedSlots = slots.filter((s) => s.status === "reserved").length;
-  // 🔥 FIX: Added unmapped slots counter
-  const unmappedSlots = slots.filter((s) => s.status === "unmapped" || s.status === "NULL / NOT DRAWN" || !s.status).length;
+  // 🔥 PWD slots count (is_pwd === true)
+  const pwdSlots = slots.filter((s) => (s as any).is_pwd === true || String((s as any).is_pwd) === "true").length;
+  // unmapped count still used for legend but not in stats
+  // const unmappedSlots = ...
 
-  // Kung walang slot.row sa database, kukunin niya ang unang letter ng slot.label
   const rows = slots.reduce<Record<string, ParkingSlot[]>>((acc, slot) => {
     const row = slot.row || (slot.label ? slot.label.charAt(0).toUpperCase() : "A");
     if (!acc[row]) acc[row] = [];
@@ -67,7 +66,7 @@ export default function ParkingSlotGrid({
   return (
     <div className="space-y-4 w-full">
       
-      {/* 🔥 STATS SUMMARY */}
+      {/* STATS SUMMARY: PWD (blue) instead of Unmapped */}
       <div className="flex items-center justify-between bg-white border rounded-xl py-4 mb-2 shadow-sm">
         <div className="flex flex-col items-center flex-1 border-r">
           <span className="text-xl font-black text-slate-900">{totalSlots}</span>
@@ -85,38 +84,38 @@ export default function ParkingSlotGrid({
           <span className="text-xl font-black text-amber-500">{reservedSlots}</span>
           <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Reserved</span>
         </div>
-        {/* 🔥 FIX: Added Unmapped Column to Stats */}
+        {/* 🔥 PWD column (blue) */}
         <div className="flex flex-col items-center flex-1">
-          <span className="text-xl font-black text-slate-500">{unmappedSlots}</span>
-          <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Unmapped</span>
+          <span className="text-xl font-black text-blue-600">{pwdSlots}</span>
+          <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">PWD</span>
         </div>
       </div>
 
-      {/* 🔥 Legend: Pinagkasya sa isang linya at inayos ang order (PWD muna bago Selected) */}
-      <div className="flex items-center justify-center md:justify-start gap-2.5 sm:gap-4 text-[11px] sm:text-xs font-semibold text-slate-800 whitespace-nowrap overflow-x-auto pb-1">
-        {Object.entries(statusConfig).map(([status, config]) => (
-          <div key={status} className="flex items-center gap-1 sm:gap-1.5">
-            <span className={cn("w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-sm shrink-0", config.dot)} />
-            <span>{config.label}</span>
+      {/* LEGEND: Single line, includes Unmapped (gray) and PWD (blue) */}
+      <div className="w-full overflow-x-auto pb-1">
+        <div className="flex items-center gap-4 text-xs font-semibold text-slate-800 min-w-max">
+          {Object.entries(statusConfig).map(([status, config]) => (
+            <div key={status} className="flex items-center gap-1.5">
+              <span className={cn("w-2.5 h-2.5 rounded-sm shrink-0", config.dot)} />
+              <span>{config.label}</span>
+            </div>
+          ))}
+          {/* PWD Legend (blue) */}
+          <div className="flex items-center gap-1.5 text-blue-600">
+            <Accessibility size={14} className="shrink-0" />
+            <span>PWD</span>
           </div>
-        ))}
-        {/* PWD Legend */}
-        <div className="flex items-center gap-1 sm:gap-1.5 text-amber-600">
-          <Accessibility size={14} className="shrink-0" />
-          <span>PWD</span>
-        </div>
-        {/* Selected Legend */}
-        <div className="flex items-center gap-1 sm:gap-1.5">
-          <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-sm bg-primary/20 border border-primary shrink-0" />
-          <span>Selected</span>
+          {/* Selected Legend */}
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-sm bg-primary/20 border border-primary shrink-0" />
+            <span>Selected</span>
+          </div>
         </div>
       </div>
 
-      {/* 🔥 SCROLLABLE CONTAINER PARA SA MOBILE LANDSCAPE VIEW */}
+      {/* Slot Grid (unchanged, but PWD icon color changed to blue) */}
       <div className="w-full overflow-x-auto pb-4">
         <div className="min-w-max">
-          
-          {/* 🔥 Driving lane indicator: Inayos para hindi mag-overlap (Inalis yung pure absolute na nagpapa-collapse ng height) */}
           <div className="flex items-center justify-center h-6 bg-slate-100 rounded mt-4 mb-6 relative">
             <div className="flex gap-2">
               {Array.from({ length: 12 }).map((_, i) => (
@@ -126,22 +125,16 @@ export default function ParkingSlotGrid({
             <span className="absolute text-[10px] text-slate-500 font-bold tracking-widest uppercase bg-slate-100 px-2">Driving Lane</span>
           </div>
 
-          {/* Slot rows */}
           <div className="space-y-4 pt-2">
             {Object.entries(rows).map(([row, rowSlots]) => (
               <div key={row} className="flex items-center">
-                {/* Letter sa gilid (Naka-sticky para di mawala pag nag-scroll) */}
                 <span className="text-sm font-black text-slate-950 w-8 shrink-0 sticky left-0 bg-slate-50/80 backdrop-blur-sm py-2 z-10">{row}</span>
-                
                 <div className="flex gap-2">
                   {rowSlots.map((slot) => {
                     const isWalkIn = slot.label === "C1" || (slot as any).is_reservable === false || String((slot as any).is_reservable) === "false";
-                    const isPwd = (slot as any).is_pwd === true || String((slot as any).is_pwd) === "true"; // Kunin kung PWD
-                    
-                    // 🔥 FIX: Safe handling for weird statuses (like "NULL / NOT DRAWN"). Defaults to unmapped instead of available!
+                    const isPwd = (slot as any).is_pwd === true || String((slot as any).is_pwd) === "true";
                     const normalizedStatus = slot.status === "NULL / NOT DRAWN" || !slot.status ? "unmapped" : slot.status;
                     const config = statusConfig[normalizedStatus as keyof typeof statusConfig] || statusConfig.unmapped;
-                    
                     const isSelected = selectedSlot === slot.id;
                     const canSelect = interactive && slot.status === "available";
 
@@ -149,10 +142,8 @@ export default function ParkingSlotGrid({
                       <button
                         key={slot.id}
                         onClick={() => {
-                          if (isWalkIn) {
-                            toast.info(`Note: Slot ${slot.label} is for Walk-in only.`);
-                          }
-                          canSelect && onSelectSlot?.(slot);
+                          if (isWalkIn) toast.info(`Slot ${slot.label} is for walk‑in only.`);
+                          if (canSelect) onSelectSlot?.(slot);
                         }}
                         disabled={!canSelect}
                         className={cn(
@@ -164,24 +155,18 @@ export default function ParkingSlotGrid({
                           canSelect && "hover:scale-105 hover:shadow-sm active:scale-95 cursor-pointer"
                         )}
                       >
-                        
-                        {/* 🔥 LOGIC PARA SA ICONS - NOW USING PHYSICAL STATUS */}
                         <div className="h-4 flex items-center justify-center mb-0.5">
                           {(slot as any).physical_status === "occupied" ? (
-                            // If the camera sees a car, show the car icon immediately!
-                            <Car size={14} className="opacity-80" /> 
+                            <Car size={14} className="opacity-80" />
                           ) : isPwd ? (
-                            // If empty but PWD, show accessibility icon
-                            <Accessibility size={14} className={cn(isSelected ? "text-primary" : "text-amber-600")} />
+                            // 🔥 Blue icon for PWD (when not selected)
+                            <Accessibility size={14} className={cn(isSelected ? "text-primary" : "text-blue-600")} />
                           ) : isWalkIn ? (
-                            // If empty but Walk-In, show X
                             <X size={14} className="text-current stroke-[4px]" />
                           ) : (
-                            // If empty and regular, show the dot
                             <div className={cn("w-2 h-2 rounded-full", isSelected ? "bg-primary" : config.dot)} />
                           )}
                         </div>
-
                         <span className="text-[11px] leading-none font-black mt-0.5">{slot.label}</span>
                       </button>
                     );
@@ -190,7 +175,6 @@ export default function ParkingSlotGrid({
               </div>
             ))}
           </div>
-          
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 /*
  * iParkBayan — DigitalReceiptPage
  * Design: Civic Tech / Official Ticket Aesthetic
+ * Removed back arrow navigation (redundant).
  */
 import { useEffect, useState, useRef } from "react";
 import { useParams, useLocation } from "wouter";
@@ -43,6 +44,7 @@ export default function DigitalReceiptPage() {
   const searchParams = new URLSearchParams(window.location.search);
   const fromRoute = searchParams.get("from");
 
+  // Back navigation logic still used for programmatic navigation (if needed)
   const handleBack = () => {
     if (fromRoute === "reservations") {
       navigate("/home");
@@ -164,7 +166,8 @@ export default function DigitalReceiptPage() {
   if (loading) return <div className="p-20 text-center animate-pulse font-bold">Generating Receipt...</div>;
   
   if (!res) return (
-    <MobileLayout title="Error" showBack onBack={handleBack}>
+    // Removed back arrow here as well
+    <MobileLayout title="Error" showBack={false}>
       <div className="p-10 text-center">Receipt not found.</div>
     </MobileLayout>
   );
@@ -181,12 +184,12 @@ export default function DigitalReceiptPage() {
     year: 'numeric'
   });
 
-  // I-format ang start_time at end_time (ISO → readable time)
   const startTimeFormatted = formatTimeFromISO(res.start_time);
   const endTimeFormatted = formatTimeFromISO(res.end_time);
 
   return (
-    <MobileLayout title="Digital Receipt" showBack onBack={handleBack}>
+    // 🔥 Removed the back arrow by setting showBack={false}
+    <MobileLayout title="Digital Receipt" showBack={false}>
       <div className="page-enter p-6 space-y-6 bg-slate-50 min-h-screen">
         
         {/* TICKET CONTAINER */}
@@ -240,7 +243,6 @@ export default function DigitalReceiptPage() {
                 <Clock size={16} className="text-primary shrink-0" />
                 <div>
                   <p className="text-[9px] font-black text-muted-foreground uppercase">Schedule</p>
-                  {/* ✅ ITO ANG BAGO: formatted times, hindi ISO string */}
                   <p className="text-[11px] font-bold">{bookingDate}</p>
                   <p className="text-[10px] font-medium text-muted-foreground">
                     {startTimeFormatted} - {endTimeFormatted}

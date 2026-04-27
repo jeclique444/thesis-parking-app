@@ -47,6 +47,8 @@ import AdminStaffManagement from "./pages/admin/AdminStaffManagement";
 import AdminTermsPage from "./pages/admin/AdminTermsPage";
 import SetPasswordPage from "./pages/admin/SetPasswordPage";
 import AuthCallback from "./pages/auth/authCallback";
+import AdminWalkInRecords from "./pages/admin/AdwinWalkInRecords";
+
 
 function Router() {
   return (
@@ -87,6 +89,7 @@ function Router() {
       <Route path="/admin/verifications" component={AdminVerifications} />
       <Route path="/admin/staffmanagement" component={AdminStaffManagement} />
       <Route path="/set-password" component={SetPasswordPage} />
+      <Route path="/admin/walkin" component={AdminWalkInRecords} />
 
       {/* 5. DYNAMIC ROUTES */}
       <Route path="/parking/:id" component={ParkingLotPage} />

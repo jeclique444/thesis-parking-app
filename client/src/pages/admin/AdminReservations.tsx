@@ -1,6 +1,7 @@
 /*
  * iParkBayan — AdminReservations (Added Booked Status & Cross-Midnight Fix)
  * Fixed: Time display in 12‑hour format, fine calculation uses actual timestamps.
+ * Added: Pagination (Load More) + manual refresh button.
  */
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/AdminLayout";
@@ -11,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 const PENALTY_RATE_PER_HOUR = 50;
+const PAGE_SIZE = 20;
 
 const statusStyles: Record<string, string> = {
   pending: "bg-amber-100 text-amber-700 border-amber-200",
@@ -37,6 +39,9 @@ export default function AdminReservations() {
   const [reservations, setReservations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -49,28 +54,44 @@ export default function AdminReservations() {
   }, []);
 
   useEffect(() => {
-    fetchReservations();
+    fetchReservations(true);
     const channel = supabase
       .channel('admin-res-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, () => {
-        fetchReservations();
+        // On any change, reset and refetch first page to keep data fresh
+        fetchReservations(true);
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const fetchReservations = async () => {
-    setIsRefreshing(true);
+  // Helper to build base query
+  const getBaseQuery = () => {
+    let query = supabase
+      .from('reservations')
+      .select(`*, parking_lots (name), parking_slots (label)`)
+      .order('created_at', { ascending: false });
+    if (userRole === 'manager' && userLotId) {
+      query = query.eq('lot_id', userLotId);
+    }
+    return query;
+  };
+
+  const fetchReservations = async (reset = false) => {
+    if (reset) {
+      setIsRefreshing(true);
+      setPage(0);
+      setHasMore(true);
+    } else {
+      setIsLoadingMore(true);
+    }
+
     try {
-      let query = supabase
-        .from('reservations')
-        .select(`*, parking_lots (name), parking_slots (label)`)
-        .order('created_at', { ascending: false });
+      const currentPage = reset ? 0 : page;
+      const from = currentPage * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
 
-      if (userRole === 'manager' && userLotId) {
-        query = query.eq('lot_id', userLotId);
-      }
-
+      let query = getBaseQuery().range(from, to);
       const { data, error } = await query;
       if (error) throw error;
 
@@ -80,33 +101,49 @@ export default function AdminReservations() {
         lotName: res.parking_lots?.name || "Unknown Lot",
         slotLabel: res.parking_slots?.label || "N/A",
         createdAt: res.created_at,
-        startTime: res.start_time,   // ISO string
-        endTime: res.end_time,       // ISO string
+        startTime: res.start_time,
+        endTime: res.end_time,
         totalPrice: res.total_amount || 0,
         status: res.status || 'pending',
-        slotId: res.slot_id
+        slotId: res.slot_id,
       }));
 
-      setReservations(formattedData);
+      if (reset) {
+        setReservations(formattedData);
+      } else {
+        setReservations(prev => [...prev, ...formattedData]);
+      }
+
+      setHasMore((data?.length || 0) === PAGE_SIZE);
+      if (!reset) setPage(prev => prev + 1);
     } catch (error: any) {
       toast.error("Failed to fetch reservations.");
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
+      setIsLoadingMore(false);
     }
   };
 
-  // ✅ Fixed fine calculation using real Date objects
+  const loadMore = () => {
+    if (!isLoadingMore && hasMore && !isRefreshing) {
+      fetchReservations(false);
+    }
+  };
+
+  const manualRefresh = () => {
+    if (!isRefreshing) {
+      fetchReservations(true);
+    }
+  };
+
+  // Fine calculation (unchanged)
   const calculateFine = (reservation: any): number => {
     if (reservation.status !== 'active') return 0;
     if (!reservation.startTime || !reservation.endTime) return 0;
-
-    const start = new Date(reservation.startTime);
     const end = new Date(reservation.endTime);
     const now = currentTime;
-
     if (now <= end) return 0;
-
     const diffMs = now.getTime() - end.getTime();
     const diffHours = diffMs / (1000 * 60 * 60);
     return Math.ceil(diffHours * PENALTY_RATE_PER_HOUR);
@@ -124,16 +161,14 @@ export default function AdminReservations() {
           total_amount: finalAmount 
         })
         .eq('id', res.id);
-
       if (resError) throw resError;
 
       let slotStatus = 'available';
       if (newStatus === 'active' || newStatus === 'pending' || newStatus === 'booked') slotStatus = 'reserved';
-      
       await supabase.from('parking_slots').update({ status: slotStatus }).eq('id', res.slotId);
 
       toast.success(fine > 0 ? `Completed with ₱${fine} fine!` : `Marked as ${newStatus}`);
-      fetchReservations();
+      fetchReservations(true); // refresh the list after action
     } catch (error: any) {
       toast.error("Update failed.");
     }
@@ -150,6 +185,7 @@ export default function AdminReservations() {
     return calculateFine(res) > 0;
   };
 
+  // Client-side search (works on loaded pages)
   const filteredReservations = reservations.filter(res => 
     res.shortId.toLowerCase().includes(searchTerm.toLowerCase()) ||
     res.lotName.toLowerCase().includes(searchTerm.toLowerCase())
@@ -172,6 +208,7 @@ export default function AdminReservations() {
   return (
     <AdminLayout title="Reservations">
       <div className="space-y-6">
+        {/* Stats cards (unchanged) */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white p-4 rounded-2xl border flex items-center gap-4">
             <div className="bg-primary/10 p-3 rounded-full text-primary"><CalendarDays size={20} /></div>
@@ -192,14 +229,34 @@ export default function AdminReservations() {
         </div>
 
         <div className="bg-white rounded-2xl p-6 shadow-sm border">
+          {/* Header with search and refresh */}
           <div className="flex justify-between items-center mb-6">
             <h3 className="font-bold">Reservation Records</h3>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-              <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 pr-4 py-2 bg-muted/30 border rounded-xl text-sm" />
+            <div className="flex gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                <input 
+                  type="text" 
+                  placeholder="Search..." 
+                  value={searchTerm} 
+                  onChange={(e) => setSearchTerm(e.target.value)} 
+                  className="pl-9 pr-4 py-2 bg-muted/30 border rounded-xl text-sm" 
+                />
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={manualRefresh} 
+                disabled={isRefreshing}
+                className="rounded-xl"
+              >
+                <RefreshCw size={14} className={cn("mr-2", isRefreshing && "animate-spin")} />
+                Refresh
+              </Button>
             </div>
           </div>
 
+          {/* Table */}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -217,7 +274,6 @@ export default function AdminReservations() {
                 {filteredReservations.map((res) => {
                   const fine = calculateFine(res);
                   const isOverstaying = fine > 0;
-                  // Format time for display
                   const startTimeFormatted = format12HourTime(res.startTime);
                   const endTimeFormatted = format12HourTime(res.endTime);
                   const dateFormatted = res.createdAt ? new Date(res.createdAt).toLocaleDateString('en-US', {
@@ -275,6 +331,21 @@ export default function AdminReservations() {
               </tbody>
             </table>
           </div>
+
+          {/* Load More Button */}
+          {hasMore && (
+            <div className="flex justify-center mt-6">
+              <Button
+                variant="outline"
+                onClick={loadMore}
+                disabled={isLoadingMore || isRefreshing}
+                className="rounded-xl"
+              >
+                {isLoadingMore && <RefreshCw size={14} className="mr-2 animate-spin" />}
+                {isLoadingMore ? "Loading..." : "Load More"}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </AdminLayout>
