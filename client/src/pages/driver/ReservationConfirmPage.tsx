@@ -141,7 +141,7 @@ export default function ReservationConfirmPage() {
       toast.error(err.message || "Slot may have been taken. Please try again.");
       setIsProcessing(false);
       // Optionally redirect back to slot selection
-      navigate(`/parking/${slotId}?lot=${lotId}`);
+      navigate(`/reserve/${slotId}?lot=${lotId}`);
     }
   };
 
