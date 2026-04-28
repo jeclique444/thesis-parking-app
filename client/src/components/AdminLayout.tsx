@@ -1,7 +1,6 @@
 /*
  * iParkBayan — AdminLayout
- * Design: Civic Tech / Filipino Urban Identity
- * Left sidebar layout for admin dashboard
+ * Fix: Profile button non-clickable, notifications clickable (mark as read + navigate).
  */
 import { useLocation } from "wouter";
 import { useState, useEffect, useCallback } from "react";
@@ -28,8 +27,8 @@ const allNavItems = [
   { path: "/admin/slots", icon: ParkingSquare, label: "Parking Slots", allowedRoles: ["superadmin", "manager", "guard"] },
   { path: "/admin/personnel", icon: User, label: "Personnel", allowedRoles: ["superadmin"] }, 
   { path: "/admin/verifications", icon: ShieldCheck, label: "Verifications", allowedRoles: ["superadmin"] }, 
-  { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["superadmin", "manager"] },
   { path: "/admin/walkin", icon: DollarSign, label: "Walk‑ins", allowedRoles: ["manager", "guard"] },
+  { path: "/admin/reservations", icon: BookOpen, label: "Reservations", allowedRoles: ["superadmin", "manager"] },
   { path: "/admin/reports", icon: BarChart3, label: "Reports", allowedRoles: ["superadmin", "manager"] },
   { path: "/admin/staffmanagement", icon: Users, label: "Staff Management", allowedRoles: ["manager"] },
   { path: "/admin/settings", icon: Settings, label: "Settings", allowedRoles: ["superadmin", "manager"] }, 
@@ -43,14 +42,12 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
   
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotifs, setShowNotifs] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
   
   const adminRole = localStorage.getItem("admin_role") || "manager"; 
   const adminLotId = localStorage.getItem("admin_lot_id");
 
   const closeDropdowns = () => {
     setShowNotifs(false);
-    setShowProfile(false);
   };
 
   const fetchNotifications = useCallback(async () => {
@@ -106,6 +103,34 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
     return () => { supabase.removeChannel(notifChannel); };
   }, [adminRole, adminLotId, fetchNotifications]);
 
+  // Mark single notification as read and navigate
+  const handleNotificationClick = async (notif: any) => {
+    // Mark as read if not already read
+    if (!notif.read) {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ read: true })
+        .eq('id', notif.id);
+      if (!error) {
+        setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
+      }
+    }
+    // Navigate based on notification type or related_id
+    if (notif.type === 'reservation_confirmed' || notif.type === 'reservation_started' || notif.type === 'reservation_completed') {
+      setLocation('/admin/reservations');
+    } else if (notif.type === 'vehicle_added' || notif.type === 'walkin_recorded') {
+      setLocation('/admin/walkin');
+    } else if (notif.type === 'session_expiring' || notif.type === 'overtime_fee') {
+      setLocation('/admin/reservations');
+    } else if (notif.related_id) {
+      // Fallback: try to go to reservations page
+      setLocation('/admin/reservations');
+    } else {
+      setLocation('/admin/dashboard');
+    }
+    setShowNotifs(false);
+  };
+
   const markAllAsRead = async () => {
     const { error } = await supabase
       .from('notifications')
@@ -154,6 +179,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
   return (
     <div className="flex h-screen bg-background overflow-hidden relative">
       
+      {/* Sidebar (unchanged) */}
       <aside className="w-64 flex flex-col shrink-0 z-20 relative overflow-hidden bg-black text-white border-r border-border/50">
         <div className="absolute inset-0 z-0 pointer-events-none">
           <DarkVeil
@@ -169,21 +195,13 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
         </div>
 
         <div className="relative z-10 flex flex-col h-full w-full">
-          
-          {/* 🔥 Logo section - now clickable */}
           <button
             onClick={() => setLocation("/admin/dashboard")}
             className="w-full flex items-center gap-3 px-6 py-5 border-b border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
           >
-            <img 
-              src="/ParKadav2.png" 
-              alt="ParKada Logo" 
-              className="w-10 h-10 object-contain drop-shadow-md" 
-            />
+            <img src="/ParKadav2.png" alt="ParKada Logo" className="w-10 h-10 object-contain drop-shadow-md" />
             <div className="text-left">
-              <p className="font-bold text-lg text-white" style={{ fontFamily: "'Montserrat', sans-serif" }}>
-                ParKada
-              </p>
+              <p className="font-bold text-lg text-white">ParKada</p>
               <p className="text-xs text-white/70 capitalize">
                 {adminRole === 'superadmin' ? 'Super Admin' : 'Lot Manager'} Panel
               </p>
@@ -212,6 +230,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
           </nav>
 
           <div className="px-3 py-4 border-t border-white/10 space-y-1">
+            {/* Profile section: NON-CLICKABLE (no button) */}
             <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg">
               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white uppercase border border-white/20">
                 {initials}
@@ -236,17 +255,16 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
         </div>
       </aside>
 
+      {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
         <header className="flex items-center justify-between px-6 py-4 bg-white border-b border-border shrink-0 relative z-40">
-          <h1 className="text-lg font-bold text-foreground" style={{ fontFamily: "'Montserrat', sans-serif" }}>
-            {title}
-          </h1>
+          <h1 className="text-lg font-bold text-foreground">{title}</h1>
           
           <div className="flex items-center gap-3">
             {/* NOTIFICATIONS DROPDOWN */}
             <div className="relative">
               <button
-                onClick={() => { setShowNotifs(!showNotifs); setShowProfile(false); }}
+                onClick={() => { setShowNotifs(!showNotifs); }}
                 className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors relative"
                 aria-label="Notifications"
               >
@@ -268,7 +286,14 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
                   <div className="max-h-80 overflow-y-auto">
                     {notifications.length > 0 ? (
                       notifications.map((n) => (
-                        <div key={n.id} className={cn("w-full text-left px-4 py-2.5 border-b border-border flex gap-3 transition-colors", n.read === false ? "bg-primary/5" : "hover:bg-slate-50 opacity-70")}>
+                        <div
+                          key={n.id}
+                          onClick={() => handleNotificationClick(n)}
+                          className={cn(
+                            "w-full text-left px-4 py-2.5 border-b border-border flex gap-3 transition-colors cursor-pointer",
+                            n.read === false ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-slate-50 opacity-70"
+                          )}
+                        >
                           <div className={cn("mt-0.5 p-1.5 rounded-full shrink-0", n.type === 'urgent' ? "bg-rose-100 text-rose-600" : "bg-blue-100 text-blue-600")}>
                             {n.type === 'urgent' ? <Bell size={12} /> : <CheckCircle2 size={12} />}
                           </div>
@@ -294,45 +319,15 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
               )}
             </div>
 
-            {/* PROFILE DROPDOWN */}
-            <div className="relative">
-              <button
-                onClick={() => { setShowProfile(!showProfile); setShowNotifs(false); }}
-                className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-                aria-label="Profile menu"
-              >
-                <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shadow-sm border-2 border-white ring-1 ring-slate-200">
-                  {initials}
-                </div>
-              </button>
-
-              {showProfile && (
-                <div className="absolute right-0 mt-3 w-48 bg-white border border-border rounded-xl shadow-lg z-50 animate-in fade-in slide-in-from-top-2 p-1.5">
-                  <div className="px-3 py-2.5 border-b border-border mb-1">
-                    <p className="text-xs font-bold text-slate-800 capitalize truncate">
-                      {adminRole === 'superadmin' ? 'Super Admin' : 'Manager'}
-                    </p>
-                    <p className="text-[10px] text-slate-500 truncate mt-0.5" title={adminEmail}>
-                      {adminEmail}
-                    </p>
-                  </div>
-                  <button onClick={() => toast.info("Profile settings coming soon!")} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
-                    <User size={14} className="text-slate-500" /> My Profile
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-600 font-medium hover:bg-rose-50 rounded-lg transition-colors mt-1"
-                  >
-                    <LogOut size={14} /> Sign Out
-                  </button>
-                </div>
-              )}
+            {/* PROFILE BUTTON – GINAWANG HINDI CLICKABLE (wala nang dropdown) */}
+            <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shadow-sm border-2 border-white ring-1 ring-slate-200 cursor-default">
+              {initials}
             </div>
           </div>
         </header>
 
         {/* OVERLAY */}
-        {(showNotifs || showProfile) && (
+        {showNotifs && (
           <div className="fixed inset-0 z-30" onClick={closeDropdowns} aria-hidden="true" />
         )}
 

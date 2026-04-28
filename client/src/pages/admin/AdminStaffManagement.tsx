@@ -1,5 +1,6 @@
 /*
  * iParkBayan — ManageGuards (Manager Creation & Roster for Guards)
+ * Added: Strong password indication, eye icon to toggle visibility.
  */
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/AdminLayout";
@@ -16,7 +17,9 @@ import {
   UserMinus, 
   UserCheck, 
   User,
-  ScanLine
+  ScanLine,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { supabase } from "@/supabaseClient"; 
 import { createClient } from "@supabase/supabase-js";
@@ -41,6 +44,7 @@ export default function ManageGuards() {
   const [guardName, setGuardName] = useState("");
   const [guardEmail, setGuardEmail] = useState("");
   const [guardPassword, setGuardPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -84,13 +88,34 @@ export default function ManageGuards() {
     }
   };
 
+  // Password strength checker
+  const getPasswordStrength = (pass: string) => {
+    if (!pass) return "";
+    if (pass.length < 8) return "Weak Password";
+    const hasLetters = /[a-zA-Z]/.test(pass);
+    const hasNumbers = /[0-9]/.test(pass);
+    const hasSpecial = /[^a-zA-Z0-9]/.test(pass);
+    if (hasLetters && hasNumbers && hasSpecial) return "Very Strong Password";
+    if (hasLetters && hasNumbers) return "Strong Password";
+    return "Weak Password";
+  };
+
+  const passwordStrength = getPasswordStrength(guardPassword);
+  const strengthColor =
+    passwordStrength === "Weak Password" ? "text-rose-500" :
+    passwordStrength === "Strong Password" ? "text-amber-600" :
+    passwordStrength === "Very Strong Password" ? "text-emerald-600" : "text-transparent";
+
   const handleAddGuard = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!guardName || !guardEmail || !guardPassword) {
       return toast.error("Pakikumpleto ang lahat ng fields.");
     }
-    if (guardPassword.length < 6) {
-      return toast.error("Ang password ay dapat at least 6 characters.");
+    if (guardPassword.length < 8) {
+      return toast.error("Password must be at least 8 characters long.");
+    }
+    if (passwordStrength === "Weak Password") {
+      return toast.error("Please use a stronger password (letters and numbers).");
     }
     if (!managerLotId) {
       return toast.error("System Error: No lot assigned to your account.");
@@ -127,6 +152,7 @@ export default function ManageGuards() {
 
       toast.success(`Guard account para kay ${guardName} nagawa na!`);
       setGuardName(""); setGuardEmail(""); setGuardPassword("");
+      setShowPassword(false);
       fetchManagerDataAndGuards(); 
     } catch (error: any) {
       console.error(error);
@@ -221,11 +247,27 @@ export default function ManageGuards() {
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                   <Input 
-                    className="h-12 rounded-xl pl-10 focus:ring-2 focus:ring-primary"
-                    type="password" placeholder="Min. 6 characters" 
+                    className="h-12 rounded-xl pl-10 pr-10 focus:ring-2 focus:ring-primary"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Min. 8 characters" 
                     value={guardPassword} onChange={(e) => setGuardPassword(e.target.value)} required
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
+                {guardPassword.length > 0 && (
+                  <p className={`text-[10px] font-semibold mt-1 ${strengthColor}`}>
+                    {passwordStrength}
+                  </p>
+                )}
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Use at least 8 characters with letters, numbers, and special characters for a strong password.
+                </p>
               </div>
 
               <div className="pt-2">

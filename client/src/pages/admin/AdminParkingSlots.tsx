@@ -1,6 +1,9 @@
 /*
  * iParkBayan — AdminParkingSlots
  * Complete Version: Bi-directional Sync, Pending/Unmapped Slots (Gray State), and Full UI
+ * Fixed: Natural sorting of slot labels (A1, A2, ..., A10, B1, B2)
+ * Removed redundant stats row.
+ * Updated: Only accredited parking lots are shown in the dropdown, sorted alphabetically.
  */
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/AdminLayout";
@@ -13,77 +16,77 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/supabaseClient";
 
 export default function AdminParkingSlots() {
-  // Real States para sa Database
   const [lots, setLots] = useState<any[]>([]);
   const [selectedLotId, setSelectedLotId] = useState<string>("");
   const [slots, setSlots] = useState<any[]>([]);
   const [loadingLots, setLoadingLots] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   
-  // State for Adding new slot
   const [isAdding, setIsAdding] = useState(false);
   const [newSlotLabel, setNewSlotLabel] = useState(""); 
   const [newSlotIsPwd, setNewSlotIsPwd] = useState(false);
 
-  // Kunin ang credentials mula sa LocalStorage
   const userRole = localStorage.getItem("admin_role") || "guard"; 
   const userLotId = localStorage.getItem("admin_lot_id");
 
-  // 1. Unang Load: Kunin ang mga Parking Lots
+  // Natural sort comparator for slots
+  const naturalSort = (a: any, b: any) => {
+    return a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' });
+  };
+
   useEffect(() => {
     fetchLots();
   }, []);
 
-  // 2. REAL-TIME SUBSCRIPTION
   useEffect(() => {
     if (!selectedLotId) return;
 
-    // Fetch initial slots first
     fetchSlots(selectedLotId);
 
-    // Setup the Supabase Realtime Listener
     const channel = supabase
       .channel('realtime-parking-slots')
       .on(
         'postgres_changes',
         {
-          event: '*', // Listen to INSERT, UPDATE, and DELETE
+          event: '*',
           schema: 'public',
           table: 'parking_slots',
-          filter: `lot_id=eq.${selectedLotId}`, // Only listen to the active establishment
+          filter: `lot_id=eq.${selectedLotId}`,
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            // Add the new slot
             setSlots((prev) => {
               if (prev.find((s) => s.id === payload.new.id)) return prev;
-              return [...prev, payload.new].sort((a, b) => a.label.localeCompare(b.label));
+              const newList = [...prev, payload.new];
+              newList.sort(naturalSort);
+              return newList;
             });
           } else if (payload.eventType === 'UPDATE') {
-            // Update status
             setSlots((prev) =>
               prev.map((slot) => (slot.id === payload.new.id ? payload.new : slot))
             );
           } else if (payload.eventType === 'DELETE') {
-            // Remove slot
             setSlots((prev) => prev.filter((slot) => slot.id !== payload.old.id));
           }
         }
       )
       .subscribe();
 
-    // Cleanup listener when component unmounts or lot changes
     return () => {
       supabase.removeChannel(channel);
     };
   }, [selectedLotId]);
 
+  // 🔥 UPDATED: Only accredited lots, sorted alphabetically
   const fetchLots = async () => {
     setLoadingLots(true);
     try {
-      let query = supabase.from('parking_lots').select('*');
+      let query = supabase
+        .from('parking_lots')
+        .select('*')
+        .eq('is_accredited', true)      // ← only accredited
+        .order('name', { ascending: true }); // ← alphabetical
 
-      // Multi-tenant filtering
       if ((userRole === 'manager' || userRole === 'guard') && userLotId) {
         query = query.eq('id', userLotId);
       }
@@ -102,7 +105,7 @@ export default function AdminParkingSlots() {
           setSelectedLotId(data[0].id); 
         }
       } else {
-        toast.error("Wala pang nakatalagang Parking Lot sa iyo.");
+        toast.error("No accredited parking lots found for your account.");
       }
     } catch (error: any) {
       console.error("Supabase Error:", error.message);
@@ -118,11 +121,12 @@ export default function AdminParkingSlots() {
       const { data, error } = await supabase
         .from('parking_slots')
         .select('*')
-        .eq('lot_id', lotId)
-        .order('label', { ascending: true });
+        .eq('lot_id', lotId);
+        // No .order() – we sort client-side naturally
 
       if (error) throw error;
-      setSlots(data || []);
+      const sortedData = data ? [...data].sort(naturalSort) : [];
+      setSlots(sortedData);
     } catch (error: any) {
       console.error("Supabase Error:", error.message);
       toast.error("Failed to fetch parking slots.");
@@ -154,8 +158,8 @@ export default function AdminParkingSlots() {
           { 
             lot_id: selectedLotId, 
             label: newSlotLabel.trim().toUpperCase(),
-            status: 'unmapped', // 🔥 SET TO UNMAPPED FOR PYTHON TO CATCH
-            coordinates: null,  // 🔥 NULL UNTIL DRAWN IN PYTHON
+            status: 'unmapped',
+            coordinates: null,
             is_pwd: newSlotIsPwd,
             is_reservable: true 
           }
@@ -226,9 +230,7 @@ export default function AdminParkingSlots() {
         throw error;
       }
       
-      // 🔥 FIX: Manually remove the slot from the screen immediately!
       setSlots((prev) => prev.filter((slot) => slot.id !== slotId));
-      
       toast.success(`Slot ${slotLabel} deleted.`);
     } catch (error: any) {
       console.error("Error deleting slot:", error.message);
@@ -249,11 +251,6 @@ export default function AdminParkingSlots() {
 
   const activeLot = lots.find((l) => l.id === selectedLotId);
   if (!activeLot) return <AdminLayout title="Parking Slots"><p className="p-6 text-muted-foreground">No data found.</p></AdminLayout>;
-
-  const totalSlots = slots.length;
-  const availableSlots = slots.filter((s) => s.status === 'available').length;
-  const occupiedSlots = slots.filter((s) => s.status === 'occupied').length;
-  const pwdSlots = slots.filter((s) => s.is_pwd).length;
 
   return (
     <AdminLayout title="Parking Slots">
@@ -285,7 +282,7 @@ export default function AdminParkingSlots() {
           </div>
         </div>
 
-        {/* Live Camera Feed */}
+        {/* Live Camera Feed (unchanged) */}
         <div className="w-full max-w-5xl mx-auto bg-slate-900 rounded-2xl shadow-sm border border-slate-800 overflow-hidden relative aspect-video flex items-center justify-center">
           {activeLot.name.includes("Thesis Demo") ? (
             <>
@@ -317,22 +314,7 @@ export default function AdminParkingSlots() {
           )}
         </div>
 
-        {/* Real-time Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { label: "Total Slots", value: totalSlots, color: "text-foreground" },
-            { label: "Available", value: availableSlots, color: "text-emerald-600" },
-            { label: "Occupied", value: occupiedSlots, color: "text-rose-600" },
-            { label: "PWD Slots", value: pwdSlots, color: "text-amber-600" },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="bg-white rounded-2xl p-4 shadow-sm border border-border text-center card-elevated">
-              <p className={cn("text-3xl font-extrabold", color)} style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                {value}
-              </p>
-              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider mt-1">{label}</p>
-            </div>
-          ))}
-        </div>
+        {/* REMOVED: The stats row (Total Slots, Available, Occupied, PWD Slots) */}
 
         {/* Visual Slot Grid & Management */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-border card-elevated">
@@ -457,7 +439,6 @@ export default function AdminParkingSlots() {
                             </Badge>
                           </td>
                           <td className="py-3">
-                            {/* 🔥 GRAY BADGE FOR UNMAPPED SLOTS */}
                             <span className={cn(
                               "text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider",
                               slot.status === "available" ? "bg-emerald-100 text-emerald-700" :

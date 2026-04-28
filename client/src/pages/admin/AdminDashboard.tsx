@@ -1,6 +1,7 @@
 /*
  * iParkBayan — AdminDashboard (Supabase Connected - Super Admin & Manager)
  * Real‑time updates, TypeScript, map view, clickable cards, skeleton loading.
+ * UPDATED: Parking Lots Overview shows only accredited lots.
  */
 import AdminLayout from "@/components/AdminLayout";
 import { supabase } from "@/supabaseClient";
@@ -29,6 +30,7 @@ interface ParkingLot {
   lng: number;
   totalSlots: number;
   availableSlots: number;
+  is_accredited: boolean;
 }
 
 interface Reservation {
@@ -178,8 +180,8 @@ export default function AdminDashboard() {
         });
       }
 
-      // 2. Parking lots (with coordinates for map)
-      let lotsQuery = supabase.from("parking_lots").select("id, name, latitude, longitude");
+      // 2. Parking lots (with coordinates and accreditation)
+      let lotsQuery = supabase.from("parking_lots").select("id, name, latitude, longitude, is_accredited");
       if (currentRole === "manager" && managerLotId) lotsQuery = lotsQuery.eq("id", managerLotId);
       const { data: lotsData } = await lotsQuery;
       const formattedLots: ParkingLot[] = (lotsData || []).map(lot => ({
@@ -189,6 +191,7 @@ export default function AdminDashboard() {
         lng: lot.longitude,
         totalSlots: lotSlotCounts[lot.id]?.total || 0,
         availableSlots: lotSlotCounts[lot.id]?.available || 0,
+        is_accredited: lot.is_accredited === true,
       }));
 
       // 3. Today's reservations
@@ -233,7 +236,7 @@ export default function AdminDashboard() {
         activeCount = count || 0;
       }
 
-      // 6. Dynamic weekly occupancy
+      // 6. Dynamic weekly occupancy (unchanged)
       const totalSlotsCount = total;
       const now = new Date();
       const currentDay = now.getDay();
@@ -423,14 +426,14 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Parking Lots Overview */}
+          {/* Parking Lots Overview - Show only accredited lots */}
           <div className="bg-white rounded-2xl p-5 card-elevated h-full flex flex-col">
-            <h3 className="text-sm font-bold text-foreground mb-4">Parking Lots Overview</h3>
+            <h3 className="text-sm font-bold text-foreground mb-4">Accredited Parking Lots</h3>
             <div className="space-y-3 flex-1 overflow-y-auto">
-              {lotsOverview.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-8">No parking lots found.</p>
+              {lotsOverview.filter(lot => lot.is_accredited === true).length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-8">No accredited parking lots found.</p>
               ) : (
-                lotsOverview.map((lot) => {
+                lotsOverview.filter(lot => lot.is_accredited === true).map((lot) => {
                   const pct = lot.totalSlots === 0 ? 0 : Math.round((lot.availableSlots / lot.totalSlots) * 100);
                   return (
                     <button
@@ -476,28 +479,34 @@ export default function AdminDashboard() {
                   <th className="text-left pb-2 font-semibold">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
-                {recentReservations.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center py-4 text-muted-foreground text-xs">No recent reservations found.</td>
-                  </tr>
-                ) : (
-                  recentReservations.map((res) => (
-                    <tr key={res.id} onClick={() => setLocation("/admin/reservations")} className="hover:bg-muted/30 transition-colors cursor-pointer">
-                      <td className="py-2.5 font-mono text-xs text-muted-foreground">{res.id}</td>
-                      <td className="py-2.5 font-medium truncate max-w-35">{res.lotName}</td>
-                      <td className="py-2.5 font-bold">{res.slotLabel}</td>
-                      <td className="py-2.5 text-muted-foreground text-xs whitespace-nowrap">{res.date}</td>
-                      <td className="py-2.5 font-bold text-primary">{res.amount === 0 ? "Free" : `₱${res.amount}`}</td>
-                      <td className="py-2.5">
-                        <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full capitalize", statusColors[res.status] || "bg-gray-100 text-gray-700")}>
-                          {res.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
+<tbody className="divide-y divide-border">
+  {recentReservations.length === 0 ? (
+    <tr>
+      <td colSpan={6} className="text-center py-4 text-muted-foreground text-xs">
+        No recent reservations found.
+      </td>
+    </tr>
+  ) : (
+    recentReservations.map((res) => (
+      <tr 
+        key={res.id} 
+        onClick={() => setLocation("/admin/reservations")} 
+        className="hover:bg-muted/30 transition-colors cursor-pointer"
+      >
+        <td className="py-2.5 font-mono text-xs text-muted-foreground">{res.id}</td>
+        <td className="py-2.5 font-medium truncate max-w-35">{res.lotName}</td>
+        <td className="py-2.5 font-bold">{res.slotLabel}</td>
+        <td className="py-2.5 text-muted-foreground text-xs whitespace-nowrap">{res.date}</td>
+        <td className="py-2.5 font-bold text-primary">{res.amount === 0 ? "Free" : `₱${res.amount}`}</td>
+        <td className="py-2.5">
+          <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full capitalize", statusColors[res.status] || "bg-gray-100 text-gray-700")}>
+            {res.status}
+          </span>
+        </td>
+      </tr>
+    ))
+  )}
+</tbody>
             </table>
           </div>
         </div>

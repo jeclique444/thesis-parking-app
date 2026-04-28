@@ -345,14 +345,14 @@ export default function AdminReports() {
               onChange={(e) => setViewOption(e.target.value)}
               className="border border-slate-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
-              <option value="all">📋 All Reports</option>
-              <option value="composition">🥧 Revenue Composition</option>
-              <option value="daily">📈 Daily Revenue</option>
-              <option value="toplots">🏆 Top 5 Lots</option>
-              <option value="monthly">📊 Monthly Revenue</option>
-              <option value="weekly">📅 Weekly Occupancy</option>
-              <option value="hourly">⏰ Hourly Pattern</option>
-              <option value="lots">🏢 Lot Performance</option>
+              <option value="all">All Reports</option>
+              <option value="composition">Revenue Composition</option>
+              <option value="daily">Daily Revenue</option>
+              <option value="toplots">Top 5 Lots</option>
+              <option value="monthly">Monthly Revenue</option>
+              <option value="weekly">Weekly Occupancy</option>
+              <option value="hourly">Hourly Pattern</option>
+              <option value="lots">Lot Performance</option>
             </select>
           </div>
           <Button onClick={handleExportPDF} className="rounded-xl gap-2">
@@ -404,7 +404,7 @@ export default function AdminReports() {
         {/* Top 5 Lots */}
         {showSection("toplots") && (
           <div ref={topLotsRef} className="bg-white rounded-2xl p-5 border shadow-sm">
-            <h3 className="text-lg font-black mb-4">🏆 Top 5 Parking Lots by Revenue</h3>
+            <h3 className="text-lg font-black mb-4">Top 5 Parking Lots by Revenue</h3>
             <div className="space-y-3">
               {topLots.map((lot: any, i: number) => {
                 const maxRevenue = topLots[0]?.onlineRevenue + topLots[0]?.walkinRevenue || 1;

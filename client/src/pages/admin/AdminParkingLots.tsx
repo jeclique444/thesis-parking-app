@@ -1,13 +1,15 @@
 /*
  * iParkBayan — AdminParkingLots (With Strict Delete, Real‑time & TypeScript)
  * No manual refresh button – real‑time updates only.
+ * Accredited lots first, clickable with green hover. Unaccredited: not clickable, show "Walk‑In Only".
+ * Added: Accreditation toggle in add form. Removed suspend button for unaccredited lots.
  */
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import AdminLayout from "@/components/AdminLayout";
 import { supabase } from "@/supabaseClient";
 import { toast } from "sonner";
-import { RefreshCw, Building2, Plus, Trash2, MapPin, Tag, Ban, CheckCircle2 } from "lucide-react";
+import { RefreshCw, Building2, Plus, Trash2, MapPin, Tag, Ban, CheckCircle2, Award, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +24,7 @@ interface ParkingLot {
   available_slots: number;
   open_hours: string | null;
   status: "active" | "suspended";
+  is_accredited: boolean;
   created_at: string;
 }
 
@@ -38,6 +41,7 @@ export default function AdminParkingLots() {
   const [newRate, setNewRate] = useState("");
   const [newTotalSlots, setNewTotalSlots] = useState("");
   const [newOpenHours, setNewOpenHours] = useState("");
+  const [newIsAccredited, setNewIsAccredited] = useState(true); // default accredited
 
   // Real‑time subscription
   useEffect(() => {
@@ -64,7 +68,12 @@ export default function AdminParkingLots() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setLots(data || []);
+      // Sort: accredited first, then unaccredited
+      const sorted = (data || []).sort((a, b) => {
+        if (a.is_accredited === b.is_accredited) return 0;
+        return a.is_accredited ? -1 : 1;
+      });
+      setLots(sorted);
     } catch (error: any) {
       console.error("Fetch Error:", error.message);
       toast.error("Failed to fetch parking lots.");
@@ -83,7 +92,7 @@ export default function AdminParkingLots() {
 
       if (error) throw error;
       toast.success(`${name} is now ${newStatus}`);
-      fetchLots(true); // silent refresh
+      fetchLots(true);
     } catch (err: any) {
       toast.error("Failed to update status.");
     }
@@ -108,6 +117,7 @@ export default function AdminParkingLots() {
           available_slots: total,
           open_hours: newOpenHours.trim() || null,
           status: "active",
+          is_accredited: newIsAccredited,
         },
       ]);
 
@@ -119,6 +129,7 @@ export default function AdminParkingLots() {
       setNewRate("");
       setNewTotalSlots("");
       setNewOpenHours("");
+      setNewIsAccredited(true);
       setIsAdding(false);
       fetchLots(true);
     } catch (error: any) {
@@ -134,7 +145,6 @@ export default function AdminParkingLots() {
     if (!confirmed) return;
 
     try {
-      // Check slots
       const { count: slotCount } = await supabase
         .from("parking_slots")
         .select("*", { count: "exact", head: true })
@@ -145,7 +155,6 @@ export default function AdminParkingLots() {
         return;
       }
 
-      // Check reservations
       const { count: historyCount } = await supabase
         .from("reservations")
         .select("*", { count: "exact", head: true })
@@ -269,6 +278,28 @@ export default function AdminParkingLots() {
                   placeholder="e.g. 6 AM - 10 PM"
                 />
               </div>
+
+              {/* Accreditation Toggle */}
+              <div className="space-y-1 md:col-span-3">
+                <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-2">
+                  <Award size={14} /> Accreditation Status
+                </label>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newIsAccredited}
+                      onChange={(e) => setNewIsAccredited(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    <span className="text-sm font-medium">Accredited (Online Reservations)</span>
+                  </label>
+                  <span className="text-xs text-muted-foreground">
+                    {newIsAccredited ? "Will be shown in user app" : "Walk‑in only, not in user app"}
+                  </span>
+                </div>
+              </div>
+
               <div className="md:col-span-3 flex justify-end gap-2 mt-2">
                 <Button type="button" variant="ghost" onClick={() => setIsAdding(false)}>
                   Cancel
@@ -299,66 +330,90 @@ export default function AdminParkingLots() {
                     </td>
                   </tr>
                 ) : (
-                  lots.map((lot) => (
-                    <tr
-                      key={lot.id}
-                      onClick={() => handleGoToSlots(lot.id)}
-                      className={cn(
-                        "transition-all cursor-pointer group",
-                        lot.status === "suspended" ? "bg-slate-50 opacity-75" : "hover:bg-emerald-50"
-                      )}
-                    >
-                      <td className="p-4">
-                        <p
-                          className={cn(
-                            "font-bold text-base",
-                            lot.status === "suspended" ? "text-slate-400" : "text-foreground group-hover:text-emerald-700"
+                  lots.map((lot) => {
+                    const isAccredited = lot.is_accredited === true;
+                    return (
+                      <tr
+                        key={lot.id}
+                        onClick={() => isAccredited && handleGoToSlots(lot.id)}
+                        className={cn(
+                          "transition-all cursor-pointer group",
+                          lot.status === "suspended" ? "bg-slate-50 opacity-75" : "",
+                          isAccredited && lot.status !== "suspended" ? "hover:bg-emerald-50" : ""
+                        )}
+                      >
+                        <td className="p-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p
+                              className={cn(
+                                "font-bold text-base",
+                                lot.status === "suspended" ? "text-slate-400" : 
+                                isAccredited ? "text-foreground group-hover:text-emerald-700" : "text-foreground"
+                              )}
+                            >
+                              {lot.name}
+                              {lot.status === "suspended" && " (Suspended)"}
+                            </p>
+                            <span
+                              className={cn(
+                                "text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase",
+                                isAccredited
+                                  ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                                  : "bg-slate-100 text-slate-500 border border-slate-200"
+                              )}
+                            >
+                              {isAccredited ? "Accredited" : "Unaccredited"}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                            <MapPin size={12} /> {lot.address}
+                          </p>
+                        </td>
+                        <td className="p-4 text-center">   {/* ← added text-center */}
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium capitalize bg-primary/10 text-primary mb-1">
+                            <Tag size={12} /> {lot.type}
+                          </span>
+                          <p className="font-semibold mt-1 text-foreground">₱{lot.rate_per_hour}</p>
+                        </td>
+                        <td className="p-4 text-center">
+                          {isAccredited ? (
+                            <span className="font-bold text-foreground">{lot.available_slots} / {lot.total_slots}</span>
+                          ) : (
+                            <span className="text-amber-600 text-xs font-bold">Walk‑In Only</span>
                           )}
-                        >
-                          {lot.name} {lot.status === "suspended" && "(Suspended)"}
-                        </p>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                          <MapPin size={12} /> {lot.address}
-                        </p>
-                      </td>
-                      <td className="p-4">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium capitalize bg-primary/10 text-primary mb-1">
-                          <Tag size={12} /> {lot.type}
-                        </span>
-                        <p className="font-semibold mt-1 text-foreground">₱{lot.rate_per_hour}/hr</p>
-                      </td>
-                      <td className="p-4 text-center text-foreground font-bold">
-                        {lot.available_slots} / {lot.total_slots}
-                      </td>
-                      <td className="p-4 text-right">
-                        <div className="flex justify-end gap-1">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleStatus(lot.id, lot.status, lot.name);
-                            }}
-                            className={cn(
-                              "p-2 rounded-lg transition-all",
-                              lot.status === "active" ? "text-amber-500 hover:bg-amber-100" : "text-emerald-500 hover:bg-emerald-100"
+                        </td>
+                        <td className="p-4 text-right">
+                          <div className="flex justify-end gap-1">
+                            {isAccredited && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleStatus(lot.id, lot.status, lot.name);
+                                }}
+                                className={cn(
+                                  "p-2 rounded-lg transition-all",
+                                  lot.status === "active" ? "text-amber-500 hover:bg-amber-100" : "text-emerald-500 hover:bg-emerald-100"
+                                )}
+                                title={lot.status === "active" ? "Suspend Lot" : "Activate Lot"}
+                              >
+                                {lot.status === "active" ? <Ban size={18} /> : <CheckCircle2 size={18} />}
+                              </button>
                             )}
-                            title={lot.status === "active" ? "Suspend Lot" : "Activate Lot"}
-                          >
-                            {lot.status === "active" ? <Ban size={18} /> : <CheckCircle2 size={18} />}
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteLot(lot.id, lot.name);
-                            }}
-                            className="text-rose-500 opacity-30 hover:opacity-100 hover:bg-rose-100 p-2 rounded-lg transition-all"
-                            title="Delete (Strict Check)"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteLot(lot.id, lot.name);
+                              }}
+                              className="text-rose-500 opacity-30 hover:opacity-100 hover:bg-rose-100 p-2 rounded-lg transition-all"
+                              title="Delete (Strict Check)"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
