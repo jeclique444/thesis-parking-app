@@ -3,6 +3,7 @@
  * No manual refresh button – real‑time updates only.
  * Accredited lots first, clickable with green hover. Unaccredited: not clickable, show "Walk‑In Only".
  * Added: Accreditation toggle in add form. Removed suspend button for unaccredited lots.
+ * Capacity column now shows only total slots (e.g., "30" instead of "30/30").
  */
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
@@ -369,15 +370,16 @@ export default function AdminParkingLots() {
                             <MapPin size={12} /> {lot.address}
                           </p>
                         </td>
-                        <td className="p-4 text-center">   {/* ← added text-center */}
+                        <td className="p-4 text-center">
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium capitalize bg-primary/10 text-primary mb-1">
                             <Tag size={12} /> {lot.type}
                           </span>
                           <p className="font-semibold mt-1 text-foreground">₱{lot.rate_per_hour}</p>
                         </td>
+                        {/* 🔥 Capacity column – now shows only total slots */}
                         <td className="p-4 text-center">
                           {isAccredited ? (
-                            <span className="font-bold text-foreground">{lot.available_slots} / {lot.total_slots}</span>
+                            <span className="font-bold text-foreground">{lot.total_slots}</span>
                           ) : (
                             <span className="text-amber-600 text-xs font-bold">Walk‑In Only</span>
                           )}
