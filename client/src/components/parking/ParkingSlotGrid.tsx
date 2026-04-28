@@ -1,6 +1,6 @@
 /*
  * iParkBayan — ParkingSlotGrid (Stats: PWD instead of Unmapped, blue color)
- * Fixed: stats row now responsive – wraps on mobile, single row on larger screens.
+ * Fixed: stats row now horizontally scrollable on mobile – no overlap.
  */
 import { cn } from "@/lib/utils";
 import type { ParkingSlot } from "@/lib/data";
@@ -52,7 +52,6 @@ export default function ParkingSlotGrid({
   const availableSlots = slots.filter((s) => s.status === "available").length;
   const occupiedSlots = slots.filter((s) => s.status === "occupied").length;
   const reservedSlots = slots.filter((s) => s.status === "reserved").length;
-  // PWD slots count (is_pwd === true)
   const pwdSlots = slots.filter((s) => (s as any).is_pwd === true || String((s as any).is_pwd) === "true").length;
 
   const rows = slots.reduce<Record<string, ParkingSlot[]>>((acc, slot) => {
@@ -65,33 +64,33 @@ export default function ParkingSlotGrid({
   return (
     <div className="space-y-4 w-full">
       
-      {/* STATS SUMMARY – RESPONSIVE GRID (no overlap) */}
-      <div className="bg-white border rounded-xl py-3 mb-2 shadow-sm">
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 text-center">
+      {/* STATS SUMMARY – horizontally scrollable on mobile, no overlap */}
+      <div className="bg-white border rounded-xl py-2 mb-2 shadow-sm overflow-x-auto">
+        <div className="flex items-center justify-start min-w-max gap-4 px-3">
           {/* Total */}
-          <div className="flex flex-col items-center">
-            <span className="text-xl font-black text-slate-900">{totalSlots}</span>
-            <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Total</span>
+          <div className="flex flex-col items-center flex-shrink-0 min-w-[65px]">
+            <span className="text-lg sm:text-xl font-black text-slate-900">{totalSlots}</span>
+            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Total</span>
           </div>
           {/* Available */}
-          <div className="flex flex-col items-center">
-            <span className="text-xl font-black text-emerald-600">{availableSlots}</span>
-            <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Available</span>
+          <div className="flex flex-col items-center flex-shrink-0 min-w-[65px]">
+            <span className="text-lg sm:text-xl font-black text-emerald-600">{availableSlots}</span>
+            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Available</span>
           </div>
           {/* Occupied */}
-          <div className="flex flex-col items-center">
-            <span className="text-xl font-black text-rose-600">{occupiedSlots}</span>
-            <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Occupied</span>
+          <div className="flex flex-col items-center flex-shrink-0 min-w-[65px]">
+            <span className="text-lg sm:text-xl font-black text-rose-600">{occupiedSlots}</span>
+            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Occupied</span>
           </div>
           {/* Reserved */}
-          <div className="flex flex-col items-center">
-            <span className="text-xl font-black text-amber-500">{reservedSlots}</span>
-            <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Reserved</span>
+          <div className="flex flex-col items-center flex-shrink-0 min-w-[65px]">
+            <span className="text-lg sm:text-xl font-black text-amber-500">{reservedSlots}</span>
+            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Reserved</span>
           </div>
           {/* PWD */}
-          <div className="flex flex-col items-center">
-            <span className="text-xl font-black text-blue-600">{pwdSlots}</span>
-            <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">PWD</span>
+          <div className="flex flex-col items-center flex-shrink-0 min-w-[65px]">
+            <span className="text-lg sm:text-xl font-black text-blue-600">{pwdSlots}</span>
+            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">PWD</span>
           </div>
         </div>
       </div>
@@ -164,7 +163,6 @@ export default function ParkingSlotGrid({
                           {(slot as any).physical_status === "occupied" ? (
                             <Car size={14} className="opacity-80" />
                           ) : isPwd ? (
-                            // Blue icon for PWD (when not selected)
                             <Accessibility size={14} className={cn(isSelected ? "text-primary" : "text-blue-600")} />
                           ) : isWalkIn ? (
                             <X size={14} className="text-current stroke-[4px]" />
