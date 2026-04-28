@@ -64,36 +64,31 @@ export default function ParkingSlotGrid({
   return (
     <div className="space-y-4 w-full">
       
-      {/* STATS SUMMARY – horizontally scrollable on mobile, no overlap */}
-      <div className="bg-white border rounded-xl py-2 mb-2 shadow-sm overflow-x-auto">
-        <div className="flex items-center justify-start min-w-max gap-4 px-3">
-          {/* Total */}
-          <div className="flex flex-col items-center flex-shrink-0 min-w-[65px]">
-            <span className="text-lg sm:text-xl font-black text-slate-900">{totalSlots}</span>
-            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Total</span>
-          </div>
-          {/* Available */}
-          <div className="flex flex-col items-center flex-shrink-0 min-w-[65px]">
-            <span className="text-lg sm:text-xl font-black text-emerald-600">{availableSlots}</span>
-            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Available</span>
-          </div>
-          {/* Occupied */}
-          <div className="flex flex-col items-center flex-shrink-0 min-w-[65px]">
-            <span className="text-lg sm:text-xl font-black text-rose-600">{occupiedSlots}</span>
-            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Occupied</span>
-          </div>
-          {/* Reserved */}
-          <div className="flex flex-col items-center flex-shrink-0 min-w-[65px]">
-            <span className="text-lg sm:text-xl font-black text-amber-500">{reservedSlots}</span>
-            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Reserved</span>
-          </div>
-          {/* PWD */}
-          <div className="flex flex-col items-center flex-shrink-0 min-w-[65px]">
-            <span className="text-lg sm:text-xl font-black text-blue-600">{pwdSlots}</span>
-            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">PWD</span>
-          </div>
-        </div>
-      </div>
+     {/* STATS SUMMARY – single row, no scroll, no overlap */}
+<div className="bg-white border rounded-xl py-2 mb-2 shadow-sm">
+  <div className="flex flex-nowrap items-stretch text-center">
+    <div className="flex-1 flex flex-col items-center">
+      <span className="text-sm sm:text-base font-black text-slate-900">{totalSlots}</span>
+      <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Total</span>
+    </div>
+    <div className="flex-1 flex flex-col items-center">
+      <span className="text-sm sm:text-base font-black text-emerald-600">{availableSlots}</span>
+      <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Available</span>
+    </div>
+    <div className="flex-1 flex flex-col items-center">
+      <span className="text-sm sm:text-base font-black text-rose-600">{occupiedSlots}</span>
+      <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Occupied</span>
+    </div>
+    <div className="flex-1 flex flex-col items-center">
+      <span className="text-sm sm:text-base font-black text-amber-500">{reservedSlots}</span>
+      <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Reserved</span>
+    </div>
+    <div className="flex-1 flex flex-col items-center">
+      <span className="text-sm sm:text-base font-black text-blue-600">{pwdSlots}</span>
+      <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">PWD</span>
+    </div>
+  </div>
+</div>
 
       {/* LEGEND: Single line, includes Unmapped (gray) and PWD (blue) */}
       <div className="w-full overflow-x-auto pb-1">
