@@ -81,32 +81,6 @@ export default function ParkingSlotGrid({
   return (
     <div className="space-y-4 w-full">
 
-      {/* STATS SUMMARY */}
-      <div className="bg-white border rounded-xl py-2 mb-2 shadow-sm">
-        <div className="flex flex-nowrap items-stretch text-center">
-          <div className="flex-1 flex flex-col items-center">
-            <span className="text-sm sm:text-base font-black text-slate-900">{totalSlots}</span>
-            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Total</span>
-          </div>
-          <div className="flex-1 flex flex-col items-center">
-            <span className="text-sm sm:text-base font-black text-emerald-600">{availableSlots}</span>
-            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Available</span>
-          </div>
-          <div className="flex-1 flex flex-col items-center">
-            <span className="text-sm sm:text-base font-black text-rose-600">{occupiedSlots}</span>
-            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Occupied</span>
-          </div>
-          <div className="flex-1 flex flex-col items-center">
-            <span className="text-sm sm:text-base font-black text-amber-500">{reservedSlots}</span>
-            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Reserved</span>
-          </div>
-          <div className="flex-1 flex flex-col items-center">
-            <span className="text-sm sm:text-base font-black text-blue-600">{pwdSlots}</span>
-            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">PWD</span>
-          </div>
-        </div>
-      </div>
-
       {/* LEGEND — 2-column grid with grey title */}
 <div className="w-full">
   <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
@@ -148,6 +122,32 @@ export default function ParkingSlotGrid({
 
   </div>
 </div>
+
+{/* STATS SUMMARY */}
+      <div className="bg-white border rounded-xl py-2 mb-2 shadow-sm">
+        <div className="flex flex-nowrap items-stretch text-center">
+          <div className="flex-1 flex flex-col items-center">
+            <span className="text-sm sm:text-base font-black text-slate-900">{totalSlots}</span>
+            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Total</span>
+          </div>
+          <div className="flex-1 flex flex-col items-center">
+            <span className="text-sm sm:text-base font-black text-emerald-600">{availableSlots}</span>
+            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Available</span>
+          </div>
+          <div className="flex-1 flex flex-col items-center">
+            <span className="text-sm sm:text-base font-black text-rose-600">{occupiedSlots}</span>
+            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Occupied</span>
+          </div>
+          <div className="flex-1 flex flex-col items-center">
+            <span className="text-sm sm:text-base font-black text-amber-500">{reservedSlots}</span>
+            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">Reserved</span>
+          </div>
+          <div className="flex-1 flex flex-col items-center">
+            <span className="text-sm sm:text-base font-black text-blue-600">{pwdSlots}</span>
+            <span className="text-[8px] sm:text-[10px] uppercase text-slate-600 font-bold tracking-wider">PWD</span>
+          </div>
+        </div>
+      </div>
 
       {/* SLOT GRID */}
       <div className="w-full overflow-x-auto pb-4">
