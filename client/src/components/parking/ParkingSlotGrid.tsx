@@ -107,45 +107,47 @@ export default function ParkingSlotGrid({
         </div>
       </div>
 
-      {/* LEGEND — vertical list, Unmapped excluded for users */}
-      <div className="w-full">
-        <div className="flex flex-col gap-2 text-xs font-semibold text-slate-800">
+      {/* LEGEND — 2-column grid with grey title */}
+<div className="w-full">
+  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+    Legend
+  </p>
+  <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-semibold text-slate-800">
 
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-emerald-500" />
-            <span>Available</span>
-          </div>
+    <div className="flex items-center gap-2">
+      <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-emerald-500" />
+      <span>Available</span>
+    </div>
 
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-rose-500" />
-            <span>Occupied</span>
-          </div>
+    <div className="flex items-center gap-2">
+      <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-rose-500" />
+      <span>Occupied</span>
+    </div>
 
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-amber-500" />
-            <span>Reserved</span>
-          </div>
+    <div className="flex items-center gap-2">
+      <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-amber-500" />
+      <span>Reserved</span>
+    </div>
 
-          <div className="flex items-center gap-2 text-blue-600">
-            <Accessibility size={14} className="shrink-0" />
-            <span>PWD</span>
-          </div>
+    <div className="flex items-center gap-2 text-blue-600">
+      <Accessibility size={14} className="shrink-0" />
+      <span>PWD</span>
+    </div>
 
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-sm bg-primary/20 border border-primary shrink-0" />
-            <span>Selected</span>
-          </div>
+    <div className="flex items-center gap-2">
+      <span className="w-2.5 h-2.5 rounded-sm bg-primary/20 border border-primary shrink-0" />
+      <span>Selected</span>
+    </div>
 
-          {/* Show Unmapped legend item only for admins */}
-          {isAdmin && (
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-slate-400 border border-dashed border-slate-400" />
-              <span className="text-slate-500">Unmapped</span>
-            </div>
-          )}
-
-        </div>
+    {isAdmin && (
+      <div className="flex items-center gap-2">
+        <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-slate-400 border border-dashed border-slate-400" />
+        <span className="text-slate-500">Unmapped</span>
       </div>
+    )}
+
+  </div>
+</div>
 
       {/* SLOT GRID */}
       <div className="w-full overflow-x-auto pb-4">
