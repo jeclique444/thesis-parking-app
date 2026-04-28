@@ -1,14 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import { supabase } from "@/supabaseClient";
 import { toast } from "sonner";
 import { 
   Camera, Search, CheckCircle2, XCircle, 
   Car, User, Clock, MapPin, Loader2, ArrowRightCircle, Calendar,
-  ListTodo, History
+  ListTodo, History, ParkingCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Html5QrcodeScanner } from "html5-qrcode";
+import { Html5Qrcode } from "html5-qrcode";
 
 const isUUID = (uuid: string) => {
   return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(uuid);
@@ -48,9 +48,12 @@ export default function AdminScanner() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   
   const [bookingData, setBookingData] = useState<any | null>(null);
-  const [activeTab, setActiveTab] = useState<'expected' | 'history'>('expected');
+  const [activeTab, setActiveTab] = useState<'expected' | 'parked' | 'history'>('expected');
   const [expectedList, setExpectedList] = useState<any[]>([]);
+  const [parkedList, setParkedList] = useState<any[]>([]);
   const [historyList, setHistoryList] = useState<any[]>([]);
+  
+  const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
     const fetchManagerData = async () => {
@@ -67,18 +70,18 @@ export default function AdminScanner() {
     fetchManagerData();
   }, []);
 
-  const fetchDashboardLists = async () => {
+  // Expected: booked & reserved
+  const fetchExpectedArrivals = async () => {
     if (!managerLotId) return;
     try {
-      // Expected arrivals (booked & reserved)
-      const { data: expectedRaw, error: expectedError } = await supabase
+      const { data: expectedRaw, error } = await supabase
         .from("reservations")
         .select("id, plate_number, start_time, end_time, status, user_id")
         .eq("lot_id", managerLotId)
         .in("status", ["booked", "reserved"])
         .order("start_time", { ascending: true });
-      if (expectedError) throw expectedError;
-      
+      if (error) throw error;
+
       let expectedWithNames: any[] = [];
       if (expectedRaw && expectedRaw.length > 0) {
         const userIds = [...new Set(expectedRaw.map(r => r.user_id).filter(Boolean))];
@@ -96,16 +99,57 @@ export default function AdminScanner() {
         }));
       }
       setExpectedList(expectedWithNames);
+    } catch (error) {
+      console.error("Error fetching expected arrivals:", error);
+    }
+  };
 
-      // Recent history (active & completed) – using created_at (no updated_at)
-      const { data: historyRaw, error: historyError } = await supabase
+  // Parked: active
+  const fetchParkedVehicles = async () => {
+    if (!managerLotId) return;
+    try {
+      const { data: parkedRaw, error } = await supabase
+        .from("reservations")
+        .select("id, plate_number, start_time, end_time, status, user_id")
+        .eq("lot_id", managerLotId)
+        .eq("status", "active")
+        .order("start_time", { ascending: true });
+      if (error) throw error;
+
+      let parkedWithNames: any[] = [];
+      if (parkedRaw && parkedRaw.length > 0) {
+        const userIds = [...new Set(parkedRaw.map(r => r.user_id).filter(Boolean))];
+        let userMap = new Map();
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, full_name")
+            .in("id", userIds);
+          if (profiles) profiles.forEach(p => userMap.set(p.id, p.full_name));
+        }
+        parkedWithNames = parkedRaw.map(r => ({
+          ...r,
+          profiles: { full_name: userMap.get(r.user_id) || "Guest" }
+        }));
+      }
+      setParkedList(parkedWithNames);
+    } catch (error) {
+      console.error("Error fetching parked vehicles:", error);
+    }
+  };
+
+  // Completed history
+  const fetchHistory = async () => {
+    if (!managerLotId) return;
+    try {
+      const { data: historyRaw, error } = await supabase
         .from("reservations")
         .select("id, plate_number, start_time, end_time, status, created_at, user_id")
         .eq("lot_id", managerLotId)
-        .in("status", ["active", "completed"])
+        .eq("status", "completed")
         .order("created_at", { ascending: false })
         .limit(20);
-      if (historyError) throw historyError;
+      if (error) throw error;
 
       let historyWithNames: any[] = [];
       if (historyRaw && historyRaw.length > 0) {
@@ -125,81 +169,132 @@ export default function AdminScanner() {
       }
       setHistoryList(historyWithNames);
     } catch (error) {
-      console.error("Error fetching dashboard lists:", error);
-      toast.error("Failed to load data.");
+      console.error("Error fetching history:", error);
     }
   };
 
-  // Initial load
+  // Initial loads
   useEffect(() => {
-    fetchDashboardLists();
+    if (managerLotId) {
+      fetchExpectedArrivals();
+      fetchParkedVehicles();
+      fetchHistory();
+    }
   }, [managerLotId]);
 
-  // Refresh history tab when activated
+  // Refresh all when tab changes (already done via subscriptions)
   useEffect(() => {
-    if (activeTab === 'history') {
-      fetchDashboardLists();
-    }
+    fetchExpectedArrivals();
+    fetchParkedVehicles();
+    fetchHistory();
   }, [activeTab]);
 
-  // Scanner effect (mobile‑friendly)
+  // Real‑time subscription for all changes
   useEffect(() => {
-    let scanner: Html5QrcodeScanner | null = null;
-    if (isScanning) {
-      setCameraError(null);
-      try {
-        scanner = new Html5QrcodeScanner(
-          "reader",
-          {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-            rememberLastUsedCamera: true,
-            videoConstraints: { facingMode: "environment" }
-          },
-          false
-        );
-        scanner.render(
-          async (decodedText) => {
-            const cleanText = decodedText.trim();
-            try {
-              const parsed = JSON.parse(cleanText);
-              const idToSearch = (parsed.id || parsed.ref || cleanText).trim();
-              setSearchInput(idToSearch);
-              await handleManualSearch(idToSearch);
-            } catch {
-              setSearchInput(cleanText);
-              await handleManualSearch(cleanText);
-            }
-            setIsScanning(false);
-            scanner?.clear();
-          },
-          (errorMessage: string) => {
-            if (errorMessage && errorMessage.includes("No MultiFormat Readers")) return;
-          }
-        );
-      } catch (err: any) {
-        console.error("Camera error:", err);
-        setCameraError(err?.message || "Failed to start camera. Please allow camera permissions and use HTTPS.");
-        setIsScanning(false);
-      }
+    if (!managerLotId) return;
+    const channel = supabase
+      .channel('scanner-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reservations',
+          filter: `lot_id=eq.${managerLotId}`,
+        },
+        () => {
+          fetchExpectedArrivals();
+          fetchParkedVehicles();
+          fetchHistory();
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [managerLotId]);
+
+  // Camera scanning (unchanged, uses Html5Qrcode)
+  const startScanner = async () => {
+    const element = document.getElementById("qr-reader");
+    if (!element) {
+      toast.error("Scanner element not found");
+      return false;
     }
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.isScanning) await scannerRef.current.stop();
+      } catch (e) {}
+      scannerRef.current = null;
+    }
+    const html5QrCode = new Html5Qrcode("qr-reader");
+    scannerRef.current = html5QrCode;
+    try {
+      await html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => {
+          const cleanText = decodedText.trim();
+          try {
+            const parsed = JSON.parse(cleanText);
+            const idToSearch = (parsed.id || parsed.ref || cleanText).trim();
+            setSearchInput(idToSearch);
+            handleManualSearch(idToSearch);
+          } catch {
+            setSearchInput(cleanText);
+            handleManualSearch(cleanText);
+          }
+          if (scannerRef.current && scannerRef.current.isScanning) {
+            scannerRef.current.stop().catch(console.error);
+          }
+          setIsScanning(false);
+        },
+        (errorMessage) => {
+          if (errorMessage && errorMessage.includes("No MultiFormat Readers")) return;
+          console.debug("Scan error:", errorMessage);
+        }
+      );
+      return true;
+    } catch (err: any) {
+      console.error("Start scanning error:", err);
+      toast.error(err.message || "Failed to start camera");
+      setCameraError(err.message || "Camera start failed");
+      setIsScanning(false);
+      return false;
+    }
+  };
+
+  const stopScanner = async () => {
+    if (scannerRef.current && scannerRef.current.isScanning) {
+      try { await scannerRef.current.stop(); } catch (e) {}
+    }
+    scannerRef.current = null;
+  };
+
+  useEffect(() => {
+    if (isScanning) startScanner();
+    else stopScanner();
     return () => {
-      if (scanner) scanner.clear().catch(console.error);
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        scannerRef.current.stop().catch(console.error);
+      }
     };
   }, [isScanning]);
 
-  const handleStartCamera = () => {
+  const handleStartCamera = async () => {
     setCameraError(null);
-    if (navigator.permissions && navigator.permissions.query) {
-      navigator.permissions.query({ name: 'camera' as PermissionName }).then(result => {
-        if (result.state === 'denied') {
-          toast.error("Camera permission denied. Please allow camera access in your browser settings.");
-          return;
-        }
-        setIsScanning(true);
-      }).catch(() => setIsScanning(true));
-    } else {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach(track => track.stop());
       setIsScanning(true);
+    } catch (err: any) {
+      console.error("Camera permission error:", err);
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        toast.error("Camera permission denied. Please allow camera access in your browser settings.");
+      } else if (err.name === "NotFoundError") {
+        toast.error("No camera found on this device.");
+      } else {
+        toast.error("Could not access camera: " + (err.message || "Unknown error"));
+      }
+      setCameraError(err.message || "Camera access failed");
     }
   };
 
@@ -253,42 +348,33 @@ export default function AdminScanner() {
     handleManualSearch(searchInput.trim());
   };
 
-  const handleUpdateStatus = async (newStatus: 'active' | 'completed') => {
-    if (!bookingData) return;
-    setIsLoading(true);
-    try {
-      const now = new Date().toISOString();
-      const updatePayload: any = {
-        status: newStatus,
-        updated_at: now
-      };
-      if (newStatus === 'active') {
-        updatePayload.start_time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-      }
-      const { error: resError } = await supabase
-        .from("reservations")
-        .update(updatePayload)
-        .eq("id", bookingData.id);
-      if (resError) throw resError;
+ const handleUpdateStatus = async (newStatus: 'active' | 'completed') => {
+  if (!bookingData) return;
+  setIsLoading(true);
+  try {
+    const updatePayload: any = { status: newStatus };
+    // Do NOT change start_time, keep original reservation start_time
+    const { error: resError } = await supabase
+      .from("reservations")
+      .update(updatePayload)
+      .eq("id", bookingData.id);
+    if (resError) throw resError;
 
-      if (bookingData.parking_slots?.id) {
-        const slotStatus = newStatus === 'active' ? 'occupied' : 'available';
-        await supabase
-          .from("parking_slots")
-          .update({ status: slotStatus })
-          .eq("id", bookingData.parking_slots.id);
-      }
-      toast.success(`Successfully updated to ${newStatus}!`);
-      await fetchDashboardLists();
-      setBookingData((prev: any) => ({ ...prev, status: newStatus }));
-    } catch (err) {
-      toast.error("Update failed.");
-    } finally {
-      setIsLoading(false);
+    // Update slot status only on exit (completed)
+    if (newStatus === 'completed' && bookingData.parking_slots?.id) {
+      await supabase.from("parking_slots").update({ status: "available" }).eq("id", bookingData.parking_slots.id);
     }
-  };
-
-  // Real‑time listener for current booking
+    // On entrance (active), do NOT change slot status – keep it 'reserved'
+    toast.success(`Successfully updated to ${newStatus}!`);
+    await Promise.all([fetchExpectedArrivals(), fetchParkedVehicles(), fetchHistory()]);
+    setBookingData((prev: any) => ({ ...prev, status: newStatus }));
+  } catch (err: any) {
+    console.error("Update error:", err);
+    toast.error("Update failed: " + (err.message || "Unknown error"));
+  } finally {
+    setIsLoading(false);
+  }
+};
   useEffect(() => {
     if (!bookingData?.id) return;
     const subscription = supabase
@@ -297,8 +383,9 @@ export default function AdminScanner() {
         { event: 'UPDATE', schema: 'public', table: 'reservations', filter: `id=eq.${bookingData.id}` },
         (payload) => {
           setBookingData((prev: any) => ({ ...prev, ...payload.new }));
-          toast.info(`Status updated to ${payload.new.status.toUpperCase()}`);
-          fetchDashboardLists();
+          fetchExpectedArrivals();
+          fetchParkedVehicles();
+          fetchHistory();
         }
       )
       .subscribe();
@@ -309,7 +396,7 @@ export default function AdminScanner() {
     <AdminLayout title="Operations Hub">
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column: Manual Search & Scanner */}
+          {/* Left Column: Manual Search & Scanner (unchanged) */}
           <div className="space-y-4">
             <div className="bg-white rounded-2xl p-6 border border-border shadow-sm">
               <h3 className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
@@ -352,7 +439,7 @@ export default function AdminScanner() {
               </div>
               <div className="aspect-video bg-slate-100 rounded-xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center relative overflow-hidden">
                 {isScanning ? (
-                  <div id="reader" className="w-full h-full"></div>
+                  <div id="qr-reader" className="w-full h-full"></div>
                 ) : (
                   <>
                     <Camera className="w-12 h-12 text-slate-300 mb-2" />
@@ -369,7 +456,7 @@ export default function AdminScanner() {
             </div>
           </div>
 
-          {/* Right Column: Verification Result */}
+          {/* Right Column: Verification Result (unchanged) */}
           <div className="space-y-4">
             <div className="bg-white rounded-2xl p-6 border border-border shadow-sm min-h-100 flex flex-col">
               <h3 className="text-sm font-bold text-foreground mb-4">Verification Result</h3>
@@ -383,11 +470,10 @@ export default function AdminScanner() {
                   <div className="flex justify-center mb-6">
                     <span className={cn(
                       "px-4 py-1.5 rounded-full text-xs font-bold uppercase flex items-center gap-1.5",
-                      ['pending', 'booked', 'reserved'].includes(bookingData.status.toLowerCase()) ? "bg-amber-100 text-amber-700" :
-                      bookingData.status.toLowerCase() === 'active' ? "bg-emerald-100 text-emerald-700" :
+                      ['pending', 'booked', 'reserved', 'active'].includes(bookingData.status.toLowerCase()) ? "bg-amber-100 text-amber-700" :
                       bookingData.status.toLowerCase() === 'completed' ? "bg-blue-100 text-blue-700" : "bg-rose-100 text-rose-700"
                     )}>
-                      {bookingData.status.toLowerCase() === 'active' ? <CheckCircle2 size={14} /> : <Clock size={14} />}
+                      {bookingData.status.toLowerCase() === 'active' ? <ArrowRightCircle size={14} /> : <Clock size={14} />}
                       {bookingData.status}
                     </span>
                   </div>
@@ -461,7 +547,7 @@ export default function AdminScanner() {
           </div>
         </div>
 
-        {/* Guard Dashboard – Expected Arrivals and Recent History */}
+        {/* Three tabs: Expected, Parked, Completed History */}
         <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="flex border-b border-border">
             <button
@@ -471,7 +557,16 @@ export default function AdminScanner() {
                 activeTab === 'expected' ? "bg-primary/5 text-primary border-b-2 border-primary" : "text-muted-foreground hover:bg-slate-50"
               )}
             >
-              <ListTodo size={18} /> Expected Arrivals ({expectedList.length})
+              <ListTodo size={18} /> Expected ({expectedList.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('parked')}
+              className={cn(
+                "flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 transition-colors",
+                activeTab === 'parked' ? "bg-primary/5 text-primary border-b-2 border-primary" : "text-muted-foreground hover:bg-slate-50"
+              )}
+            >
+              <ParkingCircle size={18} /> Parked ({parkedList.length})
             </button>
             <button
               onClick={() => setActiveTab('history')}
@@ -480,14 +575,14 @@ export default function AdminScanner() {
                 activeTab === 'history' ? "bg-primary/5 text-primary border-b-2 border-primary" : "text-muted-foreground hover:bg-slate-50"
               )}
             >
-              <History size={18} /> Recent History ({historyList.length})
+              <History size={18} /> Completed ({historyList.length})
             </button>
           </div>
           <div className="p-0">
             {activeTab === 'expected' && (
               <div className="divide-y divide-border">
                 {expectedList.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground text-sm">No expected arrivals right now.</div>
+                  <div className="p-8 text-center text-muted-foreground text-sm">No expected arrivals.</div>
                 ) : (
                   expectedList.map((item) => (
                     <div
@@ -496,7 +591,9 @@ export default function AdminScanner() {
                       className="p-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition-colors"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-700"><Car size={18} /></div>
+                        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-700">
+                          <Car size={18} />
+                        </div>
                         <div>
                           <p className="font-bold text-foreground uppercase tracking-wide">{item.plate_number}</p>
                           <p className="text-xs text-muted-foreground">{item.profiles?.full_name || "Guest"}</p>
@@ -504,7 +601,37 @@ export default function AdminScanner() {
                       </div>
                       <div className="text-right">
                         <p className="text-sm font-bold text-primary">{formatTime(item.start_time)}</p>
-                        <span className="text-[10px] uppercase font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full inline-block mt-1">Expected</span>
+                        <span className="text-[10px] uppercase font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full inline-block mt-1">EXPECTED</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+            {activeTab === 'parked' && (
+              <div className="divide-y divide-border">
+                {parkedList.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground text-sm">No parked vehicles.</div>
+                ) : (
+                  parkedList.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => { setSearchInput(item.id); handleManualSearch(item.id); }}
+                      className="p-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
+                          <Car size={18} />
+                        </div>
+                        <div>
+                          <p className="font-bold text-foreground uppercase tracking-wide">{item.plate_number}</p>
+                          <p className="text-xs text-muted-foreground">{item.profiles?.full_name || "Guest"}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        {/* 🔥 FIX: Show raw start_time (already formatted as "2:50 PM") */}
+                         <p className="text-xs text-muted-foreground">Reserved since {formatTime(item.start_time)}</p>
+                        <span className="text-[10px] uppercase font-bold bg-emerald-600 text-white px-2 py-0.5 rounded-full inline-block mt-1">PARKED</span>
                       </div>
                     </div>
                   ))
@@ -514,7 +641,7 @@ export default function AdminScanner() {
             {activeTab === 'history' && (
               <div className="divide-y divide-border">
                 {historyList.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground text-sm">No recent history.</div>
+                  <div className="p-8 text-center text-muted-foreground text-sm">No completed history.</div>
                 ) : (
                   historyList.map((item) => {
                     const timestamp = item.created_at;
@@ -525,10 +652,7 @@ export default function AdminScanner() {
                         className="p-4 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition-colors"
                       >
                         <div className="flex items-center gap-4">
-                          <div className={cn(
-                            "w-10 h-10 rounded-full flex items-center justify-center",
-                            item.status === 'active' ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"
-                          )}>
+                          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700">
                             <CheckCircle2 size={18} />
                           </div>
                           <div>
@@ -540,12 +664,7 @@ export default function AdminScanner() {
                           <p className="text-xs text-muted-foreground">
                             {formatDate(timestamp)} at {formatTime(timestamp)}
                           </p>
-                          <span className={cn(
-                            "text-[10px] uppercase font-bold px-2 py-0.5 rounded-full inline-block mt-1",
-                            item.status === 'active' ? "text-emerald-600 bg-emerald-50" : "text-blue-600 bg-blue-50"
-                          )}>
-                            {item.status === 'active' ? 'Parked In' : 'Completed (Out)'}
-                          </span>
+                          <span className="text-[10px] uppercase font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full inline-block mt-1">COMPLETED</span>
                         </div>
                       </div>
                     );

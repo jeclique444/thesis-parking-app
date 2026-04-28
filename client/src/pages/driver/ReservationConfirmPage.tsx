@@ -101,6 +101,7 @@ export default function ReservationConfirmPage() {
           duration: durationHours,
           total_amount: parseFloat(totalAmount || "40"),
           payment_method: paymentMethod,
+          status: "reserved" 
         }
       });
 

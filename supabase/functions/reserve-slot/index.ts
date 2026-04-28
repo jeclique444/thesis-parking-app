@@ -60,7 +60,7 @@ serve(async (req) => {
         duration,
         total_amount,
         payment_method,
-        status: "active",
+        status: "reserved",
         extension_count: 0,
         extension_fee: 0,
         fine_amount: 0,
