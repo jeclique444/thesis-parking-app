@@ -1,5 +1,6 @@
 /*
  * iParkBayan — ParkingSlotGrid (Stats: PWD instead of Unmapped, blue color)
+ * Fixed: stats row now responsive – wraps on mobile, single row on larger screens.
  */
 import { cn } from "@/lib/utils";
 import type { ParkingSlot } from "@/lib/data";
@@ -51,10 +52,8 @@ export default function ParkingSlotGrid({
   const availableSlots = slots.filter((s) => s.status === "available").length;
   const occupiedSlots = slots.filter((s) => s.status === "occupied").length;
   const reservedSlots = slots.filter((s) => s.status === "reserved").length;
-  // 🔥 PWD slots count (is_pwd === true)
+  // PWD slots count (is_pwd === true)
   const pwdSlots = slots.filter((s) => (s as any).is_pwd === true || String((s as any).is_pwd) === "true").length;
-  // unmapped count still used for legend but not in stats
-  // const unmappedSlots = ...
 
   const rows = slots.reduce<Record<string, ParkingSlot[]>>((acc, slot) => {
     const row = slot.row || (slot.label ? slot.label.charAt(0).toUpperCase() : "A");
@@ -66,28 +65,34 @@ export default function ParkingSlotGrid({
   return (
     <div className="space-y-4 w-full">
       
-      {/* STATS SUMMARY: PWD (blue) instead of Unmapped */}
-      <div className="flex items-center justify-between bg-white border rounded-xl py-4 mb-2 shadow-sm">
-        <div className="flex flex-col items-center flex-1 border-r">
-          <span className="text-xl font-black text-slate-900">{totalSlots}</span>
-          <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Total</span>
-        </div>
-        <div className="flex flex-col items-center flex-1 border-r">
-          <span className="text-xl font-black text-emerald-600">{availableSlots}</span>
-          <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Available</span>
-        </div>
-        <div className="flex flex-col items-center flex-1 border-r">
-          <span className="text-xl font-black text-rose-600">{occupiedSlots}</span>
-          <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Occupied</span>
-        </div>
-        <div className="flex flex-col items-center flex-1 border-r">
-          <span className="text-xl font-black text-amber-500">{reservedSlots}</span>
-          <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Reserved</span>
-        </div>
-        {/* 🔥 PWD column (blue) */}
-        <div className="flex flex-col items-center flex-1">
-          <span className="text-xl font-black text-blue-600">{pwdSlots}</span>
-          <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">PWD</span>
+      {/* STATS SUMMARY – RESPONSIVE GRID (no overlap) */}
+      <div className="bg-white border rounded-xl py-3 mb-2 shadow-sm">
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 text-center">
+          {/* Total */}
+          <div className="flex flex-col items-center">
+            <span className="text-xl font-black text-slate-900">{totalSlots}</span>
+            <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Total</span>
+          </div>
+          {/* Available */}
+          <div className="flex flex-col items-center">
+            <span className="text-xl font-black text-emerald-600">{availableSlots}</span>
+            <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Available</span>
+          </div>
+          {/* Occupied */}
+          <div className="flex flex-col items-center">
+            <span className="text-xl font-black text-rose-600">{occupiedSlots}</span>
+            <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Occupied</span>
+          </div>
+          {/* Reserved */}
+          <div className="flex flex-col items-center">
+            <span className="text-xl font-black text-amber-500">{reservedSlots}</span>
+            <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">Reserved</span>
+          </div>
+          {/* PWD */}
+          <div className="flex flex-col items-center">
+            <span className="text-xl font-black text-blue-600">{pwdSlots}</span>
+            <span className="text-[10px] uppercase text-slate-600 font-bold tracking-wider mt-1">PWD</span>
+          </div>
         </div>
       </div>
 
@@ -113,7 +118,7 @@ export default function ParkingSlotGrid({
         </div>
       </div>
 
-      {/* Slot Grid (unchanged, but PWD icon color changed to blue) */}
+      {/* Slot Grid (unchanged) */}
       <div className="w-full overflow-x-auto pb-4">
         <div className="min-w-max">
           <div className="flex items-center justify-center h-6 bg-slate-100 rounded mt-4 mb-6 relative">
@@ -159,7 +164,7 @@ export default function ParkingSlotGrid({
                           {(slot as any).physical_status === "occupied" ? (
                             <Car size={14} className="opacity-80" />
                           ) : isPwd ? (
-                            // 🔥 Blue icon for PWD (when not selected)
+                            // Blue icon for PWD (when not selected)
                             <Accessibility size={14} className={cn(isSelected ? "text-primary" : "text-blue-600")} />
                           ) : isWalkIn ? (
                             <X size={14} className="text-current stroke-[4px]" />
