@@ -229,15 +229,8 @@ export default function LoginPage() {
               {loading ? "Sending link..." : "Send Reset Link"}
             </Button>
 
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={loading}
-              onClick={() => setView("login")}
-              className="w-full h-14 text-sm font-semibold rounded-xl mt-2 text-muted-foreground hover:text-foreground"
-            >
-              Back to Login
-            </Button>
+           
+            
           </form>
         )}
       </div>

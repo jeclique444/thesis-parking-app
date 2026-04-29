@@ -108,14 +108,16 @@ function Router() {
 }
 
 function App() {
-  // Get the full current URL
-  const url = window.location.href;
+  // Manager invitation links can arrive with tokens at unexpected routes.
+  // Password pages handle their own sessions, so do not intercept them here.
+  const pathname = window.location.pathname.replace(/\/$/, "") || "/";
   const hash = window.location.hash;
   const searchParams = new URLSearchParams(window.location.search);
   const hasTokenInHash = hash && hash.includes("access_token");
   const hasTokenInQuery = searchParams.has("token") || searchParams.has("access_token");
+  const isPasswordRoute = pathname === "/update-password" || pathname === "/set-password";
 
-  if (hasTokenInHash || hasTokenInQuery) {
+  if (!isPasswordRoute && (hasTokenInHash || hasTokenInQuery)) {
     // Immediately render AuthCallback to handle the token
     return (
       <ErrorBoundary>
