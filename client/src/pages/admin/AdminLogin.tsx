@@ -246,7 +246,7 @@ export default function AdminLogin() {
 
           <div className="mt-4 p-3 rounded-xl bg-primary/5 border border-primary/10">
             <p className="text-xs text-primary/80 text-center font-medium">
-              Authorized personnel only. Secure login via Supabase.
+              Authorized personnel only.
             </p>
           </div>
 
