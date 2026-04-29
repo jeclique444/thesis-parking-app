@@ -28,17 +28,20 @@ supabase: Client = create_client(VITE_SUPABASE_URL, VITE_SUPABASE_SERVICE_KEY)
 #IMPORTANT: Paste your specific parking lot's UUID here!
 TARGET_LOT_ID = "6928d8dc-1562-43cd-bad1-14c8bb412895" # Thesis Demo ID
 
-# Change your update function to target the new column
-def update_supabase_bg(target_id, physical_state):
+def update_supabase_bg(target_id, physical_state, main_status=None):
     def api_call():
         try:
-            # 🔥 FIX: Tell Python to only update physical_status
-            supabase.table('parking_slots').update({
-                'physical_status': physical_state 
-            }).eq('id', target_id).execute()
+            # Always update the camera's column
+            data_to_update = {'physical_status': physical_state}
+            
+            # If we also passed a main status (like "occupied" or "available"), update that too!
+            if main_status is not None:
+                data_to_update['status'] = main_status
+                
+            supabase.table('parking_slots').update(data_to_update).eq('id', target_id).execute()
         except Exception as e:
             print(f"Background Supabase update failed: {e}")
-    
+            
     threading.Thread(target=api_call).start()
 
 # ---------------------------------------------------------
@@ -211,7 +214,7 @@ print("Warmup complete!")
 
 # Camera RTSP Stream (Or use 0 for webcam testing)
 video_path = "rtsp://admincam:admin123@10.0.1.69:554/stream1" 
-cap = RTSPStream(0) 
+cap = RTSPStream(video_path) 
 
 print("Waiting for stream to stabilize...")
 time.sleep(2)
@@ -332,7 +335,6 @@ while True:
                     is_occupied = True
                     break
 
-            # Use the true database label instead of the list order
             slot_label = slot_labels[i]
 
             if is_occupied:
@@ -340,9 +342,13 @@ while True:
                     slot_data[i]["status"] = "FULL"
                     slot_data[i]["time_in"] = time.time()
                     
-                    # 🔥 Send "occupied" to update_supabase_bg
-                    # (Make sure update_supabase_bg is pointing to the new 'physical_status' column!)
-                    update_supabase_bg(slot_ids[i], "occupied")
+                    # 🔥 SMART SYNC: 
+                    # If it's NOT reserved, update both columns to "occupied" (Turns it Red)
+                    # If it IS reserved, only update physical status to "occupied" (Keeps it Amber)
+                    if slot_data[i].get("db_status") != "reserved":
+                        update_supabase_bg(slot_ids[i], "occupied", "occupied")
+                    else:
+                        update_supabase_bg(slot_ids[i], "occupied", None)
 
                 elapsed = int(time.time() - slot_data[i]["time_in"])
                 mins, secs = divmod(elapsed, 60)
@@ -356,9 +362,12 @@ while True:
                     slot_data[i]["status"] = "FREE"
                     slot_data[i]["time_in"] = 0
                     
-                    # 🔥 Send "empty" to update_supabase_bg 
-                    # We use "empty" instead of "available" so it doesn't get confused with booking terms
-                    update_supabase_bg(slot_ids[i], "empty")
+                    # 🔥 SMART SYNC:
+                    # When a car leaves, if it wasn't reserved, make it "available" again
+                    if slot_data[i].get("db_status") != "reserved":
+                        update_supabase_bg(slot_ids[i], "empty", "available")
+                    else:
+                        update_supabase_bg(slot_ids[i], "empty", None)
 
                 color = (0, 255, 0)  # Green
                 text = f"{slot_label}: FREE"
@@ -367,7 +376,6 @@ while True:
             cv2.polylines(display_frame, [slot], True, color, 3)
             cv2.putText(display_frame, text, (slot[0][0], slot[0][1] - 15),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
-
 # ---------------------------------------------------------
 # 9. UI RENDERING & FLASK SYNC
 # ---------------------------------------------------------
