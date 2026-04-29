@@ -3,7 +3,7 @@
  * Design: Civic Tech / Filipino Urban Identity
  * Full-screen admin login with navy sidebar and form
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,12 +14,69 @@ import { supabase } from "@/supabaseClient";
 import TrueFocus from "@/components/ui/focus";
 import DarkVeil from "@/components/ui/dark-veil"; 
 
+const OCCUPIED_SLOT_STATUSES = ["occupied", "reserved", "booked", "active"];
+
 export default function AdminLogin() {
   const [, navigate] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loginStats, setLoginStats] = useState([
+    { label: "Accredited Partners", value: "..." },
+    { label: "Occupancy Rate", value: "..." },
+    { label: "Users", value: "..." },
+  ]);
+
+  useEffect(() => {
+    const fetchLoginStats = async () => {
+      try {
+        const [
+          accreditedLotsResult,
+          slotsResult,
+          usersResult,
+        ] = await Promise.all([
+          supabase
+            .from("parking_lots")
+            .select("id", { count: "exact", head: true })
+            .eq("is_accredited", true),
+          supabase
+            .from("parking_slots")
+            .select("status"),
+          supabase
+            .from("profiles")
+            .select("id", { count: "exact", head: true }),
+        ]);
+
+        if (accreditedLotsResult.error) throw accreditedLotsResult.error;
+        if (slotsResult.error) throw slotsResult.error;
+        if (usersResult.error) throw usersResult.error;
+
+        const slots = slotsResult.data || [];
+        const occupiedSlots = slots.filter((slot) =>
+          OCCUPIED_SLOT_STATUSES.includes(String(slot.status || "").toLowerCase())
+        ).length;
+        const occupancyRate = slots.length > 0
+          ? Math.round((occupiedSlots / slots.length) * 100)
+          : 0;
+
+        setLoginStats([
+          { label: "Accredited Partners", value: String(accreditedLotsResult.count ?? 0) },
+          { label: "Occupancy Rate", value: `${occupancyRate}%` },
+          { label: "Users", value: String(usersResult.count ?? 0) },
+        ]);
+      } catch (error) {
+        console.error("Failed to load admin login stats:", error);
+        setLoginStats([
+          { label: "Accredited Partners", value: "0" },
+          { label: "Occupancy Rate", value: "0%" },
+          { label: "Users", value: "0" },
+        ]);
+      }
+    };
+
+    fetchLoginStats();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,11 +202,7 @@ export default function AdminLogin() {
             {/* Stats Grid */}
             <div className="w-full flex justify-center mt-12">
               <div className="grid grid-cols-3 gap-4 w-full max-w-md">
-                {[
-                  { label: "Registered Partners", value: "4" },
-                  { label: "Occupancy Rate", value: "86%" },
-                  { label: "Active Users", value: "28" },
-                ].map(({ label, value }) => (
+                {loginStats.map(({ label, value }) => (
                   <div key={label} className="bg-black/30 rounded-xl p-4 text-center backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors shadow-lg">
                     <p className="text-3xl font-extrabold text-white">{value}</p>
                     <p className="text-[10px] text-white/70 mt-1 uppercase tracking-wider font-semibold">{label}</p>

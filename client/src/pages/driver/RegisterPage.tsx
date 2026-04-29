@@ -18,6 +18,8 @@ const ALLOWED_CAR_BRANDS = [
   "MG", "Mini", "Mitsubishi", "Nissan", "Omoda", "Peugeot", "Porsche", "Subaru", "Suzuki", "Tata", "Toyota", "Volkswagen", "Volvo", "Wuling"
 ];
 
+const PH_MOBILE_REGEX = /^09\d{9}$/;
+
 export default function RegisterPage() {
   const [, navigate] = useLocation();
   const [step, setStep] = useState(1);
@@ -106,9 +108,8 @@ export default function RegisterPage() {
       return;
     }
 
-    const phoneRegex = /^[0-9]{11}$/;
-    if (!phoneRegex.test(phoneNumber)) {
-      toast.error("Contact number must be exactly 11 digits.");
+    if (!PH_MOBILE_REGEX.test(phoneNumber)) {
+      toast.error("Please enter a valid Philippine mobile number (e.g., 09XXXXXXXXX).");
       return;
     }
 
@@ -394,7 +395,7 @@ export default function RegisterPage() {
               {/* Fields as before ... */}
               <div><label className="text-sm font-bold text-slate-800 mb-1.5 block">Full Name</label><input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Juan dela Cruz" className="w-full h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:bg-white focus:ring-2 focus:ring-navy-900 outline-none transition-all" /></div>
               <div><label className="text-sm font-bold text-slate-800 mb-1.5 block">Email Address</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="juan@example.com" className="w-full h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:bg-white focus:ring-2 focus:ring-navy-900 outline-none transition-all" /></div>
-              <div><label className="text-sm font-bold text-slate-800 mb-1.5 block">Contact Number</label><input type="tel" value={phoneNumber} onChange={(e) => { const onlyNumbers = e.target.value.replace(/[^0-9]/g, ''); if (onlyNumbers.length <= 11) setPhoneNumber(onlyNumbers); }} placeholder="09XXXXXXXXX" className="w-full h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:bg-white focus:ring-2 focus:ring-navy-900 outline-none transition-all" /></div>
+              <div><label className="text-sm font-bold text-slate-800 mb-1.5 block">Contact Number</label><input type="tel" inputMode="numeric" maxLength={11} value={phoneNumber} onChange={(e) => { const onlyNumbers = e.target.value.replace(/[^0-9]/g, ''); if (onlyNumbers.length <= 11) setPhoneNumber(onlyNumbers); }} placeholder="09XXXXXXXXX" className="w-full h-12 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:bg-white focus:ring-2 focus:ring-navy-900 outline-none transition-all" /><p className="text-xs text-slate-400 mt-1">Use a valid PH mobile number starting with 09.</p></div>
               <div><label className="text-sm font-bold text-slate-800 mb-1.5 block">Password</label><div className="relative"><input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 8 characters" className="w-full h-12 pl-4 pr-12 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:bg-white focus:ring-2 focus:ring-navy-900 outline-none transition-all" /><button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 p-1">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>{password && <div className="mt-1.5 text-xs font-semibold"><span className={getPasswordStrength(password) === "Very Strong Password" ? "text-green-600" : getPasswordStrength(password) === "Strong Password" ? "text-amber-500" : "text-red-500"}>{getPasswordStrength(password)}</span></div>}</div>
               <div><label className="text-sm font-bold text-slate-800 mb-1.5 block">Confirm Password</label><div className="relative"><input type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Re-type your password" className="w-full h-12 pl-4 pr-12 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:bg-white focus:ring-2 focus:ring-navy-900 outline-none transition-all" /><button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 p-1">{showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>{confirmPassword && password !== confirmPassword && <div className="mt-1.5 text-xs font-semibold text-red-500">Password do not match</div>}</div>
               <div className="pt-4 pb-2"><Button onClick={handleNextStep} disabled={loading} className="w-full h-14 text-base font-bold rounded-xl shadow-lg transition-transform active:scale-95 text-white disabled:opacity-70" style={{ background: "oklch(0.22 0.07 255)" }}>{loading ? <Loader2 className="animate-spin" size={20} /> : "Continue"}</Button></div>

@@ -31,6 +31,7 @@ export default function AdminReports() {
 
   const userRole = localStorage.getItem("admin_role");
   const userLotId = localStorage.getItem("admin_lot_id");
+  const isSuperAdmin = userRole === "superadmin" || userRole === "super_admin";
 
   // Refs for each report section
   const compositionRef = useRef<HTMLDivElement>(null);
@@ -40,6 +41,12 @@ export default function AdminReports() {
   const weeklyRef = useRef<HTMLDivElement>(null);
   const hourlyRef = useRef<HTMLDivElement>(null);
   const lotRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isSuperAdmin && viewOption === "toplots") {
+      setViewOption("all");
+    }
+  }, [isSuperAdmin, viewOption]);
 
   useEffect(() => {
     fetchReportData();
@@ -231,8 +238,10 @@ export default function AdminReports() {
         title = "Daily_Revenue_Report";
         break;
       case "toplots":
-        content = topLotsRef.current ? topLotsRef.current.cloneNode(true) as HTMLElement : null;
-        title = "Top_Lots_Report";
+        if (isSuperAdmin) {
+          content = topLotsRef.current ? topLotsRef.current.cloneNode(true) as HTMLElement : null;
+          title = "Top_Lots_Report";
+        }
         break;
       case "monthly":
         content = monthlyRef.current ? monthlyRef.current.cloneNode(true) as HTMLElement : null;
@@ -253,7 +262,7 @@ export default function AdminReports() {
       case "all":
       default:
         content = buildWrapper([
-          compositionRef, dailyRef, topLotsRef,
+          compositionRef, dailyRef, isSuperAdmin ? topLotsRef : null,
           monthlyRef, weeklyRef, hourlyRef, lotRef
         ]);
         title = "All_Reports";
@@ -330,9 +339,10 @@ export default function AdminReports() {
   }
 
   const showSection = (section: string) => viewOption === "all" || viewOption === section;
+  const showTopLots = isSuperAdmin && showSection("toplots");
 
   return (
-    <AdminLayout title={userRole === 'super_admin' ? "System Analytics" : "Lot Analytics"}>
+    <AdminLayout title={isSuperAdmin ? "System Analytics" : "Lot Analytics"}>
       <div className="space-y-6 pb-10">
         
         {/* Control Bar */}
@@ -348,7 +358,7 @@ export default function AdminReports() {
               <option value="all">All Reports</option>
               <option value="composition">Revenue Composition</option>
               <option value="daily">Daily Revenue</option>
-              <option value="toplots">Top 5 Lots</option>
+              {isSuperAdmin && <option value="toplots">Top 5 Lots</option>}
               <option value="monthly">Monthly Revenue</option>
               <option value="weekly">Weekly Occupancy</option>
               <option value="hourly">Hourly Pattern</option>
@@ -402,7 +412,7 @@ export default function AdminReports() {
         )}
 
         {/* Top 5 Lots */}
-        {showSection("toplots") && (
+        {showTopLots && (
           <div ref={topLotsRef} className="bg-white rounded-2xl p-5 border shadow-sm">
             <h3 className="text-lg font-black mb-4">Top 5 Parking Lots by Revenue</h3>
             <div className="space-y-3">
@@ -486,7 +496,7 @@ export default function AdminReports() {
           <div ref={lotRef} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
             <h3 className="text-lg font-black text-slate-900 mb-4 flex items-center gap-2">
               <MapPin size={20} className="text-primary" />
-              {userRole === 'super_admin' ? "Revenue by Parking Lot" : "Your Lot Performance"}
+              {isSuperAdmin ? "Revenue by Parking Lot" : "Your Lot Performance"}
             </h3>
             <div className="overflow-x-auto">
               <table className="w-full">
