@@ -73,16 +73,26 @@ def sync_db_loop():
                     db_id = row['id']
                     coords = row.get('coordinates')
                     label = row.get('label', 'Unknown')
+                    
+                    # 🔥 CRITICAL FIX: Fetch the live status from the database!
+                    current_db_status = row.get('status') 
 
                     if coords:
                         mapped_db_ids.append(db_id)
-                        # FIX: Load existing drawn slots from the database on startup!
+                        
+                        # If it's a new slot loading for the first time
                         if db_id not in slot_ids:
                             print(f"Loaded existing slot from DB: {label}")
                             slot_ids.append(db_id)
                             slot_labels.append(label)
                             all_slots.append(np.array(coords, np.int32))
-                            slot_data.append({"status": "FREE", "time_in": 0})
+                            # Add the db_status to our tracker
+                            slot_data.append({"status": "FREE", "time_in": 0, "db_status": current_db_status})
+                        else:
+                            # 🔥 CRITICAL FIX: If the slot is already loaded, continuously update its db_status!
+                            # This way, if someone reserves a slot on the web UI, Python instantly knows about it.
+                            idx = slot_ids.index(db_id)
+                            slot_data[idx]["db_status"] = current_db_status
                     else:
                         unmapped_slots.append(row)
 
@@ -213,7 +223,7 @@ model.predict(dummy, verbose=False, conf=0.4, imgsz=416, device="cpu")
 print("Warmup complete!")
 
 # Camera RTSP Stream (Or use 0 for webcam testing)
-video_path = "rtsp://admincam:admin123@10.0.1.69:554/stream1" 
+video_path = "rtsp://admincam:admin123@10.21.49.127:554/stream1" 
 cap = RTSPStream(video_path) 
 
 print("Waiting for stream to stabilize...")
